@@ -1,0 +1,13 @@
+{
+  "ball_roll": ["ball_roll.mp3"],
+  "pins": ["pins.mp3"],
+  "strike": ["strike_sting.mp3"],
+  "spare": ["spare_sting.mp3"],
+  "crowd_roar": ["crowd_roar.mp3"],
+  "crowd_gasp": ["crowd_gasp.mp3"],
+  "crowd_groan": ["crowd_groan.mp3"],
+  "streak": ["streak_sting.mp3"],
+  "tension": ["perfect_tension.mp3"],
+  "champion": ["champion_fanfare.mp3"],
+  "entrance": ["entrance_sting.mp3"]
+}

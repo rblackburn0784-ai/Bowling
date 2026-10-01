@@ -1,0 +1,103 @@
+import asyncio,discord
+from discord import app_commands
+from discord.ext import commands
+from services.roster import team_roster
+from models.bowler import Bowler
+from services.game_engine import GameSession
+from services.state import SESSIONS
+from services.media import pick
+from services.lane_visual import lane_card
+from services.audio import play_sound
+from services.presentation import classify,AUDIO_MAP,GIF_MAP
+from services.commentary import line,streak_call,rivalry_call,contact_call
+from services.analytics import player_summary
+from storage.database import record_completed_session,connect
+from services.v25 import save_snapshot,clear_session,unlock_achievements,award_progression,backup_database,audit
+from ui.embeds import scoreboard_embed
+
+def rb(r,team=None):
+ b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']});b.team_name=team;return b
+async def send_media(channel,kind):
+ url=pick(kind)
+ if url:await channel.send(url)
+class Games(commands.Cog):
+ def __init__(self,bot):self.bot=bot
+ @app_commands.command(name='game_start',description='Start a team or team-v-team bowling game')
+ @app_commands.choices(lane=[app_commands.Choice(name=x.title(),value=x) for x in ['house','fresh','dry','oily','transition']])
+ async def start(self,i:discord.Interaction,team:str,opponent:str|None=None,lane:app_commands.Choice[str]|None=None,seed:int|None=None):
+  ra=team_roster(team);rr=team_roster(opponent) if opponent else []
+  if not ra:return await i.response.send_message('No roster found for the first team.',ephemeral=True)
+  if opponent and not rr:return await i.response.send_message('No roster found for the opponent.',ephemeral=True)
+  bowlers=[]
+  if opponent:
+   for n in range(max(len(ra),len(rr))):
+    if n<len(ra):bowlers.append(rb(ra[n],team))
+    if n<len(rr):bowlers.append(rb(rr[n],opponent))
+  else:bowlers=[rb(x,team) for x in ra]
+  s=GameSession(bowlers,seed,lane.value if lane else 'house');SESSIONS[i.channel_id]=s
+  await i.response.send_message(f"🎤 **WELCOME TO THE GUTTER SAINTS LANES!**\n**{team}**"+(f' vs **{opponent}**' if opponent else ''))
+  for b in bowlers:await i.channel.send(line('entrance',name=b.name));await send_media(i.channel,'entrance')
+  await i.channel.send(embed=scoreboard_embed(s))
+ @app_commands.command(name='game_bowl',description='Bowl the next delivery')
+ async def bowl(self,i:discord.Interaction):
+  s=SESSIONS.get(i.channel_id)
+  if not s:return await i.response.send_message('No active game in this channel.',ephemeral=True)
+  if s.complete:return await i.response.send_message('Game already complete.',ephemeral=True)
+  save_snapshot(i.channel_id,s,'pre_ball');ev=s.bowl();save_snapshot(i.channel_id,s,'post_ball');card=lane_card(s,ev);await i.response.send_message(embed=scoreboard_embed(s,ev),file=discord.File(card,filename='gutter_lane.png'));await self.reaction(i.channel,s,ev)
+  if s.complete:await self.finish(i.channel,s,i.channel_id)
+ @app_commands.command(name='game_auto',description='Run the active game live with commentary and reactions')
+ async def auto(self,i:discord.Interaction,delay:app_commands.Range[float,0.0,5.0]=0.7):
+  s=SESSIONS.get(i.channel_id)
+  if not s:return await i.response.send_message('No active game.',ephemeral=True)
+  await i.response.defer();msg=await i.followup.send(embed=scoreboard_embed(s),wait=True)
+  while not s.complete:
+   save_snapshot(i.channel_id,s,'pre_ball');ev=s.bowl();save_snapshot(i.channel_id,s,'post_ball');await msg.edit(embed=scoreboard_embed(s,ev));card=lane_card(s,ev);await i.channel.send(file=discord.File(card,filename='gutter_lane.png'),delete_after=max(8.0,delay*3));await self.reaction(i.channel,s,ev);await asyncio.sleep(delay)
+  await self.finish(i.channel,s,i.channel_id)
+ @app_commands.command(name='game_scoreboard')
+ async def board(self,i:discord.Interaction):
+  s=SESSIONS.get(i.channel_id);await i.response.send_message(embed=scoreboard_embed(s) if s else None,content=None if s else 'No active game.',ephemeral=not bool(s))
+ async def reaction(self,ch,s,ev):
+  event_kind=classify(ev);kind=GIF_MAP.get(event_kind,event_kind)
+  if kind!='delivery':
+   await send_media(ch,kind)
+   if event_kind in ('strike','spare','turkey','six_pack','front_nine','perfect_watch','perfect_300','split_conversion','seven_ten_conversion'):await send_media(ch,'crowd_hype')
+   elif event_kind in ('split','seven_ten','gutter'):await send_media(ch,'crowd_groan')
+  await play_sound(ch,AUDIO_MAP.get(event_kind,'pins'))
+  contact=contact_call(ev)
+  if contact:await ch.send(contact)
+  call=streak_call(ev)
+  if call:await ch.send(call)
+  rival=rivalry_call(ev)
+  if rival:await ch.send(rival)
+ async def finish(self,ch,s,key):
+  gid=record_completed_session(s,key);totals=s.team_totals(); winner=max(totals,key=totals.get) if len(totals)>1 and len(set(totals.values()))>1 else None
+  await ch.send('🏁 **GAME COMPLETE!**',embed=scoreboard_embed(s));summaries=sorted(((p,player_summary(p)) for p in s.players),key=lambda x:x[1]['score'],reverse=True);high=summaries[0];awards=[f"👑 **High Game:** {high[0].bowler.name} — {high[1]['score']}"]
+  clean=[p.bowler.name for p,x in summaries if x['clean']]
+  if clean:awards.append('✨ **Clean Game:** '+', '.join(clean))
+  best_streak=max(summaries,key=lambda x:x[1]['longest_streak'])
+  if best_streak[1]['longest_streak']>=3:awards.append(f"🔥 **Strike Run:** {best_streak[0].bowler.name} — {best_streak[1]['longest_streak']} straight")
+  split=max(summaries,key=lambda x:x[1]['split_conversions'])
+  if split[1]['split_conversions']:awards.append(f"🪓 **Split Slayer:** {split[0].bowler.name} — {split[1]['split_conversions']} converted")
+  if winner:awards.insert(0,f'🏆 **Team Winner: {winner}** — {totals[winner]}')
+  await ch.send('🎖️ **POST-GAME HONOURS**\n'+'\n'.join(awards));achievement_cards=[]
+  with connect() as c:
+   season=c.execute("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").fetchone(); season_id=season['id'] if season else None
+   for p,sm in summaries:
+    team_name=getattr(p.bowler,'team_name',None);tr=c.execute('SELECT id FROM teams WHERE name=? COLLATE NOCASE',(team_name,)).fetchone() if team_name else None;tid=tr['id'] if tr else None
+    c.execute('INSERT INTO game_history(game_id,bowler_id,season_id,tournament_id,team_id,score,strikes,spares,splits,split_conversions,longest_streak,clean,form) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',(gid,p.bowler.id,season_id,s.tournament_id,tid,sm['score'],sm['strikes'],sm['spares'],sm['splits'],sm['split_conversions'],sm['longest_streak'],sm['clean'],getattr(p,'form',0)))
+    award_progression(p.bowler.id,sm['score'],bool(s.tournament_id),winner==team_name);seven_ten='7–10 Split' in getattr(p,'special_conversions',set())
+    for title,detail in unlock_achievements(p.bowler.id,sm,{'seven_ten':seven_ten}):achievement_cards.append((p.bowler.name,title,detail))
+  for name,title,detail in achievement_cards:
+   e=discord.Embed(title=f'🏅 ACHIEVEMENT UNLOCKED — {title}',description=f'**{name}**\n{detail}',colour=discord.Colour.gold());await ch.send(embed=e);await send_media(ch,'award')
+  if s.tournament_id and s.match_id and len(totals)==2 and winner:
+   backup_database('auto_tournament_result')
+   with connect() as c:
+    m=c.execute('SELECT * FROM tournament_matches WHERE id=?',(s.match_id,)).fetchone();ta=c.execute('SELECT name FROM teams WHERE id=?',(m['team_a_id'],)).fetchone()['name'];tb=c.execute('SELECT name FROM teams WHERE id=?',(m['team_b_id'],)).fetchone()['name'];sa=totals.get(ta,0);sb=totals.get(tb,0);wid=m['team_a_id'] if sa>sb else m['team_b_id']
+    c.execute('UPDATE tournament_matches SET score_a=?,score_b=?,winner_id=?,status="complete" WHERE id=?',(sa,sb,wid,m['id']));c.execute('INSERT INTO head_to_head(team_a_id,team_b_id,winner_id,score_a,score_b,tournament_id,match_id) VALUES(?,?,?,?,?,?,?)',(m['team_a_id'],m['team_b_id'],wid,sa,sb,s.tournament_id,m['id']))
+    for team_id,won,score in [(m['team_a_id'],wid==m['team_a_id'],sa),(m['team_b_id'],wid==m['team_b_id'],sb)]:c.execute('INSERT OR IGNORE INTO team_history(team_id) VALUES(?)',(team_id,));c.execute('UPDATE team_history SET wins=wins+?,losses=losses+?,high_game=MAX(high_game,?) WHERE team_id=?',(int(won),int(not won),score,team_id))
+    c.execute('INSERT INTO tournament_stories(tournament_id,match_id,kind,headline,detail) VALUES(?,?,?,?,?)',(s.tournament_id,s.match_id,'result','Match decided',f'{winner} defeated its opponent {max(totals.values())}-{min(totals.values())}.'))
+   from services.competition import _advance_byes
+   with connect() as c:_advance_byes(c,s.tournament_id)
+   await ch.send(f'🏆 **TOURNAMENT UPDATE:** {winner} advances automatically.')
+  clear_session(key)
+async def setup(bot):await bot.add_cog(Games(bot))

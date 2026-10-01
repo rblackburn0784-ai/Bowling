@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+data/gutter_saints.db
+data/backups/
+data/exports/
+data/lane_cards/
+assets/sounds/*.mp3
+assets/sounds/*.ogg
+assets/sounds/*.wav
