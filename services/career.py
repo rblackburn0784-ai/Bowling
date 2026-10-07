@@ -64,10 +64,14 @@ def rollback_delivery_changes(bowler_id,changes):
     c.execute(f'UPDATE bowlers SET {stat}=? WHERE id=?',(row['old_value'],bowler_id));c.execute('DELETE FROM attribute_history WHERE id=?',(row['id'],))
 
 
+def xp_for_rank(rank):
+ if rank<=1:return 0
+ return int(120*((rank-1)**(1/0.72)))
+
 def rank_progress(xp, rank):
-    if rank >= 100:return 100.0,None
-    nxt=int(120*(rank**1.3888889));prev=0 if rank<=1 else int(120*((rank-1)**1.3888889))
-    return max(0,min(100,(xp-prev)/max(1,nxt-prev)*100)),nxt
+ if rank>=100:return 100.0,None
+ prev=xp_for_rank(rank);nxt=xp_for_rank(rank+1)
+ return max(0,min(100,(xp-prev)/max(1,nxt-prev)*100)),nxt
 
 
 def rank_ladder():
