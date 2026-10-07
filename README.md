@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.7.1 — Integration & Polish
+# Gutter Saints Bowling Bot v2.7.5 — Simulation & Balance Lab
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -39,3 +39,4 @@ GIF/media URLs live in `assets/media.json`. Audio mappings live in `assets/audio
 
 ## Data safety
 The live SQLite DB, backups, exports, generated lane cards, `.env`, caches and local sound files remain ignored by Git.
+\n\n## v2.7.5 Simulation & Balance Lab\nAdmin-only /simulation_lab runs 1,000–100,000 headless games per build. Controlled tests cover Rank 20 vs 30, Accuracy vs Spin, handedness and Nerves, across all oil patterns and fresh/transitioned/burnt starting lanes. Reports average, 95% CI, strike/spare rates, 200+/250+/300 rates and dominance warnings, with optional CSV export. Deterministic seeds make balance changes regression-testable.\n
