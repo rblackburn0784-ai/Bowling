@@ -96,8 +96,11 @@ def generate_schedule(cid):
    for group,members in groups.items():
     for a,b in itertools.combinations(members,2):_fixture(c,cid,sid,1,no,a,b);no+=1
   elif fmt=='double_elimination':
-   sid=_stage(c,cid,1,'Winners Bracket','double_elimination')
-   for n,(a,b) in enumerate(zip(ids[::2],ids[1::2]),1):_fixture(c,cid,sid,1,n,a,b)
+   sid=_stage(c,cid,1,'Double Elimination','double_elimination')
+   arr=ids+([None] if len(ids)%2 else [])
+   for n in range(0,len(arr),2):
+    a,b=arr[n],arr[n+1];w=a if a and not b else None
+    _fixture(c,cid,sid,1,n//2+1,a,b,status='complete' if w else 'scheduled',winner=w,bracket='winners')
   else:return False,'Unsupported format.'
   for e in ids:c.execute('INSERT OR IGNORE INTO competition_standings(competition_id,entrant_id) VALUES(?,?)',(cid,e))
  return True,None
