@@ -21,8 +21,13 @@ def finalize_tournament_honours(tournament_id):
   champs=c.execute('SELECT b.id,b.name FROM team_members tm JOIN bowlers b ON b.id=tm.bowler_id WHERE tm.team_id=?',(champion,)).fetchall()
   runners=c.execute('SELECT b.id,b.name FROM team_members tm JOIN bowlers b ON b.id=tm.bowler_id WHERE tm.team_id=?',(runner,)).fetchall() if runner else []
   leaders=c.execute('SELECT s.*,b.name FROM tournament_bowler_stats s JOIN bowlers b ON b.id=s.bowler_id WHERE s.tournament_id=?',(tournament_id,)).fetchall()
-  c.execute('INSERT OR IGNORE INTO team_history(team_id) VALUES(?)',(champion,));c.execute('UPDATE team_history SET championships=championships+1,finals=finals+1 WHERE team_id=? AND NOT EXISTS(SELECT 1 FROM career_honours WHERE tournament_id=? AND code="champion")',(champion,tournament_id))
-  if runner:c.execute('INSERT OR IGNORE INTO team_history(team_id) VALUES(?)',(runner,))
+  c.execute('INSERT OR IGNORE INTO team_history(team_id) VALUES(?)',(champion,))
+  # Team honours are updated only when this tournament has never issued a champion honour.
+  already=c.execute('SELECT 1 FROM career_honours WHERE tournament_id=? AND code="champion" LIMIT 1',(tournament_id,)).fetchone()
+  if not already:c.execute('UPDATE team_history SET championships=championships+1,finals=finals+1 WHERE team_id=?',(champion,))
+  if runner:
+   c.execute('INSERT OR IGNORE INTO team_history(team_id) VALUES(?)',(runner,))
+   if not already:c.execute('UPDATE team_history SET finals=finals+1 WHERE team_id=?',(runner,))
  name=t['name'];new=[]
  for b in champs:
   if _honour(b['id'],tournament_id,'champion',f'🏆 {name} Champion',f'Won {name} with {champ_name}.',1):new.append((b['name'],'Champion'))
