@@ -23,7 +23,8 @@ def bowler_embed(b):
     for n in ('accuracy','consistency','spin','nerves','style','flair'):
         base=o[n] if o else getattr(b,n);now=getattr(b,n);d=now-base;mark=f"▲{d}" if d>0 else f"▼{abs(d)}" if d<0 else '—';lines.append(f"**{n.title()}** {base} → **{now}** {mark}")
     e.add_field(name='🧬 Rookie → Current',value='\n'.join(lines),inline=True)
-    e.add_field(name='📊 Career',value=f"Games **{games}**\n200+ **{s.get('games_200',0)}** • 250+ **{s.get('games_250',0)}** • 300 **{s.get('perfect_games',0)}**\nClean **{s.get('clean_games',0)}**\nSplits **{s.get('split_conversions',0)}/{s.get('splits',0)}**",inline=True)
+    strike_pct=(s.get('strikes',0)/(games*10)*100) if games else 0;spare_chances=max(0,games*10-s.get('strikes',0));spare_pct=(s.get('spares',0)/spare_chances*100) if spare_chances else 0
+    e.add_field(name='📊 Career',value=f"Games **{games}**\n200+ **{s.get('games_200',0)}** • 250+ **{s.get('games_250',0)}** • 300 **{s.get('perfect_games',0)}**\nClean **{s.get('clean_games',0)}**\nStrike **{strike_pct:.1f}%** • Spare **{spare_pct:.1f}%**\nSplits **{s.get('split_conversions',0)}/{s.get('splits',0)}**",inline=True)
     e.add_field(name='🏅 Legacy',value=f"Achievements **{ac['n']}** • Awards **{aw['n']}**\nCredits **{p['credits'] if p else 0}**",inline=False)
     e.set_footer(text=f'Attribute total: {b.stat_total} • Rank is career prestige')
     return e
