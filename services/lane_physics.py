@@ -40,14 +40,16 @@ class LanePair:
         self.next_side[bowler_id]=1-side
         return lane
 
-def release_metrics(bowler, ball, lane, pressure=0.0):
-    accuracy=max(0,min(50,bowler.accuracy)); spin=max(0,min(50,bowler.spin))
+def release_metrics(bowler, ball, lane, pressure=0.0,intent=None):
+    from services.shot_strategy import get_intent
+    intent=get_intent(intent);accuracy=max(0,min(50,bowler.accuracy)); spin=max(0,min(50,bowler.spin))
     consistency=max(0,min(50,bowler.consistency)); nerves=max(0,min(50,bowler.nerves))
     speed=15.0 + (bowler.accuracy/50)*1.1 + (bowler.consistency/50)*.7 - (spin/50)*.55
-    revs=205 + spin*7.2 + bowler.style*1.25
+    speed+= {'safe':-.25,'aggressive':.45,'recovery':-.55,'spare':.15}.get(intent.key,0)
+    revs=(205 + spin*7.2 + bowler.style*1.25)*intent.hook
     breakpoint=PATTERNS.get(lane.pattern_key,PATTERNS["house"])["length"] + (ball.length-.5)*3.8
     breakpoint-= lane.transition*2.1
     entry=3.0 + (spin/50)*3.1*ball.hook - lane.oil*.65 + lane.transition*.75
-    control=.50 + accuracy/100 + consistency/180 + (nerves-25)/250*pressure
+    control=.50 + accuracy/100 + consistency/180 + (nerves-25)/250*pressure + intent.control
     return {"speed":round(speed,1),"revs":int(revs),"entry_angle":round(entry,1),
             "breakpoint":round(breakpoint,1),"control":max(.15,min(.98,control))}
