@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.7.9.5 — Broadcast Director & Match Stories
+# Gutter Saints Bowling Bot v2.7.9.7 — Gutter Gazette
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,14 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.7.9.7 Gutter Gazette
+- Adds persistent newspaper-style tournament issues built entirely from recorded match/story/stat data.
+- Headlines prioritise real perfect-game watches and comebacks, then fall back to the tournament high-game story.
+- Issues include Player of the Issue, High Game, strike threat, Split Slayer, comeback/match drama, career attribute movement and latest result when available.
+- Each issue is stored as a historical snapshot; later stat changes do not rewrite old editions.
+- Tournament Director can publish an issue manually and tournament matches auto-publish after completion.
+- Public menu gains Gutter Gazette access with the latest issue and a compact recent-issue archive.
 
 ## v2.7.9.5 Broadcast Director & Match Stories
 - Adds a stateful Broadcast Director that remembers match context instead of generating isolated reactions.
