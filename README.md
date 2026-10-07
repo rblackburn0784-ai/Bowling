@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.7.9.2 — Living Lanes
+# Gutter Saints Bowling Bot v2.7.9.5 — Broadcast Director & Match Stories
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,14 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.7.9.5 Broadcast Director & Match Stories
+- Adds a stateful Broadcast Director that remembers match context instead of generating isolated reactions.
+- Detects meaningful lead changes, comeback swings, close late matches, PB pace, long perfect-game runs, rivalry responses, lane adaptations and late tournament pressure.
+- Story beats are de-duplicated so the same narrative is not repeated every delivery.
+- Tournament story beats persist in `tournament_stories` and survive match/session recovery.
+- Post-game Match Story selects the strongest narrative beats from the contest for a compact recap.
+- Broadcast state (leader, comeback lows and already-used story beats) survives Undo/Restore.
 
 ## v2.7.9.2 Living Lanes
 - Left and right lanes now evolve independently with spatial inside/track/outside burn plus carrydown.
