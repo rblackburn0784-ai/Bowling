@@ -1,10 +1,10 @@
 import discord
-from services.commentary import event_text,perfect_watch
+from services.commentary import event_text,perfect_watch\nfrom services.career import rank_title
 
 def bowler_embed(b):
-    e=discord.Embed(title=f'🎳 {b.name}',description=f'{b.handedness}-handed bowler')
+    e=discord.Embed(title=f'🎳 {b.name}',description=f'{b.handedness}-handed bowler • **{rank_title(b.rank)} — Rank {b.rank}**')
     for n in ['rank','accuracy','consistency','spin','nerves','style','flair']:e.add_field(name=n.title(),value=getattr(b,n),inline=True)
-    e.set_footer(text=f'Stat total: {b.stat_total}');return e
+    e.set_footer(text=f'Bowling attribute total: {b.stat_total}');return e
 
 def scoreboard_embed(session,last=None,team_names=None):
     e=discord.Embed(title='🎳 Gutter Saints — Live Game',description=f'Lane: **{session.lane.title()}** • Seed: `{session.seed}`')

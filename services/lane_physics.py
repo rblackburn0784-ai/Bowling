@@ -43,7 +43,7 @@ class LanePair:
 def release_metrics(bowler, ball, lane, pressure=0.0):
     accuracy=max(0,min(50,bowler.accuracy)); spin=max(0,min(50,bowler.spin))
     consistency=max(0,min(50,bowler.consistency)); nerves=max(0,min(50,bowler.nerves))
-    speed=14.2 + (bowler.rank/50)*4.1 - (spin/50)*.65
+    speed=15.0 + (bowler.accuracy/50)*1.1 + (bowler.consistency/50)*.7 - (spin/50)*.55
     revs=205 + spin*7.2 + bowler.style*1.25
     breakpoint=PATTERNS.get(lane.pattern_key,PATTERNS["house"])["length"] + (ball.length-.5)*3.8
     breakpoint-= lane.transition*2.1

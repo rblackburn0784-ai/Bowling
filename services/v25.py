@@ -65,6 +65,8 @@ def unlock_achievements(bowler_id,summary,extra=None):
 def award_progression(bowler_id,score,tournament=False,won=False):
     xp=10+score//25+(10 if tournament else 0)+(10 if won else 0); credits=1+(1 if score>=200 else 0)+(1 if won else 0)
     with connect() as c:c.execute('INSERT OR IGNORE INTO bowler_progression(bowler_id) VALUES(?)',(bowler_id,));c.execute('UPDATE bowler_progression SET xp=xp+?,credits=MIN(20,credits+?) WHERE bowler_id=?',(xp,credits,bowler_id))
+    from services.career import sync_rank
+    sync_rank(bowler_id)
     return xp,credits
 def tournament_dashboard(name=None):
     with connect() as c:

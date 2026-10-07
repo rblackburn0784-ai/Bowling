@@ -6,7 +6,7 @@ class Bowler:
     name: str
     owner_id: int
     handedness: str = "R"
-    rank: int = 20
+    rank: int = 1
     accuracy: int = 20
     style: int = 10
     flair: int = 10
@@ -17,4 +17,4 @@ class Bowler:
 
     @property
     def stat_total(self):
-        return self.rank+self.accuracy+self.style+self.flair+self.consistency+self.spin+self.nerves
+        return self.accuracy+self.style+self.flair+self.consistency+self.spin+self.nerves
