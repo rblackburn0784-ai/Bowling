@@ -50,3 +50,14 @@ def contact_call(event):
     if q>.75:return '💡 **Light pocket hit** — close, but not quite flush.'
     if q<.45:return '⬆️ **High hit.** The ball never found the ideal line.'
     return None
+
+
+def lane_call(event):
+ a=event.get('adaptation');condition=event.get('lane_condition');lane=event.get('lane_no','?')
+ bits=[]
+ if condition and condition!='still fairly stable':bits.append(f'🛢️ **Lane {lane} {condition}.**')
+ if a:
+  move=a['to_boards']-a['from_boards'];direction='left' if move>0 else 'right';shift=f' and moves **{abs(move)} boards {direction}**' if move else ''
+  if a['from_ball']!=a['to_ball']:bits.append(f"🎳 **{event['bowler']} switches {a['from_ball'].title()} → {a['to_ball'].title()}**{shift} — {a['reason']}.")
+  elif shift:bits.append(f"🎯 **{event['bowler']} moves {abs(move)} boards {direction}** — {a['reason']}.")
+ return '\n'.join(bits) if bits else None
