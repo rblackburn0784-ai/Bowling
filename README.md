@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.8.1 — Competition Operations
+# Gutter Saints Bowling Bot v2.8.2 — Competition Director & UI
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,16 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.8.2 Competition Director & UI
+- Makes Competition Director the primary admin tournament/league surface instead of requiring IDs and slash commands for routine operation.
+- Competition selector with overview, fixtures/results, standings, bracket/stage viewer, playoff picture, locked roster/substitute manager and Start Next Fixture.
+- Start Next Fixture launches the next playable scheduled fixture directly into the full live bowling engine.
+- Double elimination fixtures persist explicit Winners Bracket, Losers Bracket and Grand Final/Reset identity for presentation.
+- Locked team rosters can switch starters/substitutes from dropdown controls; individual competitions need no roster administration.
+- Public Main Menu adds My Competition. Owned bowlers can see current competitions, placement, record, next fixture and active/eliminated state.
+- Double-elimination player status exposes losses used out of two lives.
+- UI remains backed by the same v2.8 competition/stage/fixture engine, so team and individual competitions share one operational model.
 
 ## v2.8.1 Competition Operations
 - Makes every v2.8 format operational for both team and individual entrants through the shared fixture engine.
