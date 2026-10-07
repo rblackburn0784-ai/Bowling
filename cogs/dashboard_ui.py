@@ -123,6 +123,18 @@ class TournamentManageView(Nav):
   if nxt:desc+=f"\nNext: **R{nxt['round_no']} M{nxt['match_no']} — {nxt['team_a']} vs {nxt['team_b']}**"
   await i.response.edit_message(content=None,embed=discord.Embed(title=f"🏆 Tournament Director — {tr['name']}",description=desc),view=DirectorView(tr['name']))
 
+class CompetitionDashboard(Nav):
+ @discord.ui.button(label='🏆 Competition Director',style=discord.ButtonStyle.success)
+ async def director(self,i,b):
+  from cogs.competition_ui import CompetitionDirector
+  await i.response.edit_message(content='🏆 **Competition Director**\nSelect a competition, then manage the season without IDs or slash commands.',embed=None,view=CompetitionDirector())
+ @discord.ui.button(label='📅 Active Competitions',style=discord.ButtonStyle.primary)
+ async def active(self,i,b):
+  from cogs.competition_ui import competition_embed
+  rs=rows("SELECT id,name FROM competitions WHERE state IN ('registration','locked','active') ORDER BY id DESC")
+  if not rs:return await i.response.send_message('No active competitions.',ephemeral=True)
+  await i.response.send_message('\n'.join(f"• **{x['name']}**" for x in rs),ephemeral=True)
+
 class TournamentDashboard(Nav):
  @discord.ui.button(label='➕ Create Tournament',style=discord.ButtonStyle.success)
  async def create(self,i,b):await i.response.send_modal(TournamentCreateModal())
