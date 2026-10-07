@@ -122,6 +122,10 @@ class Games(commands.Cog):
    for p,sm in summaries:
     team_name=getattr(p.bowler,'team_name',None);tr=c.execute('SELECT id FROM teams WHERE name=? COLLATE NOCASE',(team_name,)).fetchone() if team_name else None;tid=tr['id'] if tr else None
     c.execute('INSERT INTO game_history(game_id,bowler_id,season_id,tournament_id,team_id,score,strikes,spares,splits,split_conversions,longest_streak,clean,form) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',(gid,p.bowler.id,season_id,s.tournament_id,tid,sm['score'],sm['strikes'],sm['spares'],sm['splits'],sm['split_conversions'],sm['longest_streak'],sm['clean'],getattr(p,'form',0)))
+    effective_season=getattr(s,'season_id',None) or season_id
+    if effective_season:
+     c.execute('INSERT OR IGNORE INTO season_bowler_stats(season_id,bowler_id) VALUES(?,?)',(effective_season,p.bowler.id))
+     c.execute('UPDATE season_bowler_stats SET games=games+1,total_pins=total_pins+?,high_game=MAX(high_game,?),strikes=strikes+?,spares=spares+?,split_conversions=split_conversions+? WHERE season_id=? AND bowler_id=?',(sm['score'],sm['score'],sm['strikes'],sm['spares'],sm['split_conversions'],effective_season,p.bowler.id))
     award_progression(p.bowler.id,sm['score'],bool(s.tournament_id),winner==team_name)
     if sm['clean']:add_tendency(p.bowler.id,'consistency',2.2,'Repeated clean-game execution','game')
     if sm['longest_streak']>=6:add_tendency(p.bowler.id,'flair',1.8,'Produced a six-pack strike run','game')
