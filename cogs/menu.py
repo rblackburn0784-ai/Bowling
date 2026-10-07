@@ -20,7 +20,7 @@ class AdminHomeView(HomeView):
 class BowlerCreateModal(discord.ui.Modal,title='Create Bowler'):
  name=discord.ui.TextInput(label='Bowler name',max_length=32)
  handedness=discord.ui.TextInput(label='Handedness',placeholder='R or L',default='R',max_length=1)
- stats=discord.ui.TextInput(label='Stats: rank,accuracy,style,flair,consistency,spin,nerves',placeholder='20,20,10,10,20,10,10')
+ stats=discord.ui.TextInput(label='Stats (7 values)',placeholder='Rank, Acc, Style, Flair, Cons, Spin, Nerves',default='20,20,10,10,20,10,10',max_length=24)
  async def on_submit(self,i):
   from models.bowler import Bowler
   from services.roster import create_bowler,get_bowler_by_owner
