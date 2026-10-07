@@ -99,3 +99,4 @@ def ensure_v25_schema():
         if 'season_id' not in cols:c.execute('ALTER TABLE tournaments ADD COLUMN season_id INTEGER')
         if 'announcer' not in cols:c.execute("ALTER TABLE tournaments ADD COLUMN announcer TEXT DEFAULT 'saints'")
         if 'paused' not in cols:c.execute('ALTER TABLE tournaments ADD COLUMN paused INTEGER DEFAULT 0')
+        c.execute('INSERT OR IGNORE INTO bowler_origins(bowler_id,accuracy,consistency,spin,nerves,style,flair) SELECT id,accuracy,consistency,spin,nerves,style,flair FROM bowlers')
