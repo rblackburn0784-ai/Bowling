@@ -17,7 +17,9 @@ def rank_from_xp(xp):
 def sync_rank(bowler_id):
  with connect() as c:
   p=c.execute('SELECT xp FROM bowler_progression WHERE bowler_id=?',(bowler_id,)).fetchone();xp=p['xp'] if p else 0
+  oldrow=c.execute('SELECT rank FROM bowlers WHERE id=?',(bowler_id,)).fetchone();old=oldrow['rank'] if oldrow else 1
   rank=rank_from_xp(xp);c.execute('UPDATE bowlers SET rank=? WHERE id=?',(rank,bowler_id))
+  if rank!=old:_timeline(c,bowler_id,'rank','🟢',f'Rank {old} → {rank}',f'{rank_title(rank)} • {xp} XP','progression')
  return rank
 
 def _change(bowler_id,stat,delta,reason):
@@ -101,3 +103,13 @@ def rank_progress(xp, rank):
 
 def rank_ladder():
  return tuple(RANKS)
+
+
+def add_timeline_event(bowler_id,kind,headline,detail='',icon='🏆',source='system'):
+ with connect() as c:_timeline(c,bowler_id,kind,icon,headline,detail,source)
+
+def recent_timeline(bowler_id,limit=12):
+ with connect() as c:return c.execute('SELECT * FROM career_timeline WHERE bowler_id=? ORDER BY id DESC LIMIT ?',(bowler_id,limit)).fetchall()
+
+def tendency_summary(bowler_id):
+ with connect() as c:return c.execute('SELECT stat,score,evidence FROM career_tendencies WHERE bowler_id=? ORDER BY ABS(score) DESC',(bowler_id,)).fetchall()
