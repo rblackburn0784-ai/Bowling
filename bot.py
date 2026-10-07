@@ -3,7 +3,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 from storage.database import init_db
 load_dotenv();logging.basicConfig(level=logging.INFO)
-EXTENSIONS=['cogs.bowlers','cogs.teams','cogs.games','cogs.stats','cogs.admin','cogs.tournaments','cogs.series','cogs.awards','cogs.menu','cogs.director','cogs.features','cogs.av','cogs.simulation_lab']
+EXTENSIONS=['cogs.bowlers','cogs.teams','cogs.games','cogs.stats','cogs.admin','cogs.tournaments','cogs.series','cogs.awards','cogs.menu','cogs.director','cogs.features','cogs.av','cogs.simulation_lab','cogs.league']
 class GutterSaints(commands.Bot):
  def __init__(self):super().__init__(command_prefix='!',intents=discord.Intents(guilds=True,members=True))
  async def setup_hook(self):
