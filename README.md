@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.7.8.5 — Career Evolution
+# Gutter Saints Bowling Bot v2.7.8.6 — Career Honours
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,14 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.7.8.6 Career Honours
+- Completed tournaments can now issue permanent, duplicate-safe career honours.
+- Championship and runner-up honours are awarded to the recorded final rosters.
+- Tournament High Average, High Game, Strike Leader and Split Slayer honours are derived automatically from tournament stats.
+- Honours feed the Career Timeline and career profile honours count.
+- Tournament Director gains a Career Honours ceremony button; players gain an Honours browser from their career card.
+- Re-running a ceremony is safe: `(bowler, tournament, honour)` is unique and cannot duplicate.
 
 ## v2.7.8.5 Career Evolution
 - Replaces independent random +/- stat rolls with persistent performance tendencies.
