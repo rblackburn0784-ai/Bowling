@@ -22,6 +22,8 @@ def run():
  from services.league_engine import STATES,FORMATS
  assert STATES==('draft','registration','locked','active','completed','archived');checks.append(('competition lifecycle',True))
  assert {'single_elimination','double_elimination','round_robin','groups_knockout','stepladder','best_of','qualifying'}<=set(FORMATS);checks.append(('competition formats',True))
+ from services.league_engine import progress_fixture,record_series_game,fixture_roster,execute_movements
+ assert all(callable(x) for x in (progress_fixture,record_series_game,fixture_roster,execute_movements));checks.append(('competition operations',True))
  rows,flags=rookie_balance_suite(1000)
  checks.append(('rookie balance suite',not flags))
  print('\n'.join(('PASS' if ok else 'WARN')+' '+name for name,ok in checks))
