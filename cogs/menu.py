@@ -130,6 +130,12 @@ class CareerView(HomeView):
   rows=recent_timeline(self.bowler_id,15)
   text='\n'.join(f"{r['icon']} **{r['headline']}** — {r['detail']}" for r in rows) or 'No career milestones yet.'
   await i.response.send_message('🕰️ **CAREER TIMELINE**\n'+text,ephemeral=True)
+ @discord.ui.button(label='Honours',emoji='🏆',style=discord.ButtonStyle.success)
+ async def honours(self,i,b):
+  from services.honours import honours_for_bowler
+  rows=honours_for_bowler(self.bowler_id)
+  text='\n'.join(f"• **{r['title']}** — {r['detail']}" for r in rows[:15]) or 'No career honours yet.'
+  await i.response.send_message('🏆 **CAREER HONOURS**\n'+text,ephemeral=True)
  @discord.ui.button(label='Tendencies',emoji='🧬',style=discord.ButtonStyle.secondary)
  async def tendencies(self,i,b):
   from services.career import tendency_summary
