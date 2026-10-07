@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.7.9 — Bowling Depth
+# Gutter Saints Bowling Bot v2.7.9.2 — Living Lanes
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,16 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.7.9.2 Living Lanes
+- Left and right lanes now evolve independently with spatial inside/track/outside burn plus carrydown.
+- Ball hook, Spin, Style, line and handedness influence where traffic changes the lane.
+- Auto bowlers read transition and can change Solid/Hybrid/Pearl/Urethane and move boards as conditions evolve.
+- Better Accuracy/Consistency/Style makes bowlers react to transition sooner; it does not grant a hidden scoring bonus.
+- Lane adaptations are mirrored for left-handers.
+- Broadcast commentary announces meaningful lane changes, ball switches and line moves.
+- Live Shot Decision panels expose outside/track/inside wear and current board movement.
+- Full lane-zone and bowler-adaptation state survives Undo/Restore.
 
 ## v2.7.9 Bowling Depth
 - Adds Normal, Safe, Aggressive, Recovery and Spare shot intents plus Auto strategy.
