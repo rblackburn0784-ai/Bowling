@@ -35,7 +35,7 @@ class DirectorView(discord.ui.View):
   from storage.database import connect
   with connect() as c:t=c.execute('SELECT id FROM tournaments WHERE name=? COLLATE NOCASE',(self.name,)).fetchone()
   if not t:return await i.response.send_message('Tournament not found.',ephemeral=True)
-  g=build_gazette(t['id'])
+  g=build_gazette(t['id'],force=True)
   if not g:return await i.response.send_message('Not enough recorded tournament action for a Gazette issue yet.',ephemeral=True)
   await i.response.send_message(format_gazette(g),ephemeral=False)
  @discord.ui.button(label='Career Honours',emoji='🏆',style=discord.ButtonStyle.success)
