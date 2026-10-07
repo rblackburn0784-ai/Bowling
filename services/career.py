@@ -19,7 +19,8 @@ def sync_rank(bowler_id):
   p=c.execute('SELECT xp FROM bowler_progression WHERE bowler_id=?',(bowler_id,)).fetchone();xp=p['xp'] if p else 0
   oldrow=c.execute('SELECT rank FROM bowlers WHERE id=?',(bowler_id,)).fetchone();old=oldrow['rank'] if oldrow else 1
   rank=rank_from_xp(xp);c.execute('UPDATE bowlers SET rank=? WHERE id=?',(rank,bowler_id))
-  if rank!=old:_timeline(c,bowler_id,'rank','🟢',f'Rank {old} → {rank}',f'{rank_title(rank)} • {xp} XP','progression')
+  if rank!=old:
+   c.execute('INSERT INTO career_timeline(bowler_id,kind,icon,headline,detail,source) VALUES(?,?,?,?,?,?)',(bowler_id,'rank','🟢',f'Rank {old} → {rank}',f'{rank_title(rank)} • {xp} XP','progression'))
  return rank
 
 def _change(bowler_id,stat,delta,reason):
