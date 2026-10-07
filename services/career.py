@@ -62,3 +62,9 @@ def rollback_delivery_changes(bowler_id,changes):
    cur=c.execute(f'SELECT {stat} FROM bowlers WHERE id=?',(bowler_id,)).fetchone()
    if cur and cur[stat]==row['new_value']:
     c.execute(f'UPDATE bowlers SET {stat}=? WHERE id=?',(row['old_value'],bowler_id));c.execute('DELETE FROM attribute_history WHERE id=?',(row['id'],))
+
+
+def rank_progress(xp, rank):
+    if rank >= 100:return 100.0,None
+    nxt=int(120*(rank**1.3888889));prev=0 if rank<=1 else int(120*((rank-1)**1.3888889))
+    return max(0,min(100,(xp-prev)/max(1,nxt-prev)*100)),nxt
