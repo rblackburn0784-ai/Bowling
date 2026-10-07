@@ -14,6 +14,7 @@ def bowler_embed(b):
         recent=c.execute('SELECT score FROM game_results WHERE bowler_id=? ORDER BY id DESC LIMIT 5',(b.id,)).fetchall()
         ac=c.execute('SELECT COUNT(*) n FROM achievements WHERE bowler_id=?',(b.id,)).fetchone()
         aw=c.execute('SELECT COUNT(*) n FROM awards WHERE bowler_id=?',(b.id,)).fetchone()
+        ho=c.execute('SELECT COUNT(*) n FROM career_honours WHERE bowler_id=?',(b.id,)).fetchone()
     s=dict(s) if s else {};xp=p['xp'] if p else 0;progress,nxt=rank_progress(xp,b.rank);games=s.get('games',0);avg=s.get('total_pins',0)/games if games else 0
     scores=[x['score'] for x in recent][::-1];form=' '.join('🟢' if x>=avg+10 else '🔴' if x<=avg-10 else '🟡' for x in scores) if scores else '—'
     load=bowler_loadout(b.id);ball=BALLS.get(load.get('primary_ball','hybrid'))
@@ -25,7 +26,7 @@ def bowler_embed(b):
     e.add_field(name='🧬 Rookie → Current',value='\n'.join(lines),inline=True)
     strike_pct=(s.get('strikes',0)/(games*10)*100) if games else 0;spare_chances=max(0,games*10-s.get('strikes',0));spare_pct=(s.get('spares',0)/spare_chances*100) if spare_chances else 0
     e.add_field(name='📊 Career',value=f"Games **{games}**\n200+ **{s.get('games_200',0)}** • 250+ **{s.get('games_250',0)}** • 300 **{s.get('perfect_games',0)}**\nClean **{s.get('clean_games',0)}**\nStrike **{strike_pct:.1f}%** • Spare **{spare_pct:.1f}%**\nSplits **{s.get('split_conversions',0)}/{s.get('splits',0)}**",inline=True)
-    e.add_field(name='🏅 Legacy',value=f"Achievements **{ac['n']}** • Awards **{aw['n']}**\nCredits **{p['credits'] if p else 0}**",inline=False)
+    e.add_field(name='🏅 Legacy',value=f"Achievements **{ac['n']}** • Awards **{aw['n']}** • Honours **{ho['n']}**\nCredits **{p['credits'] if p else 0}**",inline=False)
     e.set_footer(text=f'Attribute total: {b.stat_total} • Rank is career prestige')
     return e
 
