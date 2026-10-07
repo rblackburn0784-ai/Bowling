@@ -68,3 +68,7 @@ def rank_progress(xp, rank):
     if rank >= 100:return 100.0,None
     nxt=int(120*(rank**1.3888889));prev=0 if rank<=1 else int(120*((rank-1)**1.3888889))
     return max(0,min(100,(xp-prev)/max(1,nxt-prev)*100)),nxt
+
+
+def rank_ladder():
+ return tuple(RANKS)
