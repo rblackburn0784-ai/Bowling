@@ -73,6 +73,25 @@ class CompetitionPick(discord.ui.Select):
   super().__init__(placeholder='Select competition',options=_opts(rs) or [discord.SelectOption(label='No competitions',value='0')],row=0)
  async def callback(self,i):self.parent.cid=int(self.values[0]);await i.response.edit_message(embed=competition_embed(self.parent.cid),view=self.parent)
 
+
+class SubPick(discord.ui.Select):
+ def __init__(self,parent):
+  self.parent=parent;rs=_rows('''SELECT r.bowler_id id,t.name||' — '||b.name name FROM competition_rosters r JOIN teams t ON t.id=r.team_id JOIN bowlers b ON b.id=r.bowler_id WHERE r.competition_id=? ORDER BY t.name,r.slot''',(parent.cid,))
+  super().__init__(placeholder='Choose locked-roster bowler',options=_opts(rs) or [discord.SelectOption(label='No roster',value='0')])
+ async def callback(self,i):self.parent.bid=int(self.values[0]);await i.response.defer()
+
+class SubstituteManager(discord.ui.View):
+ def __init__(self,cid):
+  super().__init__(timeout=600);self.cid=cid;self.bid=None;self.add_item(SubPick(self))
+ async def apply(self,i,value):
+  if not self.bid:return await i.response.send_message('Choose a bowler.',ephemeral=True)
+  r=_rows('SELECT team_id FROM competition_rosters WHERE competition_id=? AND bowler_id=?',(self.cid,self.bid))
+  ok=bool(r and set_substitute(self.cid,r[0]['team_id'],self.bid,value));await i.response.send_message('✅ Substitute status updated.' if ok else 'Could not update substitute.',ephemeral=True)
+ @discord.ui.button(label='Set Substitute',style=discord.ButtonStyle.primary,row=1)
+ async def sub(self,i,b):await self.apply(i,True)
+ @discord.ui.button(label='Set Starter',style=discord.ButtonStyle.success,row=1)
+ async def starter(self,i,b):await self.apply(i,False)
+
 class CompetitionDirector(discord.ui.View):
  def __init__(self,cid=None):super().__init__(timeout=900);self.cid=cid;self.add_item(CompetitionPick(self))
  async def need(self,i):
@@ -96,7 +115,7 @@ class CompetitionDirector(discord.ui.View):
   co=competition_view(self.cid)[0]
   if co['entrant_type']=='individual':return await i.response.send_message('Individual competition: each entrant is their own locked roster.',ephemeral=True)
   rs=_rows('''SELECT t.name team,b.name,r.slot,r.is_substitute FROM competition_rosters r JOIN teams t ON t.id=r.team_id JOIN bowlers b ON b.id=r.bowler_id WHERE r.competition_id=? ORDER BY t.name,r.is_substitute,r.slot''',(self.cid,))
-  await i.response.send_message('👥 **Locked Competition Rosters**\n'+('\n'.join(f"• **{x['team']}** — {x['name']} {'(SUB)' if x['is_substitute'] else ''}" for x in rs) or 'No locked roster.'),ephemeral=True)
+  await i.response.send_message('👥 **Locked Competition Rosters**\n'+('\n'.join(f"• **{x['team']}** — {x['name']} {'(SUB)' if x['is_substitute'] else ''}" for x in rs) or 'No locked roster.'),view=SubstituteManager(self.cid),ephemeral=True)
  @discord.ui.button(label='Start Next Fixture',emoji='🎳',style=discord.ButtonStyle.success,row=2)
  async def start(self,i,b):
   if await self.need(i):await launch_fixture(i,self.cid)
