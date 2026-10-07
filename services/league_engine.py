@@ -107,6 +107,7 @@ def report_fixture(fid,home_score,away_score):
   hp=f['points_win'] if winner==f['home_id'] else f['points_draw'] if winner is None else f['points_loss'];ap=f['points_win'] if winner==f['away_id'] else f['points_draw'] if winner is None else f['points_loss']
   for eid,pf,pa,pts,w,d,l in ((f['home_id'],home_score,away_score,hp,int(winner==f['home_id']),int(winner is None),int(winner==f['away_id'])),(f['away_id'],away_score,home_score,ap,int(winner==f['away_id']),int(winner is None),int(winner==f['home_id']))):
    c.execute('UPDATE competition_standings SET played=played+1,wins=wins+?,draws=draws+?,losses=losses+?,pins_for=pins_for+?,pins_against=pins_against+?,points=points+? WHERE competition_id=? AND entrant_id=?',(w,d,l,pf,pa,pts,f['competition_id'],eid))
+ if f['series_best_of']<=1:progress_fixture(fid)
  return True,None
 
 def standings(cid):
@@ -121,3 +122,40 @@ def season_leaders(season_id):
 
 def create_template(name,format='round_robin',entrant_type='team',lane='house',points=(3,1,0),playoff_size=0,promotion=0,relegation=0,recurrence=None):
  with connect() as c:return c.execute('INSERT INTO league_templates(name,format,entrant_type,lane_condition,points_win,points_draw,points_loss,playoff_size,promotion_slots,relegation_slots,recurrence) VALUES(?,?,?,?,?,?,?,?,?,?,?)',(name,format,entrant_type,lane,*points,playoff_size,promotion,relegation,recurrence)).lastrowid
+
+
+def fixture_roster(fixture_id,entrant_id,substitutes=None):
+ substitutes=set(substitutes or [])
+ with connect() as c:
+  f=c.execute('SELECT f.*,co.entrant_type FROM fixtures f JOIN competitions co ON co.id=f.competition_id WHERE f.id=?',(fixture_id,)).fetchone()
+  if not f or entrant_id not in (f['home_id'],f['away_id']):return []
+  if f['entrant_type']=='individual':return c.execute('SELECT * FROM bowlers WHERE id=?',(entrant_id,)).fetchall()
+  rows=c.execute('SELECT b.*,r.slot,r.is_substitute FROM competition_rosters r JOIN bowlers b ON b.id=r.bowler_id WHERE r.competition_id=? AND r.team_id=? ORDER BY r.is_substitute,r.slot',(f['competition_id'],entrant_id)).fetchall()
+  active=[r for r in rows if not r['is_substitute']]
+  for sub in [r for r in rows if r['bowler_id'] in substitutes and r['is_substitute']]:
+   if active:active[-1]=sub
+  return active
+
+def set_substitute(cid,team_id,bowler_id,value=True):
+ with connect() as c:
+  co=c.execute('SELECT state,entrant_type FROM competitions WHERE id=?',(cid,)).fetchone()
+  if not co or co['entrant_type']!='team' or co['state'] not in ('locked','active'):return False
+  cur=c.execute('UPDATE competition_rosters SET is_substitute=? WHERE competition_id=? AND team_id=? AND bowler_id=?',(int(value),cid,team_id,bowler_id))
+  return cur.rowcount>0
+
+def _round(c,co,sid,ids,r,best=1):
+ for n in range(0,len(ids),2):
+  a=ids[n];b=ids[n+1] if n+1<len(ids) else None;w=a if a and not b else None
+  _fixture(c,co['id'],sid,r,n//2+1,a,b,best,'complete' if w else 'scheduled',w)
+
+def _finish(c,co,winner=None):
+ c.execute("UPDATE competitions SET state='completed',completed_at=CURRENT_TIMESTAMP WHERE id=?",(co['id'],))
+ if winner and co['entrant_type']=='individual' and co['season_id']:
+  c.execute('INSERT OR IGNORE INTO season_bowler_stats(season_id,bowler_id) VALUES(?,?)',(co['season_id'],winner));c.execute('UPDATE season_bowler_stats SET championships=championships+1 WHERE season_id=? AND bowler_id=?',(co['season_id'],winner))
+
+def _knockout(c,co,stage):
+ r=c.execute('SELECT MAX(round_no) n FROM fixtures WHERE stage_id=?',(stage['id'],)).fetchone()['n'];cur=c.execute('SELECT * FROM fixtures WHERE stage_id=? AND round_no=? ORDER BY fixture_no',(stage['id'],r)).fetchall()
+ if not cur or any(x['status']!='complete' for x in cur):return
+ ids=[x['winner_id'] for x in cur]
+ if len(ids)==1:return _finish(c,co,ids[0])
+ if not c.execute('SELECT 1 FROM fixtures WHERE stage_id=? AND round_no=?',(stage['id'],r+1)).fetchone():_round(c,co,stage['id'],ids,r+1,stage['best_of'])
