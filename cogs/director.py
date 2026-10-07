@@ -29,6 +29,15 @@ class DirectorView(discord.ui.View):
   s=restore_session(i.channel_id)
   if not s:return await i.response.send_message('No saved active match.',ephemeral=True)
   SESSIONS[i.channel_id]=s;await i.response.send_message('♻️ Match restored.',ephemeral=True)
+ @discord.ui.button(label='Career Honours',emoji='🏆',style=discord.ButtonStyle.success)
+ async def honours(self,i,b):
+  from services.honours import finalize_tournament_honours
+  from storage.database import connect
+  with connect() as c:t=c.execute('SELECT id,status FROM tournaments WHERE name=? COLLATE NOCASE',(self.name,)).fetchone()
+  if not t:return await i.response.send_message('Tournament not found.',ephemeral=True)
+  if t['status']!='complete':return await i.response.send_message('Career Honours unlock when the tournament is complete.',ephemeral=True)
+  result=finalize_tournament_honours(t['id']);new=result['new'] if result else []
+  await i.response.send_message(f"🏆 **{self.name} CAREER HONOURS**\nChampion: **{result['champion']}**\n"+('New honours recorded:\n'+'\n'.join(f'• {n} — {h}' for n,h in new) if new else 'All honours were already recorded.'),ephemeral=False)
  @discord.ui.button(label='Export XLSX',style=discord.ButtonStyle.secondary)
  async def export(self,i,b):
   p=export_tournament_xlsx(self.name)
