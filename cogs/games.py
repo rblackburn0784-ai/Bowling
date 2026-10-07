@@ -141,5 +141,9 @@ class Games(commands.Cog):
    from services.competition import _advance_byes
    with connect() as c:_advance_byes(c,s.tournament_id)
    await ch.send(f'🏆 **TOURNAMENT UPDATE:** {winner} advances automatically.')
+   # Publish a fresh issue after tournament matches; the Gazette becomes the persistent session recap.
+   from services.gazette import build_gazette,format_gazette
+   g=build_gazette(s.tournament_id)
+   if g:await ch.send(format_gazette(g))
   clear_session(key)
 async def setup(bot):await bot.add_cog(Games(bot))
