@@ -210,6 +210,9 @@ def progress_fixture(fid):
     if not c.execute("SELECT 1 FROM fixtures WHERE stage_id=? AND status!='complete' LIMIT 1",(st['id'],)).fetchone():
      ids=[x['entrant_id'] for x in standings(co['id'])[:st['qualify_count']]];sid=_stage(c,co['id'],2,'Qualifying Finals','single_elimination');_round(c,co,sid,ids,1)
    else:_knockout(c,co,st)
+  elif st['format']=='round_robin' and co['format']=='qualifying':
+   if not c.execute("SELECT 1 FROM fixtures WHERE stage_id=? AND status!='complete' LIMIT 1",(st['id'],)).fetchone():
+    ids=[x['entrant_id'] for x in standings(co['id'])[:st['qualify_count']]];sid=_stage(c,co['id'],2,'Qualifying Finals','single_elimination');_round(c,co,sid,ids,1)
   elif co['format']=='round_robin' and not c.execute("SELECT 1 FROM fixtures WHERE competition_id=? AND status!='complete' LIMIT 1",(co['id'],)).fetchone():
    ids=[x['entrant_id'] for x in standings(co['id'])]
    if co['playoff_size']>=2:sid=_stage(c,co['id'],2,'Playoffs','single_elimination');_round(c,co,sid,ids[:co['playoff_size']],1)
