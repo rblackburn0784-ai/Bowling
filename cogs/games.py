@@ -41,6 +41,15 @@ class Games(commands.Cog):
   await i.response.send_message(f"🎤 **WELCOME TO THE GUTTER SAINTS LANES!**\n**{team}**"+(f' vs **{opponent}**' if opponent else ''))
   for b in bowlers:await i.channel.send(line('entrance',name=b.name));await send_media(i.channel,'entrance')
   await i.channel.send(embed=scoreboard_embed(s))
+ @app_commands.command(name='game_shot',description='Choose the next tactical shot intent')
+ @app_commands.choices(intent=[app_commands.Choice(name=x.title(),value=x) for x in ['normal','safe','aggressive','recovery','spare','auto']])
+ async def shot(self,i:discord.Interaction,intent:app_commands.Choice[str]):
+  s=SESSIONS.get(i.channel_id)
+  if not s or s.complete:return await i.response.send_message('No active playable game.',ephemeral=True)
+  p=s.current()
+  if p.standing!=set(__import__('services.pin_engine',fromlist=['ALL']).ALL) and intent.value!='spare':return await i.response.send_message('A leave is standing — Spare intent is automatic.',ephemeral=True)
+  p.next_intent=intent.value
+  await i.response.send_message(f"🎯 **{p.bowler.name}** next shot: **{intent.name}**.",ephemeral=True)
  @app_commands.command(name='game_bowl',description='Bowl the next delivery')
  async def bowl(self,i:discord.Interaction):
   s=SESSIONS.get(i.channel_id)
