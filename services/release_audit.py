@@ -6,7 +6,7 @@ from services.scoring import score_game
 from services.simulation_lab import rookie_balance_suite
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-CORE=['storage/database.py','services/game_engine.py','services/pin_engine.py','services/lane_physics.py','services/shot_strategy.py','services/lane_adaptation.py','services/career.py','services/honours.py','services/broadcast_director.py','services/gazette.py','services/v25.py','services/league_engine.py','cogs/league.py','cogs/games.py','cogs/director.py','cogs/menu.py','ui/embeds.py']
+CORE=['storage/database.py','services/game_engine.py','services/pin_engine.py','services/lane_physics.py','services/shot_strategy.py','services/lane_adaptation.py','services/career.py','services/honours.py','services/broadcast_director.py','services/gazette.py','services/v25.py','services/league_engine.py','cogs/league.py','cogs/competition_ui.py','cogs/games.py','cogs/director.py','cogs/menu.py','ui/embeds.py']
 
 def run():
  checks=[]
@@ -24,6 +24,8 @@ def run():
  assert {'single_elimination','double_elimination','round_robin','groups_knockout','stepladder','best_of','qualifying'}<=set(FORMATS);checks.append(('competition formats',True))
  from services.league_engine import progress_fixture,record_series_game,fixture_roster,execute_movements
  assert all(callable(x) for x in (progress_fixture,record_series_game,fixture_roster,execute_movements));checks.append(('competition operations',True))
+ from services.league_engine import competition_view,next_fixture,entrant_status,bowler_competitions
+ assert all(callable(x) for x in (competition_view,next_fixture,entrant_status,bowler_competitions));checks.append(('competition director read model',True))
  rows,flags=rookie_balance_suite(1000)
  checks.append(('rookie balance suite',not flags))
  print('\n'.join(('PASS' if ok else 'WARN')+' '+name for name,ok in checks))
