@@ -92,39 +92,7 @@ class BowlerDashboard(AdminHomeView):
  async def listing(self,i,b):
   with connect() as c:r=c.execute('SELECT name,owner_id FROM bowlers ORDER BY name').fetchall()
   await i.response.send_message('🎳 **Bowlers**\n'+('\n'.join(f"• {x['name']} — {'Offline' if x['owner_id']==0 else 'Discord linked'}" for x in r) or 'None'),ephemeral=True)
-class TeamDashboard(AdminHomeView):
- @discord.ui.button(label='➕ Create Team',style=discord.ButtonStyle.success)
- async def create(self,i,b):await i.response.send_message('Use **/team_create** to create the team; this action will become a modal in the next form pass.',ephemeral=True)
- @discord.ui.button(label='👥 Rosters',style=discord.ButtonStyle.primary)
- async def rosters(self,i,b):
-  with connect() as c:r=c.execute('SELECT name FROM teams ORDER BY name').fetchall()
-  await i.response.send_message('👥 **Teams**\n'+('\n'.join('• '+x['name'] for x in r) or 'None'),ephemeral=True)
-class TournamentDashboard(AdminHomeView):
- @discord.ui.button(label='🏆 Tournament Director',style=discord.ButtonStyle.success)
- async def director(self,i,b):await i.response.send_message('Use **/director** to select/open the live tournament dashboard.',ephemeral=True)
- @discord.ui.button(label='📋 Tournament List',style=discord.ButtonStyle.primary)
- async def listing(self,i,b):
-  with connect() as c:r=c.execute('SELECT name,status FROM tournaments ORDER BY id DESC LIMIT 20').fetchall()
-  await i.response.send_message('🏆 **Tournaments**\n'+('\n'.join(f"• {x['name']} — {x['status']}" for x in r) or 'None'),ephemeral=True)
-class MatchDashboard(AdminHomeView):
- @discord.ui.button(label='🎳 Start Match',style=discord.ButtonStyle.success)
- async def start(self,i,b):await i.response.send_message('Use **/game_start** for an exhibition, or **Tournament Director** for tournament matches.',ephemeral=True)
- @discord.ui.button(label='📺 Lane View',style=discord.ButtonStyle.primary)
- async def lane(self,i,b):await i.response.send_message('Use **/lane_view** for the current live lane.',ephemeral=True)
- @discord.ui.button(label='↩️ Undo / Restore',style=discord.ButtonStyle.danger)
- async def recovery(self,i,b):await i.response.send_message('Undo and Restore are available inside **Tournament Director**.',ephemeral=True)
-class RecordsDashboard(AdminHomeView):
- @discord.ui.button(label='🏛️ Hall of Fame',style=discord.ButtonStyle.primary)
- async def hof(self,i,b):await i.response.send_message('Use **/hall_of_fame**.',ephemeral=True)
- @discord.ui.button(label='🏅 Awards',style=discord.ButtonStyle.primary)
- async def awards(self,i,b):await i.response.send_message('Use **/awards** or **/award_give**.',ephemeral=True)
- @discord.ui.button(label='🧠 Simulation Lab',style=discord.ButtonStyle.success)
- async def sim(self,i,b):await i.response.send_message('Use **/simulation_lab** for 1,000–100,000-game balance tests.',ephemeral=True)
-class SettingsDashboard(AdminHomeView):
- @discord.ui.button(label='🔊 Join Voice',style=discord.ButtonStyle.primary)
- async def voice(self,i,b):await i.response.send_message('Use **/audio_join** to connect to your voice channel.',ephemeral=True)
- @discord.ui.button(label='🎥 Media Setup',style=discord.ButtonStyle.primary)
- async def media(self,i,b):await i.response.send_message('GIFs: **assets/media.json**\nAudio: **assets/audio.json**',ephemeral=True)
+from cogs.dashboard_ui import TeamDashboard,TournamentDashboard,MatchDashboard,RecordsDashboard,SettingsDashboard
 class AdminMenu(HomeView):
  def __init__(self):super().__init__()
  async def gate(self,i):

@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.7.5 — Simulation & Balance Lab
+# Gutter Saints Bowling Bot v2.7.7 — Dashboard UI Conversion
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -31,8 +31,17 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
 
+## v2.7.7 Dashboard UI Conversion
+- Admin dashboards now perform actions directly instead of replying with “use /command”.
+- Team UI: create teams, assign/move bowlers to slots and inspect rosters.
+- Tournament UI: create tournaments, enter teams, start brackets, show brackets and open Tournament Director.
+- Match UI: guided Team A/opponent/oil-pattern setup, graphical Lane View and Undo/Restore recovery.
+- Records UI: Hall of Fame, bowler award browser/giver and Simulation Lab modal.
+- Settings UI: join/move/leave presentation voice directly.
+- Slash commands remain available as fallback/power-user entry points and share the same underlying services.
+
 ## Main UI
-Use `/menu` for players and `/director` for Tournament Director. The original bot remains preserved on `legacy-v0.1`.
+Use `/menu` as the normal entry point. Admin Control now provides the full dashboard-driven management flow; `/director` and the existing slash commands remain optional shortcuts. The original bot remains preserved on `legacy-v0.1`.
 
 ## Media
 GIF/media URLs live in `assets/media.json`. Audio mappings live in `assets/audio.json`. Local copyrighted assets are intentionally not bundled.
