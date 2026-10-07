@@ -122,6 +122,20 @@ class BallSelect(discord.ui.Select):
  async def callback(self,i):set_bowler_ball(self.bowler_id,self.values[0]);await i.response.send_message(f'🎳 Primary ball set to **{BALLS[self.values[0]].name}**. Spares use Plastic automatically.',ephemeral=True)
 class ArsenalView(HomeView):
  def __init__(self,bowler_id):super().__init__();self.add_item(BallSelect(bowler_id))
+class CareerView(HomeView):
+ def __init__(self,bowler_id):super().__init__();self.bowler_id=bowler_id
+ @discord.ui.button(label='Career Timeline',emoji='🕰️',style=discord.ButtonStyle.primary)
+ async def timeline(self,i,b):
+  from services.career import recent_timeline
+  rows=recent_timeline(self.bowler_id,15)
+  text='\n'.join(f"{r['icon']} **{r['headline']}** — {r['detail']}" for r in rows) or 'No career milestones yet.'
+  await i.response.send_message('🕰️ **CAREER TIMELINE**\n'+text,ephemeral=True)
+ @discord.ui.button(label='Tendencies',emoji='🧬',style=discord.ButtonStyle.secondary)
+ async def tendencies(self,i,b):
+  from services.career import tendency_summary
+  rows=tendency_summary(self.bowler_id)
+  text='\n'.join(f"**{r['stat'].title()}**: {r['score']:+.1f} ({r['evidence']} recent signals)" for r in rows) or 'No strong tendencies yet.'
+  await i.response.send_message('🧬 **CAREER TENDENCIES**\n'+text+'\n\n±10 sustained evidence triggers an attribute change.',ephemeral=True)
 class PublicMenu(discord.ui.View):
  def __init__(self):super().__init__(timeout=None)
  @discord.ui.button(label='Create Bowler',emoji='➕',style=discord.ButtonStyle.success,custom_id='gs:create')
@@ -132,7 +146,7 @@ class PublicMenu(discord.ui.View):
  async def mine(self,i,b):
   x=get_bowler_by_owner(i.user.id)
   if not x:return await i.response.send_message('You do not have a linked bowler yet — use **Create Bowler**.',ephemeral=True)
-  await i.response.send_message(embed=bowler_embed(x),view=HomeView(),ephemeral=True)
+  await i.response.send_message(embed=bowler_embed(x),view=CareerView(x.id),ephemeral=True)
  @discord.ui.button(label='My Stats',emoji='📊',style=discord.ButtonStyle.secondary,custom_id='gs:mystats')
  async def stats(self,i,b):
   x=get_bowler_by_owner(i.user.id)
