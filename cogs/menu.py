@@ -171,6 +171,13 @@ class PublicMenu(discord.ui.View):
   load=bowler_loadout(x.id);await i.response.send_message(f"🎯 **{x.name}'s Arsenal**\nPrimary: **{BALLS[load.get('primary_ball','hybrid')].name}**",view=ArsenalView(x.id),ephemeral=True)
  @discord.ui.button(label='Browse Bowlers',emoji='👀',style=discord.ButtonStyle.secondary,custom_id='gs:browse')
  async def browse(self,i,b):await i.response.send_message('🎳 **Bowlers**\n'+('\n'.join('• '+x['name'] for x in list_bowlers()) or 'None'),view=HomeView(),ephemeral=True)
+ @discord.ui.button(label='Gutter Gazette',emoji='📰',style=discord.ButtonStyle.primary,custom_id='gs:gazette')
+ async def gazette(self,i,b):
+  from services.gazette import latest_gazette,format_gazette,gazette_archive
+  g=latest_gazette()
+  archive=gazette_archive(5)
+  tail='\n\n**Recent Issues**\n'+'\n'.join(f"• #{x['issue_no']} — {x['tournament']}: {x['headline']}" for x in archive) if archive else ''
+  await i.response.send_message(format_gazette(g)+tail,view=HomeView(),ephemeral=True)
  @discord.ui.button(label='Admin Control',emoji='🛠️',style=discord.ButtonStyle.danger,custom_id='gs:admin')
  async def admin(self,i,b):
   if not admin_ok(i):return await i.response.send_message('Admin/Manage Server permission required.',ephemeral=True)
