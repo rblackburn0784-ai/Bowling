@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.7.8 — Bowler Career & Identity
+# Gutter Saints Bowling Bot v2.7.8.5 — Career Evolution
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,15 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.7.8.5 Career Evolution
+- Replaces independent random +/- stat rolls with persistent performance tendencies.
+- Every meaningful delivery can add positive or negative evidence to Accuracy, Consistency, Spin, Nerves, Style or Flair.
+- Sustained evidence at +/-10 converts into a permanent +/-1 career attribute movement, still clamped to the 1–50 career range.
+- Gutter patterns, single-pin misses, late pressure misses, difficult split conversions, creative carry, strike streaks and clutch shots all shape different tendencies.
+- Clean games, six-packs, 250+ pressure games and severe open-frame collapses add game-level evidence.
+- Rank changes and attribute changes are written to a persistent Career Timeline.
+- My Bowler/My Stats now expose Career Timeline and Tendencies buttons.
 
 ## v2.7.8 Bowler Career & Identity
 - Rich Career Profile with named Rank, XP and next-Rank progress.
