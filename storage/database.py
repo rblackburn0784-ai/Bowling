@@ -73,7 +73,7 @@ def tournament_leaders(name):
         rows=c.execute('''SELECT b.name,s.*,s.total_pins*1.0/NULLIF(s.games,0) avg FROM tournament_bowler_stats s JOIN bowlers b ON b.id=s.bowler_id WHERE s.tournament_id=? ORDER BY avg DESC,total_pins DESC''',(t['id'],)).fetchall();return t,rows
 
 V25_SCHEMA='''
-CREATE TABLE IF NOT EXISTS seasons(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL UNIQUE,status TEXT NOT NULL DEFAULT 'active',started_at TEXT DEFAULT CURRENT_TIMESTAMP,ended_at TEXT);
+CREATE TABLE IF NOT EXISTS seasons(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL UNIQUE,status TEXT NOT NULL DEFAULT 'draft',started_at TEXT,ended_at TEXT,archived_at TEXT);
 CREATE TABLE IF NOT EXISTS bowler_progression(bowler_id INTEGER PRIMARY KEY,xp INTEGER DEFAULT 0,credits INTEGER DEFAULT 0,spent INTEGER DEFAULT 0,FOREIGN KEY(bowler_id) REFERENCES bowlers(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS game_history(id INTEGER PRIMARY KEY AUTOINCREMENT,game_id INTEGER,bowler_id INTEGER,season_id INTEGER,tournament_id INTEGER,team_id INTEGER,score INTEGER,strikes INTEGER,spares INTEGER,splits INTEGER,split_conversions INTEGER,longest_streak INTEGER,clean INTEGER,form REAL DEFAULT 0,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS team_history(team_id INTEGER PRIMARY KEY,wins INTEGER DEFAULT 0,losses INTEGER DEFAULT 0,championships INTEGER DEFAULT 0,finals INTEGER DEFAULT 0,high_game INTEGER DEFAULT 0,high_series INTEGER DEFAULT 0);
