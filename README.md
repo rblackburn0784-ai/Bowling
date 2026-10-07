@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.7.9.9 — Integration, Balance & Reliability
+# Gutter Saints Bowling Bot v2.8 — Seasons, Leagues & Competition
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,19 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.8 Seasons, Leagues & Competition
+- Adds a unified persistent competition model: season → competition → stage → fixture/series → bowling game.
+- Controlled lifecycle: Draft → Registration → Locked → Active → Completed → Archived.
+- Supports team and individual entrants, seeded registration and immutable competition roster snapshots at lock.
+- Competition formats: Single Elimination, Double Elimination, Round Robin, Groups → Knockout, Stepladder, Best-of-X and Qualifying.
+- Round-robin scheduling, seeded knockout/byes, group fixtures and stage-driven advanced-format foundations.
+- Persistent standings track played, W/D/L, pins for/against, differential and configurable league points.
+- Adds league templates for recurring competition configuration plus playoff, promotion and relegation settings.
+- Adds season-specific bowler statistics while preserving global career XP, Rank, attributes, tendencies and lifetime records.
+- Career profiles now expose seasons played and championships.
+- Season dashboard surfaces upcoming fixtures and leaders for average, high game, strikes and split conversions.
+- Existing tournament tables remain intact for legacy compatibility while v2.8 competitions use the new engine.
 
 ## v2.7.9.9 Integration, Balance & Reliability
 - Release-gate audit across scoring, game physics, Living Lanes, shot strategy, career systems, tournament honours, Broadcast Director, Gazette and recovery.
