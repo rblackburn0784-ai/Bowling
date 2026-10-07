@@ -42,6 +42,8 @@ def scoreboard_embed(session,last=None,team_names=None):
         e.add_field(name=f"{p.bowler.name}"+(f' — {team}' if team else ''),value=value,inline=False)
     if totals:e.add_field(name='🏆 Team Totals',value='\n'.join(f'**{k}: {v}**' for k,v in totals.items()),inline=False)
     if last:
+        intent=last.get('shot_intent','normal').title();ball=last.get('ball_key','hybrid').title();lane_no=last.get('lane_no','?');trans=last.get('transition',0)
+        e.add_field(name='🎯 Shot Decision',value=f'**{ball}** • **{intent}** • Lane **{lane_no}** ({trans*100:.0f}% transition) • Target **{last.get("physics",{}).get("target","pocket")}**',inline=False)
         e.add_field(name='🎙️ Commentary',value=event_text(session,last),inline=False)
         p=next(x for x in session.players if x.bowler.name==last['bowler']);watch=perfect_watch(p)
         if watch:e.add_field(name='🚨 Perfect Game Watch',value=watch,inline=False)
