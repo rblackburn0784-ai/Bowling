@@ -46,7 +46,7 @@ class Games(commands.Cog):
   s=SESSIONS.get(i.channel_id)
   if not s:return await i.response.send_message('No active game in this channel.',ephemeral=True)
   if s.complete:return await i.response.send_message('Game already complete.',ephemeral=True)
-  save_snapshot(i.channel_id,s,'pre_ball');ev=s.bowl();ev['attribute_changes']=delivery_growth(ev,s.rng);save_snapshot(i.channel_id,s,'post_ball');policy=layout_policy(s.layout,classify(ev));card=lane_card(s,ev)
+  save_snapshot(i.channel_id,s,'pre_ball');ev=s.bowl();ev['attribute_changes']=delivery_growth(ev,s.rng);s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id'];save_snapshot(i.channel_id,s,'post_ball');policy=layout_policy(s.layout,classify(ev));card=lane_card(s,ev)
   await i.response.send_message(embed=scoreboard_embed(s,ev),file=discord.File(card,filename='gutter_lane.png') if policy['lane'] else discord.utils.MISSING);await self.reaction(i.channel,s,ev)
   if s.complete:await self.finish(i.channel,s,i.channel_id)
  @app_commands.command(name='game_auto',description='Run the active game live with commentary and reactions')
@@ -55,7 +55,7 @@ class Games(commands.Cog):
   if not s:return await i.response.send_message('No active game.',ephemeral=True)
   await i.response.defer();msg=await i.followup.send(embed=scoreboard_embed(s),wait=True)
   while not s.complete:
-   save_snapshot(i.channel_id,s,'pre_ball');ev=s.bowl();ev['attribute_changes']=delivery_growth(ev,s.rng);save_snapshot(i.channel_id,s,'post_ball');await msg.edit(embed=scoreboard_embed(s,ev));policy=layout_policy(s.layout,classify(ev))
+   save_snapshot(i.channel_id,s,'pre_ball');ev=s.bowl();ev['attribute_changes']=delivery_growth(ev,s.rng);s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id'];save_snapshot(i.channel_id,s,'post_ball');await msg.edit(embed=scoreboard_embed(s,ev));policy=layout_policy(s.layout,classify(ev))
    if policy['lane']:
     stages=lane_sequence(s,ev) if s.layout in ('broadcast','finals','chaos') else [lane_card(s,ev)]
     seqmsg=None

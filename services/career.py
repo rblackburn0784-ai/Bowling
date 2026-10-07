@@ -50,3 +50,15 @@ def delivery_growth(event,rng=None):
  if event.get('frame',0)>=9 and (event.get('spare') or pins==10) and rng.random()<.08:
   x=_change(bid,'nerves',1,'Clutch late-frame shot');changes += [x] if x else []
  return changes
+
+
+def rollback_delivery_changes(bowler_id,changes):
+ if not bowler_id or not changes:return
+ with connect() as c:
+  for stat,delta,new,reason in changes:
+   if stat not in ATTRS:continue
+   row=c.execute('SELECT id,old_value,new_value FROM attribute_history WHERE bowler_id=? AND stat=? AND delta=? AND new_value=? AND reason=? ORDER BY id DESC LIMIT 1',(bowler_id,stat,delta,new,reason)).fetchone()
+   if not row:continue
+   cur=c.execute(f'SELECT {stat} FROM bowlers WHERE id=?',(bowler_id,)).fetchone()
+   if cur and cur[stat]==row['new_value']:
+    c.execute(f'UPDATE bowlers SET {stat}=? WHERE id=?',(row['old_value'],bowler_id));c.execute('DELETE FROM attribute_history WHERE id=?',(row['id'],))

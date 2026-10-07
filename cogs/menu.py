@@ -41,7 +41,8 @@ def builder_embed(state,page):
  lines=[f"**{labels[k]}:** {v}" for k,v in state.stats.items()]
  colour=discord.Color.green() if state.remaining>=0 else discord.Color.red()
  e=discord.Embed(title=f'🎳 Build {state.name}',description='\n'.join(lines),colour=colour)
- e.add_field(name='Career Rank',value='**Rookie — Rank 1** (earned through play)',inline=False)\n e.add_field(name='Points',value=f'**Used:** {state.used} / {DEFAULT_STAT_BUDGET}\n**Remaining:** {state.remaining}',inline=False)
+ e.add_field(name='Career Rank',value='**Rookie — Rank 1** (earned through play)',inline=False)
+ e.add_field(name='Points',value=f'**Used:** {state.used} / {DEFAULT_STAT_BUDGET}\n**Remaining:** {state.remaining}',inline=False)
  e.set_footer(text=f'Stat Builder • Page {page}/2 • Creation range 5–25 • Career range 1–50')
  return e
 class StatSelect(discord.ui.Select):

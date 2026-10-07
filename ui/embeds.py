@@ -1,5 +1,6 @@
 import discord
-from services.commentary import event_text,perfect_watch\nfrom services.career import rank_title
+from services.commentary import event_text,perfect_watch
+from services.career import rank_title
 
 def bowler_embed(b):
     e=discord.Embed(title=f'🎳 {b.name}',description=f'{b.handedness}-handed bowler • **{rank_title(b.rank)} — Rank {b.rank}**')

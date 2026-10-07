@@ -3,6 +3,8 @@ def score_game(frames):
     for f in frames:
         rolls.extend(f)
     total=0; i=0
+    # Only score complete games/frames; live scoreboards use notation until completion.
+    if len(frames)<10:return 0
     for frame in range(10):
         if rolls[i]==10:
             total += 10 + rolls[i+1] + rolls[i+2]; i+=1

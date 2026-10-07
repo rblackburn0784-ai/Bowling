@@ -68,13 +68,20 @@ class GameSession:
         elif len(f)==2:
             if f[0]==10:
                 if pins==10:p.standing=set(ALL)
+                else:
+                    p.split_leave=is_split(p.standing);ev['split']=p.split_leave
+                    if p.split_leave:p.split_frames.add(10);ev['leave_name']=named_leave(p.standing) or 'Split'
                 p.ball=3
             elif sum(f[:2])==10:
                 ev['spare']=True
                 if 10 in p.split_frames:p.split_conversions.add(10);ev['split_conversion']=True;ev['split_name']=named_leave(before) or 'Split';p.special_conversions.add(ev['split_name'])
                 p.standing=set(ALL);p.ball=3
             else:self._advance(p)
-        else:self._advance(p)
+        else:
+            if f[0]==10 and f[1]<10 and f[1]+f[2]==10:
+                ev['spare']=True
+                if 10 in p.split_frames:ev['split_conversion']=True;ev['split_name']=named_leave(before) or 'Split';p.special_conversions.add(ev['split_name'])
+            self._advance(p)
     def _rivalry(self,ev,p):
         team=getattr(p.bowler,'team_name',None)
         if not team or not (ev.get('strike_streak') or ev.get('split_conversion')):return

@@ -5,6 +5,7 @@ from services.v25 import tournament_dashboard,backup_database,undo_snapshot,rest
 from services.state import SESSIONS
 from services.v271 import set_tournament_presentation,tournament_presentation
 from services.lane_physics import PATTERNS
+from services.career import rollback_delivery_changes
 class DirectorView(discord.ui.View):
  def __init__(self,name):super().__init__(timeout=600);self.name=name
  @discord.ui.button(label='Main Menu',emoji='🏠',style=discord.ButtonStyle.secondary,row=4)
@@ -19,9 +20,10 @@ class DirectorView(discord.ui.View):
  async def presentation(self,i,b):await i.response.send_modal(PresentationModal(self.name))
  @discord.ui.button(label='Undo Last Ball',style=discord.ButtonStyle.danger)
  async def undo(self,i,b):
+  current=SESSIONS.get(i.channel_id);changes=getattr(current,'last_attribute_changes',[]) if current else [];bid=getattr(current,'last_attribute_bowler_id',None) if current else None
   s=undo_snapshot(i.channel_id)
   if not s:return await i.response.send_message('No earlier snapshot.',ephemeral=True)
-  SESSIONS[i.channel_id]=s;await i.response.send_message('↩️ Last ball restored.',ephemeral=True)
+  rollback_delivery_changes(bid,changes);SESSIONS[i.channel_id]=s;await i.response.send_message('↩️ Last ball restored.',ephemeral=True)
  @discord.ui.button(label='Restore Match',style=discord.ButtonStyle.primary)
  async def restore(self,i,b):
   s=restore_session(i.channel_id)
