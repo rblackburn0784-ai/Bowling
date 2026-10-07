@@ -137,8 +137,7 @@ class PublicMenu(discord.ui.View):
  async def stats(self,i,b):
   x=get_bowler_by_owner(i.user.id)
   if not x:return await i.response.send_message('Create a bowler first.',ephemeral=True)
-  with connect() as c:s=c.execute('SELECT * FROM bowler_stats WHERE bowler_id=?',(x.id,)).fetchone()
-  await i.response.send_message(f"📊 **{x.name}** — Games {s['games'] if s else 0} • High {s['high_game'] if s else 0}",view=HomeView(),ephemeral=True)
+  await i.response.send_message(embed=bowler_embed(x),view=HomeView(),ephemeral=True)
  @discord.ui.button(label='Achievements',emoji='🏅',style=discord.ButtonStyle.secondary,custom_id='gs:achievements')
  async def achievements(self,i,b):
   x=get_bowler_by_owner(i.user.id)
