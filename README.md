@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.7.8.6 — Career Honours
+# Gutter Saints Bowling Bot v2.7.9 — Bowling Depth
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,16 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.7.9 Bowling Depth
+- Adds Normal, Safe, Aggressive, Recovery and Spare shot intents plus Auto strategy.
+- Shot intent is a bounded tactical modifier: Safe/Recovery trade carry for control; Aggressive trades control for carry; Spare prioritises targeting.
+- Accuracy and Consistency govern execution variance, Spin/Style help aggressive shape/carry, and Nerves influences pressure decisions.
+- Auto strategy reads standing pins, lane oil/transition, pressure and bowler profile; tournament autoplay remains hands-off.
+- Spare intent and Plastic ball are automatic whenever pins remain standing.
+- Optional `/game_shot` overrides the next delivery without changing the bowler's permanent setup.
+- Live scoreboards show ball, intent, lane, transition and target for each delivery.
+- Shot strategy survives Undo/Restore session persistence.
 
 ## v2.7.8.6 Career Honours
 - Completed tournaments can now issue permanent, duplicate-safe career honours.
