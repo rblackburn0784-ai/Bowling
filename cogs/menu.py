@@ -104,9 +104,9 @@ class AdminMenu(HomeView):
  @discord.ui.button(label='👥 Team Management',style=discord.ButtonStyle.primary)
  async def teams(self,i,b):
   if await self.gate(i):await swap(i,'👥 **Team Management**',TeamDashboard())
- @discord.ui.button(label='🏆 Tournament Control',style=discord.ButtonStyle.primary)
+ @discord.ui.button(label='🏆 Competition Director',style=discord.ButtonStyle.primary)
  async def tournaments(self,i,b):
-  if await self.gate(i):await swap(i,'🏆 **Tournament Control**',TournamentDashboard())
+  if await self.gate(i):await swap(i,'🏆 **Competition Director**',CompetitionDashboard())
  @discord.ui.button(label='🎮 Match Control',style=discord.ButtonStyle.success)
  async def match(self,i,b):
   if await self.gate(i):await swap(i,'🎮 **Match Control**',MatchDashboard())
