@@ -51,8 +51,8 @@ def _entries(c,cid):
 def _stage(c,cid,no,name,fmt,qualify=0,best_of=1):
  return c.execute('INSERT OR IGNORE INTO competition_stages(competition_id,stage_no,name,format,status,qualify_count,best_of) VALUES(?,?,?,?,?,?,?)',(cid,no,name,fmt,'active',qualify,best_of)).lastrowid or c.execute('SELECT id FROM competition_stages WHERE competition_id=? AND stage_no=?',(cid,no)).fetchone()['id']
 
-def _fixture(c,cid,sid,r,n,a,b,best=1,status='scheduled',winner=None):
- c.execute('INSERT OR IGNORE INTO fixtures(competition_id,stage_id,round_no,fixture_no,home_id,away_id,status,winner_id,series_best_of) VALUES(?,?,?,?,?,?,?,?,?)',(cid,sid,r,n,a,b,status,winner,best))
+def _fixture(c,cid,sid,r,n,a,b,best=1,status='scheduled',winner=None,bracket='main'):
+ c.execute('INSERT OR IGNORE INTO fixtures(competition_id,stage_id,round_no,fixture_no,home_id,away_id,status,winner_id,series_best_of,bracket) VALUES(?,?,?,?,?,?,?,?,?,?)',(cid,sid,r,n,a,b,status,winner,best,bracket))
 
 def generate_schedule(cid):
  with connect() as c:
@@ -194,7 +194,9 @@ def _double(c,co,stage,last):
  for bucket in (zero,one):
   while len(bucket)>=2:pairs.append((bucket.pop(0),bucket.pop(0)))
  if zero and one:pairs.append((zero[0],one[0]))
- for n,(a,b) in enumerate(pairs,1):_fixture(c,co['id'],stage['id'],r,n,a,b)
+ for n,(a,b) in enumerate(pairs,1):
+  bracket='grand_final' if len(active)==2 and {x['losses'] for x in active}=={0,1} else ('winners' if a in zero and b in zero else 'losers')
+  _fixture(c,co['id'],stage['id'],r,n,a,b,bracket=bracket)
 
 def progress_fixture(fid):
  with connect() as c:
@@ -237,4 +239,46 @@ def execute_movements(cid):
   rs=standings(cid);out=[]
   for x in rs[:co['promotion_slots']]:c.execute('INSERT OR IGNORE INTO competition_movements(season_id,competition_id,entrant_id,movement,target_template_id) VALUES(?,?,?,"promoted",?)',(co['season_id'],cid,x['entrant_id'],co['template_id']));out.append((x['entrant_id'],'promoted'))
   for x in (rs[-co['relegation_slots']:] if co['relegation_slots'] else []):c.execute('INSERT OR IGNORE INTO competition_movements(season_id,competition_id,entrant_id,movement,target_template_id) VALUES(?,?,?,"relegated",?)',(co['season_id'],cid,x['entrant_id'],co['template_id']));out.append((x['entrant_id'],'relegated'))
+  return out
+
+
+def competition_view(cid):
+ with connect() as c:
+  co=c.execute('SELECT * FROM competitions WHERE id=?',(cid,)).fetchone()
+  if not co:return None
+  table='teams' if co['entrant_type']=='team' else 'bowlers'
+  stages=c.execute('SELECT * FROM competition_stages WHERE competition_id=? ORDER BY stage_no',(cid,)).fetchall()
+  fixtures=c.execute(f'''SELECT f.*,h.name home_name,a.name away_name,w.name winner_name FROM fixtures f
+   LEFT JOIN {table} h ON h.id=f.home_id LEFT JOIN {table} a ON a.id=f.away_id LEFT JOIN {table} w ON w.id=f.winner_id
+   WHERE f.competition_id=? ORDER BY f.stage_id,f.round_no,f.fixture_no''',(cid,)).fetchall()
+  return co,stages,fixtures
+
+def next_fixture(cid):
+ with connect() as c:return c.execute("SELECT * FROM fixtures WHERE competition_id=? AND status='scheduled' AND home_id IS NOT NULL AND away_id IS NOT NULL ORDER BY stage_id,round_no,fixture_no LIMIT 1",(cid,)).fetchone()
+
+def entrant_status(cid,entrant_id):
+ with connect() as c:
+  co=c.execute('SELECT * FROM competitions WHERE id=?',(cid,)).fetchone()
+  if not co:return None
+  entry=c.execute('SELECT * FROM competition_entries WHERE competition_id=? AND entrant_id=?',(cid,entrant_id)).fetchone()
+  if not entry:return None
+  rs=standings(cid);place=next((n for n,x in enumerate(rs,1) if x['entrant_id']==entrant_id),None);row=next((x for x in rs if x['entrant_id']==entrant_id),None)
+  loss=c.execute('SELECT losses,eliminated FROM competition_losses WHERE competition_id=? AND entrant_id=?',(cid,entrant_id)).fetchone()
+  nxt=c.execute("SELECT * FROM fixtures WHERE competition_id=? AND status='scheduled' AND (home_id=? OR away_id=?) ORDER BY stage_id,round_no,fixture_no LIMIT 1",(cid,entrant_id,entrant_id)).fetchone()
+  status='Eliminated' if loss and loss['eliminated'] else 'Active'
+  if co['state']=='completed':status='Completed'
+  return {'competition':co,'entry':entry,'place':place,'standing':row,'losses':loss['losses'] if loss else 0,'status':status,'next':nxt}
+
+def bowler_competitions(owner_id):
+ with connect() as c:
+  bowlers=c.execute('SELECT id,name FROM bowlers WHERE owner_id=?',(owner_id,)).fetchall();out=[]
+  for b in bowlers:
+   direct=c.execute("SELECT co.id FROM competitions co JOIN competition_entries e ON e.competition_id=co.id WHERE co.entrant_type='individual' AND e.entrant_id=? AND co.state IN ('registration','locked','active')",(b['id'],)).fetchall()
+   team=c.execute("SELECT DISTINCT co.id FROM competitions co JOIN competition_rosters r ON r.competition_id=co.id WHERE co.entrant_type='team' AND r.bowler_id=? AND co.state IN ('locked','active')",(b['id'],)).fetchall()
+   for x in direct+team:
+    co=c.execute('SELECT entrant_type FROM competitions WHERE id=?',(x['id'],)).fetchone()
+    eid=b['id']
+    if co['entrant_type']=='team':eid=c.execute('SELECT team_id FROM competition_rosters WHERE competition_id=? AND bowler_id=?',(x['id'],b['id'])).fetchone()['team_id']
+    st=entrant_status(x['id'],eid)
+    if st:out.append((b,st))
   return out
