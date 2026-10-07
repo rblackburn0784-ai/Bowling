@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.7.7 — Dashboard UI Conversion
+# Gutter Saints Bowling Bot v2.7.8 — Bowler Career & Identity
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,15 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.7.8 Bowler Career & Identity
+- Rich Career Profile with named Rank, XP and next-Rank progress.
+- Persistent rookie attribute baseline and Rookie → Current movement.
+- Recent five-game form, career average and personal best.
+- Career 200/250/300 counts, clean games, strike/spare rates and split conversions.
+- Preferred ball, archetype, achievements, awards and upgrade credits.
+- Existing bowlers are safely backfilled on first v2.7.8 database initialization; future changes remain measured from that baseline.
+- My Bowler and My Stats now share the canonical career card.
 
 ## v2.7.7 Dashboard UI Conversion
 - Admin dashboards now perform actions directly instead of replying with “use /command”.
