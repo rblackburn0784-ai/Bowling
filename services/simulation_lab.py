@@ -7,9 +7,11 @@ from services.analytics import player_summary
 EXPORT_DIR=ROOT/'data'/'simulations'
 @dataclass(slots=True)
 class SimProfile:
- name:str;rank:int=20;accuracy:int=20;style:int=10;flair:int=10;consistency:int=20;spin:int=10;nerves:int=10;handedness:str='R';ball:str='hybrid'
+ name:str;rank:int=1;accuracy:int=15;style:int=15;flair:int=15;consistency:int=15;spin:int=15;nerves:int=15;handedness:str='R';ball:str='hybrid'
  def bowler(self,idx=1):return Bowler(-idx,self.name,0,self.handedness,self.rank,self.accuracy,self.style,self.flair,self.consistency,self.spin,self.nerves)
 def run_profile(p,games=1000,lane='house',burn=0.0,seed=7275):
+ total=p.accuracy+p.style+p.flair+p.consistency+p.spin+p.nerves
+ if p.rank==1 and (total!=90 or any(x<5 or x>25 for x in (p.accuracy,p.style,p.flair,p.consistency,p.spin,p.nerves))):raise ValueError('Rookie simulation profiles must use exactly 90 points with each stat 5–25.')
  games=max(1,min(100000,int(games)));rng=random.Random(seed);scores=[];strikes=spares=chances=firsts=0
  for n in range(games):
   s=GameSession([p.bowler(n+1)],rng.randrange(1,2**31),lane,lane_start=3,layout='standard');pg=s.players[0];pg.ball_key=p.ball
@@ -35,3 +37,14 @@ def export_csv(rows,label='simulation'):
  with p.open('w',newline='',encoding='utf-8-sig') as f:
   w=csv.DictWriter(f,fieldnames=list(rows[0]));w.writeheader();w.writerows(rows)
  return p
+
+
+def rookie_balance_suite(games=5000,lane='house',burn=0.0,seed=7275):
+ profiles=[
+  SimProfile('Balanced'),
+  SimProfile('Technician',accuracy=25,consistency=25,spin=10,nerves=10,style=10,flair=10),
+  SimProfile('Power Shape',accuracy=10,consistency=10,spin=25,nerves=10,style=25,flair=10),
+  SimProfile('Clutch Control',accuracy=20,consistency=20,spin=10,nerves=25,style=10,flair=5),
+  SimProfile('Showman',accuracy=10,consistency=10,spin=15,nerves=10,style=20,flair=25),
+ ]
+ rows=compare(profiles,games,lane,burn,seed);return rows,dominance_flags(rows)
