@@ -16,6 +16,7 @@ from services.v25 import save_snapshot,clear_session,unlock_achievements,award_p
 from ui.embeds import scoreboard_embed
 from services.v271 import bowler_loadout,tournament_presentation
 from services.career import delivery_growth,add_tendency,add_timeline_event
+from services.broadcast_director import match_context,persist_story,story_call,match_story_summary
 
 def rb(r,team=None):
  b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']});b.team_name=team;return b
@@ -87,6 +88,11 @@ class Games(commands.Cog):
   if policy['audio']:await play_sound(ch,AUDIO_MAP.get(event_kind,'pins'))
   lane_note=lane_call(ev)
   if lane_note:await ch.send(lane_note)
+  stories=match_context(s,ev);fresh=[]
+  for kind,icon,headline,detail in stories:
+   key=f'{kind}:{headline}'
+   if key not in s.story_seen:s.story_seen.add(key);fresh.append((kind,icon,headline,detail));persist_story(s,kind,headline,detail)
+  if fresh:await ch.send('🎙️ **BROADCAST DIRECTOR**\n'+story_call(fresh))
   contact=contact_call(ev)
   if contact:await ch.send(contact)
   call=streak_call(ev)
@@ -104,7 +110,13 @@ class Games(commands.Cog):
   split=max(summaries,key=lambda x:x[1]['split_conversions'])
   if split[1]['split_conversions']:awards.append(f"🪓 **Split Slayer:** {split[0].bowler.name} — {split[1]['split_conversions']} converted")
   if winner:awards.insert(0,f'🏆 **Team Winner: {winner}** — {totals[winner]}')
-  await ch.send('🎖️ **POST-GAME HONOURS**\n'+'\n'.join(awards));achievement_cards=[]
+  await ch.send('🎖️ **POST-GAME HONOURS**\n'+'\n'.join(awards))
+  stories=match_story_summary(s)
+  if stories:
+   priority={'comeback':6,'lead_change':5,'clutch':4,'pb_watch':3,'perfect_watch':7,'rivalry':3,'lane_read':1}
+   top=sorted(stories,key=lambda r:priority.get(r['kind'],0),reverse=True)[:4]
+   await ch.send('📰 **MATCH STORY**\n'+'\n'.join(f"• **{r['headline']}** — {r['detail']}" for r in top))
+  achievement_cards=[]
   with connect() as c:
    season=c.execute("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").fetchone(); season_id=season['id'] if season else None
    for p,sm in summaries:
