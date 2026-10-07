@@ -7,6 +7,14 @@ from services.v271 import set_tournament_presentation,tournament_presentation
 from services.lane_physics import PATTERNS
 class DirectorView(discord.ui.View):
  def __init__(self,name):super().__init__(timeout=600);self.name=name
+ @discord.ui.button(label='Main Menu',emoji='🏠',style=discord.ButtonStyle.secondary,row=4)
+ async def home(self,i,b):
+  from cogs.menu import PublicMenu
+  await i.response.edit_message(content='🎳 **THE GUTTER SAINTS**\nBowling, careers, achievements and tournament control.',embed=None,view=PublicMenu())
+ @discord.ui.button(label='Admin Home',emoji='🛠️',style=discord.ButtonStyle.secondary,row=4)
+ async def adminhome(self,i,b):
+  from cogs.menu import AdminMenu
+  await i.response.edit_message(content='🛠️ **Gutter Saints Admin Control**',embed=None,view=AdminMenu())
  @discord.ui.button(label='🎥 Presentation',style=discord.ButtonStyle.secondary)
  async def presentation(self,i,b):await i.response.send_modal(PresentationModal(self.name))
  @discord.ui.button(label='Undo Last Ball',style=discord.ButtonStyle.danger)
