@@ -5,6 +5,7 @@ from services.scoring import score_game,frame_notation
 from services.analytics import named_leave
 from services.lane_physics import LanePair
 from services.equipment import recommended_ball
+from services.shot_strategy import auto_intent,INTENTS
 
 @dataclass
 class BowlerGame:
@@ -14,7 +15,7 @@ class BowlerGame:
     frame:int=1; ball:int=1; split_leave:bool=False
     split_frames:set=field(default_factory=set); split_conversions:set=field(default_factory=set)
     strike_streak:int=0; max_strike_streak:int=0; form:float=0.0; special_conversions:set=field(default_factory=set)
-    ball_key:str='hybrid'
+    ball_key:str='hybrid'; shot_intent:str='auto'; next_intent:str|None=None
     @property
     def complete(self):return self.frame>10
 
@@ -30,16 +31,20 @@ class GameSession:
         pressure=max(0,(p.frame-7)/3) if p.frame<=10 else 1
         lane_state=self.lane_pair.lane_for(p.bowler.id)
         spare=before!=ALL
+        intent=p.next_intent or p.shot_intent
+        if intent=='auto':intent=auto_intent(p.bowler,before,lane_state,pressure)
+        if spare:intent='spare'
+        p.next_intent=None
         ball_key='plastic' if spare else p.ball_key
         if ball_key=='auto':ball_key=recommended_ball(lane_state.oil,spare)
-        down,q,physics=roll_pins(self.rng,p.bowler,before,self.lane,pressure,p.form,lane_state.transition,lane_state,ball_key,'spare' if spare else 'strike')
+        down,q,physics=roll_pins(self.rng,p.bowler,before,self.lane,pressure,p.form,lane_state.transition,lane_state,ball_key,'spare' if spare else 'strike',intent)
         lane_state.apply_shot(getattr(__import__('services.equipment',fromlist=['get_ball']).get_ball(ball_key),'hook',.8),physics['miss'])
         self.ball_count+=1;p.standing-=down;pins=len(down)
         delta=0.006 if pins==10 else (-0.004 if pins<=6 else 0.001);p.form=max(-0.025,min(0.025,p.form*.82+delta))
         if len(p.frames)<p.frame:p.frames.append([])
         f=p.frames[p.frame-1];f.append(pins)
         ev={'bowler':p.bowler.name,'bowler_id':p.bowler.id,'frame':frame_no,'ball':ball_no,'pins':pins,'before':sorted(before),'down':sorted(down),'after':sorted(p.standing),'quality':q,'split':False,'spare':False,'split_conversion':False,
-            'lane_no':lane_state.number,'oil':lane_state.oil,'transition':lane_state.transition,'physics':physics,'ball_key':ball_key,'handedness':p.bowler.handedness}
+            'lane_no':lane_state.number,'oil':lane_state.oil,'transition':lane_state.transition,'physics':physics,'ball_key':ball_key,'shot_intent':intent,'handedness':p.bowler.handedness}
         tags=physics.get('tags',[]);ev['carry_tags']=tags
         if tags:ev['contact']=tags[0]
         if frame_no<10:
