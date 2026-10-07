@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.8 — Seasons, Leagues & Competition
+# Gutter Saints Bowling Bot v2.8.1 — Competition Operations
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,20 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.8.1 Competition Operations
+- Makes every v2.8 format operational for both team and individual entrants through the shared fixture engine.
+- Single elimination advances winners round-by-round; seeded byes remain supported.
+- Double elimination tracks entrant losses, eliminates on the second loss and progresses winners/losers pools toward the final/reset.
+- Groups → Knockout ranks each group, qualifies the top two and cross-seeds the knockout stage.
+- Stepladder advances each match winner into the next higher seed.
+- Best-of-X persists individual fixture games and resolves only when an entrant reaches the required series wins.
+- Qualifying now uses playable round-robin qualifying fixtures and advances configured qualifiers into knockout finals.
+- Round-robin competitions can automatically create a playoff stage from the configured top N.
+- Locked competition rosters support designated substitutes without mutating historical team membership.
+- Promotion/relegation outcomes are persisted from completed final standings.
+- Scheduled fixtures can launch directly into the normal live GameSession, for teams or individual bowlers, and completed bowling games report back into fixture/series progression.
+- Competition context survives the existing session recovery path.
 
 ## v2.8 Seasons, Leagues & Competition
 - Adds a unified persistent competition model: season → competition → stage → fixture/series → bowling game.
