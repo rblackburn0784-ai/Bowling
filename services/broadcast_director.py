@@ -21,6 +21,7 @@ def _team_live(session):
 
 def match_context(session,event):
  stories=[];live=_team_live(session);previous=getattr(session,'story_leader',None)
+ if session.tournament_id and event.get('frame',0)>=8:stories.append(('tournament_pressure','🏆','Tournament pressure',f"{event['bowler']} is into the closing frames with advancement at stake."))
  if len(live)>=2:
   ordered=sorted(live.items(),key=lambda x:x[1],reverse=True);leader,lead=ordered[0];gap=lead-ordered[1][1]
   if previous and previous!=leader and gap>=5:stories.append(('lead_change','🔄',f'{leader} takes the lead',f'{leader} has moved ahead by roughly {gap} pins.'))
