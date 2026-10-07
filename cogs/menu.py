@@ -28,7 +28,7 @@ class BowlerIdentityModal(discord.ui.Modal,title='Create Bowler'):
   await i.response.send_message(embed=builder_embed(state,1),view=StatPageOne(state),ephemeral=True)
 class BowlerBuildState:
  def __init__(self,name,hand):
-  self.name=name;self.hand=hand;self.stats={'accuracy':0,'style':0,'flair':0,'consistency':0,'spin':0,'nerves':0}
+  self.name=name;self.hand=hand;self.stats={'accuracy':5,'style':5,'flair':5,'consistency':5,'spin':5,'nerves':5}
  @property
  def used(self):return sum(self.stats.values())
  @property
@@ -42,12 +42,12 @@ def builder_embed(state,page):
  colour=discord.Color.green() if state.remaining>=0 else discord.Color.red()
  e=discord.Embed(title=f'🎳 Build {state.name}',description='\n'.join(lines),colour=colour)
  e.add_field(name='Career Rank',value='**Rookie — Rank 1** (earned through play)',inline=False)\n e.add_field(name='Points',value=f'**Used:** {state.used} / {DEFAULT_STAT_BUDGET}\n**Remaining:** {state.remaining}',inline=False)
- e.set_footer(text=f'Stat Builder • Page {page}/2 • Each stat 0–50')
+ e.set_footer(text=f'Stat Builder • Page {page}/2 • Creation range 5–25 • Career range 1–50')
  return e
 class StatSelect(discord.ui.Select):
  def __init__(self,state,key,label,row):
   self.state=state;self.key=key
-  options=[discord.SelectOption(label=str(v),value=str(v),default=state.stats[key]==v) for v in range(0,51,2)]
+  options=[discord.SelectOption(label=str(v),value=str(v),default=state.stats[key]==v) for v in range(5,26)]
   super().__init__(placeholder=f'{label}: {state.stats[key]}',options=options,row=row)
  async def callback(self,i):
   self.state.stats[self.key]=int(self.values[0])
@@ -66,7 +66,7 @@ class StatPageTwo(discord.ui.View):
  def __init__(self,state):
   super().__init__(timeout=600);self.state=state
   for row,(key,label) in enumerate((('consistency','Consistency'),('spin','Spin'),('nerves','Nerves'))):self.add_item(StatSelect(state,key,label,row))
-  self.create.disabled=state.remaining<0 or state.used==0
+  self.create.disabled=state.remaining!=0
  @discord.ui.button(label='Back',emoji='⬅️',style=discord.ButtonStyle.secondary,row=3)
  async def back(self,i,b):await i.response.edit_message(embed=builder_embed(self.state,1),view=StatPageOne(self.state))
  @discord.ui.button(label='Create Bowler',emoji='✅',style=discord.ButtonStyle.success,row=3)
@@ -74,7 +74,9 @@ class StatPageTwo(discord.ui.View):
   from models.bowler import Bowler
   from services.roster import create_bowler
   from config import DEFAULT_STAT_BUDGET
-  if self.state.used>DEFAULT_STAT_BUDGET:return await i.response.send_message('Stat budget exceeded.',ephemeral=True)
+  from config import CREATION_MIN_STAT,CREATION_MAX_STAT
+  if self.state.used!=DEFAULT_STAT_BUDGET:return await i.response.send_message(f'You must spend exactly {DEFAULT_STAT_BUDGET} points before creating your bowler.',ephemeral=True)
+  if any(x<CREATION_MIN_STAT or x>CREATION_MAX_STAT for x in self.state.stats.values()):return await i.response.send_message(f'Every starting stat must be between {CREATION_MIN_STAT} and {CREATION_MAX_STAT}.',ephemeral=True)
   if get_bowler_by_owner(i.user.id):return await i.response.send_message('You already have a linked bowler.',ephemeral=True)
   v=self.state.stats
   try:create_bowler(Bowler(None,self.state.name,i.user.id,self.state.hand,1,v['accuracy'],v['style'],v['flair'],v['consistency'],v['spin'],v['nerves']))
