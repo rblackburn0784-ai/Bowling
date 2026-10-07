@@ -6,7 +6,7 @@ from services.scoring import score_game
 from services.simulation_lab import rookie_balance_suite
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-CORE=['storage/database.py','services/game_engine.py','services/pin_engine.py','services/lane_physics.py','services/shot_strategy.py','services/lane_adaptation.py','services/career.py','services/honours.py','services/broadcast_director.py','services/gazette.py','services/v25.py','cogs/games.py','cogs/director.py','cogs/menu.py','ui/embeds.py']
+CORE=['storage/database.py','services/game_engine.py','services/pin_engine.py','services/lane_physics.py','services/shot_strategy.py','services/lane_adaptation.py','services/career.py','services/honours.py','services/broadcast_director.py','services/gazette.py','services/v25.py','services/league_engine.py','cogs/league.py','cogs/games.py','cogs/director.py','cogs/menu.py','ui/embeds.py']
 
 def run():
  checks=[]
@@ -19,6 +19,9 @@ def run():
  from services.v25 import session_dict,session_from_dict
  restored=session_from_dict(session_dict(s));a=s.bowl();b_ev=restored.bowl()
  assert (a['pins'],a['down'],a['quality'])==(b_ev['pins'],b_ev['down'],b_ev['quality']);checks.append(('deterministic restore',True))
+ from services.league_engine import STATES,FORMATS
+ assert STATES==('draft','registration','locked','active','completed','archived');checks.append(('competition lifecycle',True))
+ assert {'single_elimination','double_elimination','round_robin','groups_knockout','stepladder','best_of','qualifying'}<=set(FORMATS);checks.append(('competition formats',True))
  rows,flags=rookie_balance_suite(1000)
  checks.append(('rookie balance suite',not flags))
  print('\n'.join(('PASS' if ok else 'WARN')+' '+name for name,ok in checks))
