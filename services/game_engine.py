@@ -25,7 +25,7 @@ class GameSession:
         self.seed=seed if seed is not None else random.SystemRandom().randrange(1,2**31)
         self.rng=random.Random(self.seed);self.lane=lane;self.players=[BowlerGame(b) for b in bowlers];self.turn=0
         self.tournament_id=tournament_id;self.match_id=match_id;self.persisted=False;self.ball_count=0
-        self.lane_pair=LanePair.create(lane_start,lane);self.layout=layout;self.branding=None
+        self.lane_pair=LanePair.create(lane_start,lane);self.layout=layout;self.branding=None;self.story_leader=None;self.story_low={};self.story_seen=set()
     def current(self):return self.players[self.turn]
     def bowl(self):
         p=self.current();before=set(p.standing);frame_no=p.frame;ball_no=p.ball
