@@ -159,3 +159,73 @@ def _knockout(c,co,stage):
  ids=[x['winner_id'] for x in cur]
  if len(ids)==1:return _finish(c,co,ids[0])
  if not c.execute('SELECT 1 FROM fixtures WHERE stage_id=? AND round_no=?',(stage['id'],r+1)).fetchone():_round(c,co,stage['id'],ids,r+1,stage['best_of'])
+
+
+def _groups(c,co,stage):
+ if c.execute("SELECT 1 FROM fixtures WHERE stage_id=? AND status!='complete' LIMIT 1",(stage['id'],)).fetchone():return
+ erows=c.execute('SELECT entrant_id,COALESCE(group_name,"A") g FROM competition_entries WHERE competition_id=?',(co['id'],)).fetchall();groups={}
+ for x in erows:groups.setdefault(x['g'],[]).append(x['entrant_id'])
+ qualified=[]
+ allstand=standings(co['id'])
+ for g in sorted(groups):
+  ranked=[x for x in allstand if x['entrant_id'] in groups[g]];qualified+= [x['entrant_id'] for x in ranked[:2]]
+ sid=_stage(c,co['id'],2,'Knockout Stage','single_elimination')
+ if len(groups)==2 and len(qualified)>=4:qualified=[qualified[0],qualified[3],qualified[2],qualified[1]]
+ _round(c,co,sid,qualified,1)
+
+def _stepladder(c,co,stage,last):
+ ids=list(reversed(_entries(c,co['id'])));played=c.execute('SELECT COUNT(*) n FROM fixtures WHERE stage_id=?',(stage['id'],)).fetchone()['n']
+ if played>=len(ids)-1:return _finish(c,co,last['winner_id'])
+ _fixture(c,co['id'],stage['id'],played+1,played+1,last['winner_id'],ids[played+1])
+
+def _double(c,co,stage,last):
+ loser=last['away_id'] if last['winner_id']==last['home_id'] else last['home_id']
+ c.execute('INSERT OR IGNORE INTO competition_losses(competition_id,entrant_id) VALUES(?,?)',(co['id'],loser));c.execute('UPDATE competition_losses SET losses=losses+1,eliminated=CASE WHEN losses+1>=2 THEN 1 ELSE eliminated END WHERE competition_id=? AND entrant_id=?',(co['id'],loser))
+ if c.execute("SELECT 1 FROM fixtures WHERE competition_id=? AND status='scheduled' LIMIT 1",(co['id'],)).fetchone():return
+ active=c.execute('''SELECT e.entrant_id,COALESCE(l.losses,0) losses FROM competition_entries e LEFT JOIN competition_losses l ON l.competition_id=e.competition_id AND l.entrant_id=e.entrant_id WHERE e.competition_id=? AND COALESCE(l.eliminated,0)=0 ORDER BY losses,COALESCE(e.seed,999999),e.entrant_id''',(co['id'],)).fetchall()
+ if len(active)==1:return _finish(c,co,active[0]['entrant_id'])
+ r=c.execute('SELECT COALESCE(MAX(round_no),0)+1 n FROM fixtures WHERE competition_id=?',(co['id'],)).fetchone()['n'];zero=[x['entrant_id'] for x in active if x['losses']==0];one=[x['entrant_id'] for x in active if x['losses']==1];pairs=[]
+ for bucket in (zero,one):
+  while len(bucket)>=2:pairs.append((bucket.pop(0),bucket.pop(0)))
+ if zero and one:pairs.append((zero[0],one[0]))
+ for n,(a,b) in enumerate(pairs,1):_fixture(c,co['id'],stage['id'],r,n,a,b)
+
+def progress_fixture(fid):
+ with connect() as c:
+  f=c.execute('SELECT * FROM fixtures WHERE id=?',(fid,)).fetchone()
+  if not f or f['status']!='complete':return
+  co=c.execute('SELECT * FROM competitions WHERE id=?',(f['competition_id'],)).fetchone();st=c.execute('SELECT * FROM competition_stages WHERE id=?',(f['stage_id'],)).fetchone()
+  if st['format']=='single_elimination':_knockout(c,co,st)
+  elif co['format']=='groups_knockout':_groups(c,co,st) if st['stage_no']==1 else _knockout(c,co,st)
+  elif co['format']=='stepladder':_stepladder(c,co,st,f)
+  elif co['format']=='double_elimination':_double(c,co,st,f)
+  elif co['format']=='qualifying':
+   if st['stage_no']==1:
+    if not c.execute("SELECT 1 FROM fixtures WHERE stage_id=? AND status!='complete' LIMIT 1",(st['id'],)).fetchone():
+     ids=[x['entrant_id'] for x in standings(co['id'])[:st['qualify_count']]];sid=_stage(c,co['id'],2,'Qualifying Finals','single_elimination');_round(c,co,sid,ids,1)
+   else:_knockout(c,co,st)
+  elif co['format']=='round_robin' and not c.execute("SELECT 1 FROM fixtures WHERE competition_id=? AND status!='complete' LIMIT 1",(co['id'],)).fetchone():
+   ids=[x['entrant_id'] for x in standings(co['id'])]
+   if co['playoff_size']>=2:sid=_stage(c,co['id'],2,'Playoffs','single_elimination');_round(c,co,sid,ids[:co['playoff_size']],1)
+   elif ids:_finish(c,co,ids[0])
+
+def record_series_game(fid,home_score,away_score,game_id=None):
+ with connect() as c:
+  f=c.execute('SELECT * FROM fixtures WHERE id=?',(fid,)).fetchone()
+  if not f or f['status']=='complete':return False,'Fixture is complete.'
+  n=c.execute('SELECT COUNT(*) n FROM fixture_games WHERE fixture_id=?',(fid,)).fetchone()['n']+1;w=f['home_id'] if home_score>away_score else f['away_id'] if away_score>home_score else None
+  c.execute('INSERT INTO fixture_games(fixture_id,game_no,game_id,home_score,away_score,winner_id,status) VALUES(?,?,?,?,?,?,"complete")',(fid,n,game_id,home_score,away_score,w))
+  wins={x['winner_id']:x['n'] for x in c.execute('SELECT winner_id,COUNT(*) n FROM fixture_games WHERE fixture_id=? AND winner_id IS NOT NULL GROUP BY winner_id',(fid,)).fetchall()};need=f['series_best_of']//2+1;champ=next((e for e,nw in wins.items() if nw>=need),None)
+  if champ:
+   totals=c.execute('SELECT SUM(home_score) h,SUM(away_score) a FROM fixture_games WHERE fixture_id=?',(fid,)).fetchone();c.execute('UPDATE fixtures SET home_score=?,away_score=?,winner_id=?,status="complete",played_at=CURRENT_TIMESTAMP WHERE id=?',(totals['h'],totals['a'],champ,fid))
+ if champ:progress_fixture(fid)
+ return True,None
+
+def execute_movements(cid):
+ with connect() as c:
+  co=c.execute('SELECT * FROM competitions WHERE id=?',(cid,)).fetchone()
+  if not co or co['state']!='completed':return []
+  rs=standings(cid);out=[]
+  for x in rs[:co['promotion_slots']]:c.execute('INSERT OR IGNORE INTO competition_movements(season_id,competition_id,entrant_id,movement,target_template_id) VALUES(?,?,?,"promoted",?)',(co['season_id'],cid,x['entrant_id'],co['template_id']));out.append((x['entrant_id'],'promoted'))
+  for x in (rs[-co['relegation_slots']:] if co['relegation_slots'] else []):c.execute('INSERT OR IGNORE INTO competition_movements(season_id,competition_id,entrant_id,movement,target_template_id) VALUES(?,?,?,"relegated",?)',(co['season_id'],cid,x['entrant_id'],co['template_id']));out.append((x['entrant_id'],'relegated'))
+  return out
