@@ -80,8 +80,13 @@ def generate_schedule(cid):
    ordered=list(reversed(ids))
    if len(ordered)>=2:_fixture(c,cid,sid,1,1,ordered[0],ordered[1])
   elif fmt=='qualifying':
-   sid=_stage(c,cid,1,'Qualifying','qualifying',x['playoff_size'] or max(2,len(ids)//2))
-   for n,e in enumerate(ids,1):_fixture(c,cid,sid,1,n,e,None,status='scheduled')
+   sid=_stage(c,cid,1,'Qualifying','round_robin',x['playoff_size'] or max(2,len(ids)//2))
+   arr=ids+([None] if len(ids)%2 else [])
+   for r in range(len(arr)-1):
+    for n in range(len(arr)//2):
+     a,b=arr[n],arr[-1-n]
+     if a and b:_fixture(c,cid,sid,r+1,n+1,a,b)
+    arr=[arr[0],arr[-1],*arr[1:-1]]
   elif fmt=='groups_knockout':
    sid=_stage(c,cid,1,'Group Stage','round_robin',x['playoff_size'] or 4)
    groups={}
