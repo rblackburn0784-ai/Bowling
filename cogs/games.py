@@ -15,7 +15,7 @@ from storage.database import record_completed_session,connect
 from services.v25 import save_snapshot,clear_session,unlock_achievements,award_progression,backup_database,audit
 from ui.embeds import scoreboard_embed
 from services.v271 import bowler_loadout,tournament_presentation
-from services.career import delivery_growth
+from services.career import delivery_growth,add_tendency,add_timeline_event
 
 def rb(r,team=None):
  b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']});b.team_name=team;return b
@@ -99,7 +99,12 @@ class Games(commands.Cog):
    for p,sm in summaries:
     team_name=getattr(p.bowler,'team_name',None);tr=c.execute('SELECT id FROM teams WHERE name=? COLLATE NOCASE',(team_name,)).fetchone() if team_name else None;tid=tr['id'] if tr else None
     c.execute('INSERT INTO game_history(game_id,bowler_id,season_id,tournament_id,team_id,score,strikes,spares,splits,split_conversions,longest_streak,clean,form) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',(gid,p.bowler.id,season_id,s.tournament_id,tid,sm['score'],sm['strikes'],sm['spares'],sm['splits'],sm['split_conversions'],sm['longest_streak'],sm['clean'],getattr(p,'form',0)))
-    award_progression(p.bowler.id,sm['score'],bool(s.tournament_id),winner==team_name);seven_ten='7–10 Split' in getattr(p,'special_conversions',set())
+    award_progression(p.bowler.id,sm['score'],bool(s.tournament_id),winner==team_name)
+    if sm['clean']:add_tendency(p.bowler.id,'consistency',2.2,'Repeated clean-game execution','game')
+    if sm['longest_streak']>=6:add_tendency(p.bowler.id,'flair',1.8,'Produced a six-pack strike run','game')
+    if sm['score']<120 and sm.get('opens',0)>=5:add_tendency(p.bowler.id,'consistency',-2.0,'Repeated game collapse with open frames','game')
+    if sm['score']>=250:add_tendency(p.bowler.id,'nerves',1.5,'Delivered a 250+ pressure game','game')
+    seven_ten='7–10 Split' in getattr(p,'special_conversions',set())
     for title,detail in unlock_achievements(p.bowler.id,sm,{'seven_ten':seven_ten}):achievement_cards.append((p.bowler.name,title,detail))
   for name,title,detail in achievement_cards:
    e=discord.Embed(title=f'🏅 ACHIEVEMENT UNLOCKED — {title}',description=f'**{name}**\n{detail}',colour=discord.Colour.gold());await ch.send(embed=e);await send_media(ch,'award')
