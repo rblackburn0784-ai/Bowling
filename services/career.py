@@ -31,26 +31,51 @@ def _change(bowler_id,stat,delta,reason):
   c.execute('INSERT INTO attribute_history(bowler_id,stat,delta,old_value,new_value,reason) VALUES(?,?,?,?,?,?)',(bowler_id,stat,new-old,old,new,reason))
  return stat,new-old,new,reason
 
+def _timeline(c,bowler_id,kind,icon,headline,detail='',source='career'):
+ c.execute('INSERT INTO career_timeline(bowler_id,kind,icon,headline,detail,source) VALUES(?,?,?,?,?,?)',(bowler_id,kind,icon,headline,detail,source))
+
+def add_tendency(bowler_id,stat,amount,reason,source='delivery'):
+ if stat not in ATTRS or not amount:return None
+ with connect() as c:
+  c.execute('INSERT OR IGNORE INTO career_tendencies(bowler_id,stat) VALUES(?,?)',(bowler_id,stat))
+  row=c.execute('SELECT score,evidence FROM career_tendencies WHERE bowler_id=? AND stat=?',(bowler_id,stat)).fetchone()
+  score=max(-24.0,min(24.0,row['score']+amount));evidence=row['evidence']+1
+  c.execute('UPDATE career_tendencies SET score=?,evidence=?,updated_at=CURRENT_TIMESTAMP WHERE bowler_id=? AND stat=?',(score,evidence,bowler_id,stat))
+  threshold=10.0
+  if evidence>=3 and abs(score)>=threshold:
+   delta=1 if score>0 else -1
+   br=c.execute(f'SELECT {stat} FROM bowlers WHERE id=?',(bowler_id,)).fetchone();old=br[stat];new=max(1,min(50,old+delta))
+   if new!=old:
+    c.execute(f'UPDATE bowlers SET {stat}=? WHERE id=?',(new,bowler_id))
+    c.execute('INSERT INTO attribute_history(bowler_id,stat,delta,old_value,new_value,reason) VALUES(?,?,?,?,?,?)',(bowler_id,stat,new-old,old,new,reason))
+    _timeline(c,bowler_id,'attribute','🟢' if delta>0 else '🔴',f"{stat.title()} {'+' if delta>0 else ''}{delta}",reason,source)
+    score-=threshold*delta
+   c.execute('UPDATE career_tendencies SET score=?,evidence=0 WHERE bowler_id=? AND stat=?',(score,bowler_id,stat))
+   return (stat,new-old,new,reason) if new!=old else None
+ return None
+
 def delivery_growth(event,rng=None):
- rng=rng or random
  bid=event.get('bowler_id')
  if not bid or bid<1:return []
- changes=[];pins=event.get('pins',0);ball=event.get('ball',1);before=len(event.get('before',[]));quality=event.get('quality',0)
- # Rare, event-driven movement. One bad roll should sting occasionally, not erase a career.
- if pins==0 and rng.random()<.16:
-  stat=rng.choice(('accuracy','consistency'));x=_change(bid,stat,-1,'Gutter ball');changes += [x] if x else []
- elif ball>1 and before<=2 and pins==0 and rng.random()<.20:
-  stat=rng.choice(('accuracy','nerves'));x=_change(bid,stat,-1,'Missed easy spare');changes += [x] if x else []
- if event.get('split_conversion') and rng.random()<.28:
-  stat=rng.choice(('accuracy','style','nerves'));x=_change(bid,stat,1,'Difficult split conversion');changes += [x] if x else []
- elif pins==10 and quality<.58 and rng.random()<.08:
-  stat=rng.choice(('style','flair'));x=_change(bid,stat,1,'Creative strike carry');changes += [x] if x else []
- elif event.get('strike_streak',0)>=3 and rng.random()<.06:
-  stat=rng.choice(('consistency','spin','flair'));x=_change(bid,stat,1,'Strike streak');changes += [x] if x else []
- if event.get('frame',0)>=9 and (event.get('spare') or pins==10) and rng.random()<.08:
-  x=_change(bid,'nerves',1,'Clutch late-frame shot');changes += [x] if x else []
+ pins=event.get('pins',0);ball=event.get('ball',1);before=set(event.get('before',[]));frame=event.get('frame',0);quality=event.get('quality',0);changes=[]
+ signals=[]
+ # Persistent evidence: repeated behaviour shapes careers instead of independent random +/- rolls.
+ if pins==0 and ball==1:signals += [('accuracy',-1.8,'Repeated gutter-ball control issues'),('consistency',-1.2,'Repeated gutter-ball control issues')]
+ if ball>1 and len(before)==1 and pins==0:
+  signals += [('accuracy',-2.0,'Repeated single-pin spare misses')]
+  if frame>=9:signals += [('nerves',-2.4,'Late-frame single-pin misses')]
+ if event.get('split_conversion'):
+  leave=event.get('leave_name') or event.get('named_leave') or 'difficult split'
+  signals += [('accuracy',2.4,f'Converted {leave}'),('style',1.5,f'Converted {leave}')]
+ if pins==10:
+  signals += [('consistency',.45,'Sustained strike production')]
+  if quality<.58:signals += [('flair',1.25,'Messenger/creative strike carry')]
+ if event.get('strike_streak',0)>=3:signals += [('consistency',1.0,'Built repeated strike streaks'),('spin',.55,'Strike-streak ball motion')]
+ if frame>=9 and (event.get('spare') or pins==10):signals += [('nerves',1.1,'Clutch late-frame conversion')]
+ for stat,amount,reason in signals:
+  x=add_tendency(bid,stat,amount,reason)
+  if x:changes.append(x)
  return changes
-
 
 def rollback_delivery_changes(bowler_id,changes):
  if not bowler_id or not changes:return
