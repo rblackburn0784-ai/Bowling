@@ -102,6 +102,7 @@ def report_fixture(fid,home_score,away_score):
   f=c.execute('SELECT f.*,co.* FROM fixtures f JOIN competitions co ON co.id=f.competition_id WHERE f.id=?',(fid,)).fetchone()
   if not f or f['state']!='active' or f['status']=='complete':return False,'Fixture is not playable.'
   if f['away_id'] is None:return False,'Qualifying fixtures require game-result integration.'
+  if f['status'] not in ('scheduled','playing'):return False,'Fixture is not playable.'
   winner=f['home_id'] if home_score>away_score else f['away_id'] if away_score>home_score else None
   c.execute('UPDATE fixtures SET home_score=?,away_score=?,winner_id=?,status="complete",played_at=CURRENT_TIMESTAMP WHERE id=?',(home_score,away_score,winner,fid))
   hp=f['points_win'] if winner==f['home_id'] else f['points_draw'] if winner is None else f['points_loss'];ap=f['points_win'] if winner==f['away_id'] else f['points_draw'] if winner is None else f['points_loss']
