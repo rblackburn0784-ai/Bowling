@@ -1,0 +1,12 @@
+{
+  "default": {
+    "title": "THE GUTTER SAINTS",
+    "background": null
+  },
+  "tournaments": {
+    "EXAMPLE TOURNAMENT": {
+      "title": "NEON GLOW CUP",
+      "background": null
+    }
+  }
+}

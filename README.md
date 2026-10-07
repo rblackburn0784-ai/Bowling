@@ -1,24 +1,33 @@
-# Gutter Saints Bowling Bot v2.6 — Broadcast Edition
+# Gutter Saints Bowling Bot v2.7 — Presentation & Bowling Physics
 
-A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournament brackets, achievements, progression, graphical lane cards, contextual commentary, GIF hooks and optional voice-channel sound effects.
+A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.7 highlights
+- Lane-pair model with alternating lanes and independent transition.
+- Custom pattern framework (House 40', Fresh House, Neon Flood, Burnt Saints, Transition).
+- Derived ball speed, rev rate, breakpoint and entry angle from existing bowler stats.
+- Strategic ball arsenal: Solid, Pearl, Hybrid, Urethane and Plastic. Balls change shape/control and oil fit; they do not add raw stat points.
+- Spare shots target surviving pins and default to plastic rather than using the strike pocket model.
+- Carry vocabulary/events including Brooklyn, messenger, trip-4, ringing 10, stone 8/9, light mixer and pocket 7–10.
+- Generated lane sequence stages: approach, path, breakpoint, impact and leave.
+- Left/right-handed path mirroring and visible oil/transition data.
+- Event priority so rare/spectacular moments beat generic strike/spare reactions.
+- Presentation policies: Standard, Broadcast, Finals and Chaos.
+- Branding placeholder file at `assets/branding.json` for tournament titles/backgrounds.
+- Existing team logos/bowler avatar database support can be layered into cards without changing physics.
 
 ## Setup
 1. Install Python 3.13+.
 2. `pip install -r requirements.txt`
-3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN` (optionally `GUILD_ID` for fast guild command sync).
-4. For voice effects, install FFmpeg and place your licensed audio files in `assets/sounds/` using names from `assets/audio.json`.
+3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
+4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
 
 ## Main UI
-Use `/menu` for the public menu. Players can view their bowler, stats and achievements. Admins can open the admin console for bowlers, teams, tournaments, matches, records and settings.
+Use `/menu` for players and `/director` for Tournament Director. The original bot remains preserved on `legacy-v0.1`.
 
-Use `/director` for the Tournament Director dashboard. Recovery uses persisted match snapshots, including Undo Last Ball and Restore Match.
-
-## Broadcast presentation
-`/lane_view` renders the current lane and standing pins. `assets/media.json` contains GIF/media URL pools. `/audio_join` connects to the invoking user's voice channel; audio is optional and requires FFmpeg/PyNaCl.
+## Media
+GIF/media URLs live in `assets/media.json`. Audio mappings live in `assets/audio.json`. Local copyrighted assets are intentionally not bundled.
 
 ## Data safety
-The live SQLite database, backups, generated exports, lane cards, `.env`, Python caches and local sound files are ignored by Git. Never commit your Discord token.
-
-## Legacy
-The original v0.1 bot is preserved on branch `legacy-v0.1`.
+The live SQLite DB, backups, exports, generated lane cards, `.env`, caches and local sound files remain ignored by Git.
