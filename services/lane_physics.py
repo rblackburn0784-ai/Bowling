@@ -15,16 +15,29 @@ class LaneState:
     traffic: int = 0
     oil: float = .54
     track: float = 0.0
+    inside: float = 0.0
+    middle: float = 0.0
+    outside: float = 0.0
+    carrydown: float = 0.0
     def __post_init__(self):
         self.oil = PATTERNS.get(self.pattern_key,PATTERNS["house"])["volume"]
     @property
     def transition(self):
         return min(1.0, self.track)
-    def apply_shot(self, hook: float, boards: float):
+    def apply_shot(self, hook: float, boards: float, handedness='R',style=25,spin=25):
         self.traffic += 1
-        burn=(.0042 + hook*.0022) * (1.0 + min(1.0,abs(boards)/10)*.18)
-        self.track=min(1.0,self.track+burn)
-        self.oil=max(.12,self.oil-burn*.52)
+        shape=min(1.0,(hook*.55+spin/50*.30+style/50*.15));burn=(.0042 + hook*.0022)*(1+shape*.35)
+        zone='outside' if abs(boards)>=.55 else 'inside' if abs(boards)<=.18 else 'middle'
+        setattr(self,zone,min(1.0,getattr(self,zone)+burn*5.2));self.track=min(1.0,self.track+burn)
+        self.carrydown=min(1.0,self.carrydown+hook*.0025*(1-shape*.35));self.oil=max(.12,self.oil-burn*.52)
+        return zone
+    def zone_state(self):return {'inside':self.inside,'track':self.middle,'outside':self.outside}
+    def condition_text(self):
+        z=max(self.zone_state(),key=self.zone_state().get);v=self.zone_state()[z]
+        if v>=.62:return f'{z} is heavily burnt'
+        if v>=.34:return f'{z} is beginning to dry'
+        if self.carrydown>=.35:return 'showing carrydown downlane'
+        return 'still fairly stable'
 
 @dataclass
 class LanePair:
