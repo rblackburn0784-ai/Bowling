@@ -3,8 +3,12 @@ from discord import app_commands
 from discord.ext import commands
 from services.v25 import tournament_dashboard,backup_database,undo_snapshot,restore_session,export_tournament_xlsx
 from services.state import SESSIONS
+from services.v271 import set_tournament_presentation,tournament_presentation
+from services.lane_physics import PATTERNS
 class DirectorView(discord.ui.View):
  def __init__(self,name):super().__init__(timeout=600);self.name=name
+ @discord.ui.button(label='🎥 Presentation',style=discord.ButtonStyle.secondary)
+ async def presentation(self,i,b):await i.response.send_modal(PresentationModal(self.name))
  @discord.ui.button(label='Undo Last Ball',style=discord.ButtonStyle.danger)
  async def undo(self,i,b):
   s=undo_snapshot(i.channel_id)
@@ -20,6 +24,18 @@ class DirectorView(discord.ui.View):
   p=export_tournament_xlsx(self.name)
   if not p:return await i.response.send_message('Nothing to export.',ephemeral=True)
   await i.response.send_message(file=discord.File(p))
+class PresentationModal(discord.ui.Modal,title='Tournament Presentation'):
+ pattern=discord.ui.TextInput(label='Oil pattern',placeholder='house / fresh / oily / dry / transition',required=False)
+ layout=discord.ui.TextInput(label='Layout',placeholder='standard / broadcast / finals / chaos',required=False)
+ lane=discord.ui.TextInput(label='Lane pair start',placeholder='3',required=False)
+ brand=discord.ui.TextInput(label='Broadcast title',required=False,max_length=38)
+ def __init__(self,name):super().__init__();self.name=name
+ async def on_submit(self,i):
+  try:lane=int(self.lane.value) if self.lane.value else None
+  except ValueError:return await i.response.send_message('Lane must be a number.',ephemeral=True)
+  ok,err=set_tournament_presentation(self.name,self.pattern.value.lower() or None,self.layout.value.lower() or None,lane,self.brand.value or None)
+  await i.response.send_message('🎥 Tournament presentation updated.' if ok else err,ephemeral=True)
+
 class Director(commands.Cog):
  def __init__(self,bot):self.bot=bot
  @app_commands.command(name='director',description='Open Tournament Director')
@@ -27,7 +43,7 @@ class Director(commands.Cog):
  async def director(self,i:discord.Interaction,tournament:str|None=None):
   d=tournament_dashboard(tournament)
   if not d:return await i.response.send_message('No active tournament.',ephemeral=True)
-  t,matches,nxt,leaders=d;done=sum(x['status']=='complete' for x in matches);desc=f"Status **{t['status']}** • Completed **{done}/{len(matches)}**\n"
+  t,matches,nxt,leaders=d;done=sum(x['status']=='complete' for x in matches);p=tournament_presentation(t['id']);desc=f"Status **{t['status']}** • Completed **{done}/{len(matches)}**\n🎥 **{p['layout'].title()}** • Lanes **{p['lane_start']}/{p['lane_start']+1}** • Pattern **{t['lane_condition'].title()}**\n"
   if nxt:desc+=f"Next: **R{nxt['round_no']} M{nxt['match_no']} — {nxt['team_a']} vs {nxt['team_b']}**\n"
   if leaders:desc+='\n**Leaders**\n'+'\n'.join(f"{x['name']} — {x['avg']:.1f}" for x in leaders)
   await i.response.send_message(embed=discord.Embed(title=f"🏆 Tournament Director — {t['name']}",description=desc),view=DirectorView(t['name']))

@@ -1,6 +1,14 @@
-# Gutter Saints Bowling Bot v2.7 — Presentation & Bowling Physics
+# Gutter Saints Bowling Bot v2.7.1 — Integration & Polish
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.7.1 integration
+- Public **My Arsenal** selector persists each bowler's primary strike ball; Plastic remains automatic for spares.
+- Tournament Director **Presentation** control sets oil pattern, Standard/Broadcast/Finals/Chaos layout, odd-numbered lane-pair start and broadcast title.
+- Broadcast/Finals/Chaos now play the generated Approach → Path → Breakpoint → Impact → Leave sequence by editing one Discord image message rather than flooding the channel.
+- Layout policy now actually controls lane graphics, GIF priority and audio.
+- Recovery snapshots persist ball selection, layout, branding and each lane's independent oil/traffic state.
+- Database presentation tables support bowler avatar URLs, team logo URLs and tournament branding/background URLs for match graphics.
 
 ## v2.7 highlights
 - Lane-pair model with alternating lanes and independent transition.

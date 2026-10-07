@@ -4,6 +4,8 @@ from discord.ext import commands
 from services.roster import get_bowler_by_owner,list_bowlers
 from storage.database import connect
 from ui.embeds import bowler_embed
+from services.equipment import BALLS
+from services.v271 import bowler_loadout,set_bowler_ball
 
 def admin_ok(i):return bool(i.user.guild_permissions.administrator or i.user.guild_permissions.manage_guild)
 class AdminMenu(discord.ui.View):
@@ -37,6 +39,13 @@ class AdminMenu(discord.ui.View):
  async def settings(self,i,b):
   if not await self.gate(i):return
   await i.response.send_message('⚙️ **Bot Settings**\nBroadcast media: `assets/media.json`\nAudio: `assets/audio.json`\nVoice: `/audio_join` / `/audio_leave`',ephemeral=True)
+class BallSelect(discord.ui.Select):
+ def __init__(self,bowler_id):
+  self.bowler_id=bowler_id;super().__init__(placeholder='Choose primary strike ball',options=[discord.SelectOption(label=v.name,value=k,description=f'Hook {v.hook:.2f} • Length {v.length:.2f} • Control {v.control:.2f}') for k,v in BALLS.items()])
+ async def callback(self,i):
+  set_bowler_ball(self.bowler_id,self.values[0]);await i.response.send_message(f'🎳 Primary ball set to **{BALLS[self.values[0]].name}**. Spares still use Plastic automatically.',ephemeral=True)
+class ArsenalView(discord.ui.View):
+ def __init__(self,bowler_id):super().__init__(timeout=120);self.add_item(BallSelect(bowler_id))
 class PublicMenu(discord.ui.View):
  def __init__(self):super().__init__(timeout=None)
  @discord.ui.button(label='My Bowler',emoji='🎳',style=discord.ButtonStyle.primary,custom_id='gs:mybowler')
@@ -54,6 +63,11 @@ class PublicMenu(discord.ui.View):
   if not x:return await i.response.send_message('Create a bowler first.',ephemeral=True)
   with connect() as c:r=c.execute('SELECT title FROM achievements WHERE bowler_id=? ORDER BY earned_at',(x.id,)).fetchall()
   await i.response.send_message('🏅 **Achievements**\n'+('\n'.join('• '+a['title'] for a in r) or 'None yet.'),ephemeral=True)
+ @discord.ui.button(label='My Arsenal',emoji='🎯',style=discord.ButtonStyle.secondary,custom_id='gs:arsenal')
+ async def arsenal(self,i,b):
+  x=get_bowler_by_owner(i.user.id)
+  if not x:return await i.response.send_message('Create a bowler first.',ephemeral=True)
+  load=bowler_loadout(x.id);await i.response.send_message(f"🎯 **{x.name}'s Arsenal**\nPrimary: **{BALLS[load.get('primary_ball','hybrid')].name}**\nChoose the strike ball below. Plastic is automatically used for spares.",view=ArsenalView(x.id),ephemeral=True)
  @discord.ui.button(label='Browse Bowlers',emoji='👀',style=discord.ButtonStyle.secondary,custom_id='gs:browse')
  async def browse(self,i,b):await i.response.send_message('🎳 **Bowlers**\n'+('\n'.join('• '+x['name'] for x in list_bowlers()) or 'None'),ephemeral=True)
  @discord.ui.button(label='Admin Control',emoji='🛠️',style=discord.ButtonStyle.danger,custom_id='gs:admin')

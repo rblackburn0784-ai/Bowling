@@ -6,14 +6,15 @@ from models.bowler import Bowler
 from services.game_engine import GameSession
 from services.state import SESSIONS
 from services.media import pick
-from services.lane_visual import lane_card
+from services.lane_visual import lane_card,lane_sequence
 from services.audio import play_sound
-from services.presentation import classify,AUDIO_MAP,GIF_MAP
+from services.presentation import classify,AUDIO_MAP,GIF_MAP,layout_policy
 from services.commentary import line,streak_call,rivalry_call,contact_call
 from services.analytics import player_summary
 from storage.database import record_completed_session,connect
 from services.v25 import save_snapshot,clear_session,unlock_achievements,award_progression,backup_database,audit
 from ui.embeds import scoreboard_embed
+from services.v271 import bowler_loadout,tournament_presentation
 
 def rb(r,team=None):
  b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']});b.team_name=team;return b
@@ -35,6 +36,7 @@ class Games(commands.Cog):
     if n<len(rr):bowlers.append(rb(rr[n],opponent))
   else:bowlers=[rb(x,team) for x in ra]
   s=GameSession(bowlers,seed,lane.value if lane else 'house');SESSIONS[i.channel_id]=s
+  for p in s.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
   await i.response.send_message(f"🎤 **WELCOME TO THE GUTTER SAINTS LANES!**\n**{team}**"+(f' vs **{opponent}**' if opponent else ''))
   for b in bowlers:await i.channel.send(line('entrance',name=b.name));await send_media(i.channel,'entrance')
   await i.channel.send(embed=scoreboard_embed(s))
@@ -43,7 +45,8 @@ class Games(commands.Cog):
   s=SESSIONS.get(i.channel_id)
   if not s:return await i.response.send_message('No active game in this channel.',ephemeral=True)
   if s.complete:return await i.response.send_message('Game already complete.',ephemeral=True)
-  save_snapshot(i.channel_id,s,'pre_ball');ev=s.bowl();save_snapshot(i.channel_id,s,'post_ball');card=lane_card(s,ev);await i.response.send_message(embed=scoreboard_embed(s,ev),file=discord.File(card,filename='gutter_lane.png'));await self.reaction(i.channel,s,ev)
+  save_snapshot(i.channel_id,s,'pre_ball');ev=s.bowl();save_snapshot(i.channel_id,s,'post_ball');policy=layout_policy(s.layout,classify(ev));card=lane_card(s,ev)
+  await i.response.send_message(embed=scoreboard_embed(s,ev),file=discord.File(card,filename='gutter_lane.png') if policy['lane'] else discord.utils.MISSING);await self.reaction(i.channel,s,ev)
   if s.complete:await self.finish(i.channel,s,i.channel_id)
  @app_commands.command(name='game_auto',description='Run the active game live with commentary and reactions')
  async def auto(self,i:discord.Interaction,delay:app_commands.Range[float,0.0,5.0]=0.7):
@@ -51,18 +54,27 @@ class Games(commands.Cog):
   if not s:return await i.response.send_message('No active game.',ephemeral=True)
   await i.response.defer();msg=await i.followup.send(embed=scoreboard_embed(s),wait=True)
   while not s.complete:
-   save_snapshot(i.channel_id,s,'pre_ball');ev=s.bowl();save_snapshot(i.channel_id,s,'post_ball');await msg.edit(embed=scoreboard_embed(s,ev));card=lane_card(s,ev);await i.channel.send(file=discord.File(card,filename='gutter_lane.png'),delete_after=max(8.0,delay*3));await self.reaction(i.channel,s,ev);await asyncio.sleep(delay)
+   save_snapshot(i.channel_id,s,'pre_ball');ev=s.bowl();save_snapshot(i.channel_id,s,'post_ball');await msg.edit(embed=scoreboard_embed(s,ev));policy=layout_policy(s.layout,classify(ev))
+   if policy['lane']:
+    stages=lane_sequence(s,ev) if s.layout in ('broadcast','finals','chaos') else [lane_card(s,ev)]
+    seqmsg=None
+    for idx,card in enumerate(stages):
+     f=discord.File(card,filename=f'gutter_lane_{idx}.png')
+     if seqmsg is None:seqmsg=await i.channel.send(file=f)
+     else:await seqmsg.edit(attachments=[f])
+     await asyncio.sleep(max(.12,min(.45,delay*.35)))
+   await self.reaction(i.channel,s,ev);await asyncio.sleep(delay)
   await self.finish(i.channel,s,i.channel_id)
  @app_commands.command(name='game_scoreboard')
  async def board(self,i:discord.Interaction):
   s=SESSIONS.get(i.channel_id);await i.response.send_message(embed=scoreboard_embed(s) if s else None,content=None if s else 'No active game.',ephemeral=not bool(s))
  async def reaction(self,ch,s,ev):
-  event_kind=classify(ev);kind=GIF_MAP.get(event_kind,event_kind)
-  if kind!='delivery':
+  event_kind=classify(ev);policy=layout_policy(s.layout,event_kind);kind=GIF_MAP.get(event_kind,event_kind)
+  if policy['media'] and kind!='delivery':
    await send_media(ch,kind)
    if event_kind in ('strike','spare','turkey','six_pack','front_nine','perfect_watch','perfect_300','split_conversion','seven_ten_conversion'):await send_media(ch,'crowd_hype')
    elif event_kind in ('split','seven_ten','gutter'):await send_media(ch,'crowd_groan')
-  await play_sound(ch,AUDIO_MAP.get(event_kind,'pins'))
+  if policy['audio']:await play_sound(ch,AUDIO_MAP.get(event_kind,'pins'))
   contact=contact_call(ev)
   if contact:await ch.send(contact)
   call=streak_call(ev)

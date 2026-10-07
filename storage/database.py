@@ -85,6 +85,9 @@ CREATE TABLE IF NOT EXISTS active_sessions(channel_id INTEGER PRIMARY KEY,state_
 CREATE TABLE IF NOT EXISTS predictions(id INTEGER PRIMARY KEY AUTOINCREMENT,tournament_id INTEGER,match_id INTEGER,user_id INTEGER NOT NULL,team_id INTEGER NOT NULL,points INTEGER DEFAULT 0,created_at TEXT DEFAULT CURRENT_TIMESTAMP,UNIQUE(match_id,user_id));
 CREATE TABLE IF NOT EXISTS tournament_stories(id INTEGER PRIMARY KEY AUTOINCREMENT,tournament_id INTEGER,match_id INTEGER,kind TEXT,headline TEXT,detail TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS bot_settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS bowler_presentation(bowler_id INTEGER PRIMARY KEY,primary_ball TEXT NOT NULL DEFAULT 'hybrid',avatar_url TEXT,FOREIGN KEY(bowler_id) REFERENCES bowlers(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS team_presentation(team_id INTEGER PRIMARY KEY,logo_url TEXT,FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS tournament_presentation(tournament_id INTEGER PRIMARY KEY,layout TEXT NOT NULL DEFAULT 'broadcast',lane_start INTEGER NOT NULL DEFAULT 3,brand_title TEXT,background_url TEXT,FOREIGN KEY(tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE);
 '''
 
 def ensure_v25_schema():

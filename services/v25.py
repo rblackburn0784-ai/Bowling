@@ -15,14 +15,19 @@ def audit(actor_id,action,target_type='',target_id=None,detail=''):
 def archetype(b):
     vals={'Power Player':b.rank+b.flair*.25,'Shot Maker':b.accuracy+b.consistency*.35,'Spinner':b.spin+b.style*.25,'Clutch Bowler':b.nerves+b.consistency*.25,'Showman':b.style+b.flair*.8,'Steady Hand':b.consistency+b.accuracy*.3};return max(vals,key=vals.get)
 def session_dict(s):
-    return {'seed':s.seed,'lane':s.lane,'turn':s.turn,'tournament_id':s.tournament_id,'match_id':s.match_id,'persisted':s.persisted,'ball_count':getattr(s,'ball_count',0),'players':[{'bowler':{k:getattr(p.bowler,k) for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves','team_name']},'frames':p.frames,'standing':sorted(p.standing),'frame':p.frame,'ball':p.ball,'split_leave':p.split_leave,'split_frames':sorted(p.split_frames),'split_conversions':sorted(p.split_conversions),'strike_streak':p.strike_streak,'max_strike_streak':p.max_strike_streak,'form':getattr(p,'form',0.0),'special_conversions':sorted(getattr(p,'special_conversions',set()))} for p in s.players]}
+    return {'seed':s.seed,'lane':s.lane,'turn':s.turn,'tournament_id':s.tournament_id,'match_id':s.match_id,'persisted':s.persisted,'ball_count':getattr(s,'ball_count',0),'layout':getattr(s,'layout','broadcast'),'branding':getattr(s,'branding',None),'lane_pair':{'left':{'number':s.lane_pair.left.number,'traffic':s.lane_pair.left.traffic,'oil':s.lane_pair.left.oil,'track':s.lane_pair.left.track},'right':{'number':s.lane_pair.right.number,'traffic':s.lane_pair.right.traffic,'oil':s.lane_pair.right.oil,'track':s.lane_pair.right.track},'next_side':s.lane_pair.next_side},'players':[{'bowler':{k:getattr(p.bowler,k) for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves','team_name']},'frames':p.frames,'standing':sorted(p.standing),'frame':p.frame,'ball':p.ball,'split_leave':p.split_leave,'split_frames':sorted(p.split_frames),'split_conversions':sorted(p.split_conversions),'strike_streak':p.strike_streak,'max_strike_streak':p.max_strike_streak,'form':getattr(p,'form',0.0),'special_conversions':sorted(getattr(p,'special_conversions',set())),'ball_key':getattr(p,'ball_key','hybrid')} for p in s.players]}
 def session_from_dict(d):
     bowlers=[]
     for x in d['players']:
         bd=x['bowler']; team=bd.pop('team_name',None); b=Bowler(**bd); b.team_name=team; bowlers.append(b)
-    s=GameSession(bowlers,d['seed'],d['lane'],d.get('tournament_id'),d.get('match_id'));s.turn=d['turn'];s.persisted=d.get('persisted',False);s.ball_count=d.get('ball_count',0)
+    lp=d.get('lane_pair',{});start=lp.get('left',{}).get('number',3);s=GameSession(bowlers,d['seed'],d['lane'],d.get('tournament_id'),d.get('match_id'),start,d.get('layout','broadcast'));s.turn=d['turn'];s.persisted=d.get('persisted',False);s.ball_count=d.get('ball_count',0);s.branding=d.get('branding')
+    for side in ('left','right'):
+        src=lp.get(side,{})
+        lane=getattr(s.lane_pair,side)
+        lane.traffic=src.get('traffic',0);lane.oil=src.get('oil',lane.oil);lane.track=src.get('track',0.0)
+    s.lane_pair.next_side={int(k):v for k,v in lp.get('next_side',{}).items()}
     for p,x in zip(s.players,d['players']):
-        p.frames=x['frames'];p.standing=set(x['standing']);p.frame=x['frame'];p.ball=x['ball'];p.split_leave=x.get('split_leave',False);p.split_frames=set(x.get('split_frames',[]));p.split_conversions=set(x.get('split_conversions',[]));p.strike_streak=x.get('strike_streak',0);p.max_strike_streak=x.get('max_strike_streak',0);p.form=x.get('form',0.0);p.special_conversions=set(x.get('special_conversions',[]))
+        p.frames=x['frames'];p.standing=set(x['standing']);p.frame=x['frame'];p.ball=x['ball'];p.split_leave=x.get('split_leave',False);p.split_frames=set(x.get('split_frames',[]));p.split_conversions=set(x.get('split_conversions',[]));p.strike_streak=x.get('strike_streak',0);p.max_strike_streak=x.get('max_strike_streak',0);p.form=x.get('form',0.0);p.special_conversions=set(x.get('special_conversions',[]));p.ball_key=x.get('ball_key','hybrid')
     return s
 def save_snapshot(channel_id,s,label='ball'):
     payload=json.dumps(session_dict(s),separators=(',',':'))
