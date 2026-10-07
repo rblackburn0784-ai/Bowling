@@ -4,7 +4,7 @@ from storage.database import connect
 def create_bowler(b: Bowler):
     with connect() as con:
         cur=con.execute("INSERT INTO bowlers(name,owner_id,handedness,rank,accuracy,style,flair,consistency,spin,nerves) VALUES(?,?,?,?,?,?,?,?,?,?)",(b.name,b.owner_id,b.handedness,1,b.accuracy,b.style,b.flair,b.consistency,b.spin,b.nerves))
-        con.execute("INSERT OR IGNORE INTO bowler_stats(bowler_id) VALUES(?)",(cur.lastrowid,)); return cur.lastrowid
+        con.execute("INSERT OR IGNORE INTO bowler_stats(bowler_id) VALUES(?)",(cur.lastrowid,)); con.execute("INSERT INTO bowler_origins(bowler_id,accuracy,consistency,spin,nerves,style,flair) VALUES(?,?,?,?,?,?,?)",(cur.lastrowid,b.accuracy,b.consistency,b.spin,b.nerves,b.style,b.flair)); return cur.lastrowid
 
 def get_bowler(name):
     with connect() as con:r=con.execute("SELECT * FROM bowlers WHERE name=? COLLATE NOCASE",(name,)).fetchone()
