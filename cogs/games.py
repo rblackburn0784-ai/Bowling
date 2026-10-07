@@ -9,7 +9,7 @@ from services.media import pick
 from services.lane_visual import lane_card,lane_sequence
 from services.audio import play_sound
 from services.presentation import classify,AUDIO_MAP,GIF_MAP,layout_policy
-from services.commentary import line,streak_call,rivalry_call,contact_call
+from services.commentary import line,streak_call,rivalry_call,contact_call,lane_call
 from services.analytics import player_summary
 from storage.database import record_completed_session,connect
 from services.v25 import save_snapshot,clear_session,unlock_achievements,award_progression,backup_database,audit
@@ -85,6 +85,8 @@ class Games(commands.Cog):
    if event_kind in ('strike','spare','turkey','six_pack','front_nine','perfect_watch','perfect_300','split_conversion','seven_ten_conversion'):await send_media(ch,'crowd_hype')
    elif event_kind in ('split','seven_ten','gutter'):await send_media(ch,'crowd_groan')
   if policy['audio']:await play_sound(ch,AUDIO_MAP.get(event_kind,'pins'))
+  lane_note=lane_call(ev)
+  if lane_note:await ch.send(lane_note)
   contact=contact_call(ev)
   if contact:await ch.send(contact)
   call=streak_call(ev)
