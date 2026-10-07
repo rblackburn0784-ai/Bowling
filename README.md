@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.7.9.7 — Gutter Gazette
+# Gutter Saints Bowling Bot v2.7.9.9 — Integration, Balance & Reliability
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,15 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.7.9.9 Integration, Balance & Reliability
+- Release-gate audit across scoring, game physics, Living Lanes, shot strategy, career systems, tournament honours, Broadcast Director, Gazette and recovery.
+- Undo/Restore now persists Python RNG internal state, making the next delivery deterministic after recovery rather than merely restoring the original seed.
+- Tournament championship/finals history is idempotent when Career Honours is rerun.
+- Automatic Gazette publishing is idempotent for unchanged tournament state; manual Director publishing remains explicit.
+- Broadcast tournament-pressure stories are bowler-specific to prevent unrelated story dedupe collisions.
+- Simulation Lab rookie profiles now enforce the real 90-point, 5–25 creation rules and include a legal archetype balance suite.
+- Added `python -m services.release_audit` offline release gate for core syntax, 300/all-spare scoring, deterministic restore and rookie balance warnings.
 
 ## v2.7.9.7 Gutter Gazette
 - Adds persistent newspaper-style tournament issues built entirely from recorded match/story/stat data.
