@@ -29,6 +29,15 @@ class DirectorView(discord.ui.View):
   s=restore_session(i.channel_id)
   if not s:return await i.response.send_message('No saved active match.',ephemeral=True)
   SESSIONS[i.channel_id]=s;await i.response.send_message('♻️ Match restored.',ephemeral=True)
+ @discord.ui.button(label='Publish Gazette',emoji='📰',style=discord.ButtonStyle.primary)
+ async def gazette(self,i,b):
+  from services.gazette import build_gazette,format_gazette
+  from storage.database import connect
+  with connect() as c:t=c.execute('SELECT id FROM tournaments WHERE name=? COLLATE NOCASE',(self.name,)).fetchone()
+  if not t:return await i.response.send_message('Tournament not found.',ephemeral=True)
+  g=build_gazette(t['id'])
+  if not g:return await i.response.send_message('Not enough recorded tournament action for a Gazette issue yet.',ephemeral=True)
+  await i.response.send_message(format_gazette(g),ephemeral=False)
  @discord.ui.button(label='Career Honours',emoji='🏆',style=discord.ButtonStyle.success)
  async def honours(self,i,b):
   from services.honours import finalize_tournament_honours
