@@ -21,10 +21,10 @@ class BowlerGame:
     def complete(self):return self.frame>10
 
 class GameSession:
-    def __init__(self,bowlers,seed=None,lane='house',tournament_id=None,match_id=None,lane_start=3,layout='broadcast'):
+    def __init__(self,bowlers,seed=None,lane='house',tournament_id=None,match_id=None,lane_start=3,layout='broadcast',season_id=None,competition_id=None,fixture_id=None):
         self.seed=seed if seed is not None else random.SystemRandom().randrange(1,2**31)
         self.rng=random.Random(self.seed);self.lane=lane;self.players=[BowlerGame(b) for b in bowlers];self.turn=0
-        self.tournament_id=tournament_id;self.match_id=match_id;self.persisted=False;self.ball_count=0
+        self.tournament_id=tournament_id;self.match_id=match_id;self.season_id=season_id;self.competition_id=competition_id;self.fixture_id=fixture_id;self.persisted=False;self.ball_count=0
         self.lane_pair=LanePair.create(lane_start,lane);self.layout=layout;self.branding=None;self.story_leader=None;self.story_low={};self.story_seen=set()
     def current(self):return self.players[self.turn]
     def bowl(self):
