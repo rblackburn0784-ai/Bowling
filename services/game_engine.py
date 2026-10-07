@@ -6,6 +6,7 @@ from services.analytics import named_leave
 from services.lane_physics import LanePair
 from services.equipment import recommended_ball
 from services.shot_strategy import auto_intent,INTENTS
+from services.lane_adaptation import lane_adaptation
 
 @dataclass
 class BowlerGame:
@@ -15,7 +16,7 @@ class BowlerGame:
     frame:int=1; ball:int=1; split_leave:bool=False
     split_frames:set=field(default_factory=set); split_conversions:set=field(default_factory=set)
     strike_streak:int=0; max_strike_streak:int=0; form:float=0.0; special_conversions:set=field(default_factory=set)
-    ball_key:str='hybrid'; shot_intent:str='auto'; next_intent:str|None=None
+    ball_key:str='hybrid'; shot_intent:str='auto'; next_intent:str|None=None; line_boards:int=0; active_ball:str|None=None
     @property
     def complete(self):return self.frame>10
 
@@ -35,16 +36,19 @@ class GameSession:
         if intent=='auto':intent=auto_intent(p.bowler,before,lane_state,pressure)
         if spare:intent='spare'
         p.next_intent=None
-        ball_key='plastic' if spare else p.ball_key
-        if ball_key=='auto':ball_key=recommended_ball(lane_state.oil,spare)
+        adaptation=lane_adaptation(p.bowler,p,lane_state,spare)
+        old_ball=p.active_ball or (recommended_ball(lane_state.oil) if p.ball_key=='auto' else p.ball_key);old_line=p.line_boards
+        ball_key='plastic' if spare else adaptation['ball'];p.active_ball=ball_key if not spare else p.active_ball;p.line_boards=adaptation['boards'] if not spare else p.line_boards
+        adapt_event=None
+        if not spare and (ball_key!=old_ball or p.line_boards!=old_line):adapt_event={'from_ball':old_ball,'to_ball':ball_key,'from_boards':old_line,'to_boards':p.line_boards,'reason':adaptation['reason']}
         down,q,physics=roll_pins(self.rng,p.bowler,before,self.lane,pressure,p.form,lane_state.transition,lane_state,ball_key,'spare' if spare else 'strike',intent)
-        lane_state.apply_shot(getattr(__import__('services.equipment',fromlist=['get_ball']).get_ball(ball_key),'hook',.8),physics['miss'])
+        zone=lane_state.apply_shot(getattr(__import__('services.equipment',fromlist=['get_ball']).get_ball(ball_key),'hook',.8),physics['miss']+p.line_boards/4,p.bowler.handedness,p.bowler.style,p.bowler.spin)
         self.ball_count+=1;p.standing-=down;pins=len(down)
         delta=0.006 if pins==10 else (-0.004 if pins<=6 else 0.001);p.form=max(-0.025,min(0.025,p.form*.82+delta))
         if len(p.frames)<p.frame:p.frames.append([])
         f=p.frames[p.frame-1];f.append(pins)
         ev={'bowler':p.bowler.name,'bowler_id':p.bowler.id,'frame':frame_no,'ball':ball_no,'pins':pins,'before':sorted(before),'down':sorted(down),'after':sorted(p.standing),'quality':q,'split':False,'spare':False,'split_conversion':False,
-            'lane_no':lane_state.number,'oil':lane_state.oil,'transition':lane_state.transition,'physics':physics,'ball_key':ball_key,'shot_intent':intent,'handedness':p.bowler.handedness}
+            'lane_no':lane_state.number,'oil':lane_state.oil,'transition':lane_state.transition,'lane_zones':lane_state.zone_state(),'lane_condition':lane_state.condition_text(),'burn_zone':zone,'adaptation':adapt_event,'line_boards':p.line_boards,'physics':physics,'ball_key':ball_key,'shot_intent':intent,'handedness':p.bowler.handedness}
         tags=physics.get('tags',[]);ev['carry_tags']=tags
         if tags:ev['contact']=tags[0]
         if frame_no<10:
