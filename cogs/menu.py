@@ -17,25 +17,74 @@ class HomeView(discord.ui.View):
 class AdminHomeView(HomeView):
  @discord.ui.button(label='🛠️ Admin Home',style=discord.ButtonStyle.secondary)
  async def adminhome(self,i,b):await swap(i,'🛠️ **Gutter Saints Admin Control**',AdminMenu())
-class BowlerCreateModal(discord.ui.Modal,title='Create Bowler'):
+class BowlerIdentityModal(discord.ui.Modal,title='Create Bowler'):
  name=discord.ui.TextInput(label='Bowler name',max_length=32)
  handedness=discord.ui.TextInput(label='Handedness',placeholder='R or L',default='R',max_length=1)
- stats=discord.ui.TextInput(label='Stats (7 values)',placeholder='Rank, Acc, Style, Flair, Cons, Spin, Nerves',default='20,20,10,10,20,10,10',max_length=24)
  async def on_submit(self,i):
-  from models.bowler import Bowler
-  from services.roster import create_bowler,get_bowler_by_owner
-  from config import DEFAULT_STAT_BUDGET
   if get_bowler_by_owner(i.user.id):return await i.response.send_message('You already have a linked bowler.',ephemeral=True)
-  try:vals=[int(x.strip()) for x in self.stats.value.split(',')]
-  except:return await i.response.send_message('Enter seven numbers separated by commas.',ephemeral=True)
-  if len(vals)!=7 or any(x<0 or x>50 for x in vals):return await i.response.send_message('Each of the seven stats must be 0–50.',ephemeral=True)
-  if sum(vals)>DEFAULT_STAT_BUDGET:return await i.response.send_message(f'Stat total {sum(vals)} exceeds the {DEFAULT_STAT_BUDGET} budget.',ephemeral=True)
-  try:create_bowler(Bowler(None,self.name.value,i.user.id,self.handedness.value.upper()[0],*vals))
+  hand=self.handedness.value.strip().upper()
+  if hand not in ('R','L'):return await i.response.send_message('Handedness must be R or L.',ephemeral=True)
+  state=BowlerBuildState(self.name.value.strip(),hand)
+  await i.response.send_message(embed=builder_embed(state,1),view=StatPageOne(state),ephemeral=True)
+class BowlerBuildState:
+ def __init__(self,name,hand):
+  self.name=name;self.hand=hand;self.stats={'rank':0,'accuracy':0,'style':0,'flair':0,'consistency':0,'spin':0,'nerves':0}
+ @property
+ def used(self):return sum(self.stats.values())
+ @property
+ def remaining(self):
+  from config import DEFAULT_STAT_BUDGET
+  return DEFAULT_STAT_BUDGET-self.used
+def builder_embed(state,page):
+ from config import DEFAULT_STAT_BUDGET
+ labels={'rank':'Rank','accuracy':'Accuracy','style':'Style','flair':'Flair','consistency':'Consistency','spin':'Spin','nerves':'Nerves'}
+ lines=[f"**{labels[k]}:** {v}" for k,v in state.stats.items()]
+ colour=discord.Color.green() if state.remaining>=0 else discord.Color.red()
+ e=discord.Embed(title=f'🎳 Build {state.name}',description='\n'.join(lines),colour=colour)
+ e.add_field(name='Points',value=f'**Used:** {state.used} / {DEFAULT_STAT_BUDGET}\n**Remaining:** {state.remaining}',inline=False)
+ e.set_footer(text=f'Stat Builder • Page {page}/2 • Each stat 0–50')
+ return e
+class StatSelect(discord.ui.Select):
+ def __init__(self,state,key,label,row):
+  self.state=state;self.key=key
+  options=[discord.SelectOption(label=str(v),value=str(v),default=state.stats[key]==v) for v in range(0,51,2)]
+  super().__init__(placeholder=f'{label}: {state.stats[key]}',options=options,row=row)
+ async def callback(self,i):
+  self.state.stats[self.key]=int(self.values[0])
+  page=1 if self.key in ('rank','accuracy','style','flair') else 2
+  view=StatPageOne(self.state) if page==1 else StatPageTwo(self.state)
+  await i.response.edit_message(embed=builder_embed(self.state,page),view=view)
+class StatPageOne(discord.ui.View):
+ def __init__(self,state):
+  super().__init__(timeout=600);self.state=state
+  for row,(key,label) in enumerate((('rank','Rank'),('accuracy','Accuracy'),('style','Style'),('flair','Flair'))):self.add_item(StatSelect(state,key,label,row))
+ @discord.ui.button(label='Next: More Stats',emoji='➡️',style=discord.ButtonStyle.primary,row=4)
+ async def nxt(self,i,b):await i.response.edit_message(embed=builder_embed(self.state,2),view=StatPageTwo(self.state))
+ @discord.ui.button(label='Cancel',style=discord.ButtonStyle.secondary,row=4)
+ async def cancel(self,i,b):await i.response.edit_message(content='Bowler creation cancelled.',embed=None,view=HomeView())
+class StatPageTwo(discord.ui.View):
+ def __init__(self,state):
+  super().__init__(timeout=600);self.state=state
+  for row,(key,label) in enumerate((('consistency','Consistency'),('spin','Spin'),('nerves','Nerves'))):self.add_item(StatSelect(state,key,label,row))
+  self.create.disabled=state.remaining<0 or state.used==0
+ @discord.ui.button(label='Back',emoji='⬅️',style=discord.ButtonStyle.secondary,row=3)
+ async def back(self,i,b):await i.response.edit_message(embed=builder_embed(self.state,1),view=StatPageOne(self.state))
+ @discord.ui.button(label='Create Bowler',emoji='✅',style=discord.ButtonStyle.success,row=3)
+ async def create(self,i,b):
+  from models.bowler import Bowler
+  from services.roster import create_bowler
+  from config import DEFAULT_STAT_BUDGET
+  if self.state.used>DEFAULT_STAT_BUDGET:return await i.response.send_message('Stat budget exceeded.',ephemeral=True)
+  if get_bowler_by_owner(i.user.id):return await i.response.send_message('You already have a linked bowler.',ephemeral=True)
+  v=self.state.stats
+  try:create_bowler(Bowler(None,self.state.name,i.user.id,self.state.hand,v['rank'],v['accuracy'],v['style'],v['flair'],v['consistency'],v['spin'],v['nerves']))
   except Exception as e:return await i.response.send_message(f'Could not create bowler: {e}',ephemeral=True)
-  await i.response.send_message(f'🎳 **{self.name.value}** created.',ephemeral=True)
+  await i.response.edit_message(content=f"🎳 **{self.state.name}** created with **{self.state.used}/{DEFAULT_STAT_BUDGET}** points.",embed=None,view=HomeView())
+ @discord.ui.button(label='Cancel',style=discord.ButtonStyle.danger,row=3)
+ async def cancel(self,i,b):await i.response.edit_message(content='Bowler creation cancelled.',embed=None,view=HomeView())
 class BowlerDashboard(AdminHomeView):
  @discord.ui.button(label='➕ Create Bowler',style=discord.ButtonStyle.success)
- async def create(self,i,b):await i.response.send_modal(BowlerCreateModal())
+ async def create(self,i,b):await i.response.send_modal(BowlerIdentityModal())
  @discord.ui.button(label='📋 Bowler List',style=discord.ButtonStyle.primary)
  async def listing(self,i,b):
   with connect() as c:r=c.execute('SELECT name,owner_id FROM bowlers ORDER BY name').fetchall()
