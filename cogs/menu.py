@@ -13,10 +13,15 @@ async def swap(i,title,view,body='Choose an option below.'):
 class HomeView(discord.ui.View):
  def __init__(self):super().__init__(timeout=300)
  @discord.ui.button(label='🏠 Main Menu',style=discord.ButtonStyle.secondary)
- async def home(self,i,b):await swap(i,'🎳 **THE GUTTER SAINTS**',PublicMenu(),'Bowling, careers, achievements and tournament control.')
+ async def home(self,i,b):await i.response.send_message('🎳 **THE GUTTER SAINTS**',view=PublicMenu(admin=admin_ok(i)),ephemeral=True)
 class AdminHomeView(HomeView):
+ async def interaction_check(self,i):
+  if not admin_ok(i):
+   await i.response.send_message('Admin permission required.',ephemeral=True)
+   return False
+  return True
  @discord.ui.button(label='🛠️ Admin Home',style=discord.ButtonStyle.secondary)
- async def adminhome(self,i,b):await swap(i,'🛠️ **Gutter Saints Admin Control**',AdminMenu())
+ async def adminhome(self,i,b):await i.response.send_message('🛠️ **Gutter Saints Admin Control**',view=AdminMenu(),ephemeral=True)
 class BowlerIdentityModal(discord.ui.Modal,title='Create Bowler'):
  name=discord.ui.TextInput(label='Bowler name',max_length=32)
  handedness=discord.ui.TextInput(label='Handedness',placeholder='R or L',default='R',max_length=1)
@@ -92,9 +97,14 @@ class BowlerDashboard(AdminHomeView):
  async def listing(self,i,b):
   with connect() as c:r=c.execute('SELECT name,owner_id FROM bowlers ORDER BY name').fetchall()
   await i.response.send_message('🎳 **Bowlers**\n'+('\n'.join(f"• {x['name']} — {'Offline' if x['owner_id']==0 else 'Discord linked'}" for x in r) or 'None'),ephemeral=True)
-from cogs.dashboard_ui import TeamDashboard,TournamentDashboard,MatchDashboard,RecordsDashboard,SettingsDashboard
+from cogs.dashboard_ui import TeamDashboard,TournamentDashboard,CompetitionDashboard,MatchDashboard,RecordsDashboard,SettingsDashboard
 class AdminMenu(HomeView):
  def __init__(self):super().__init__()
+ async def interaction_check(self,i):
+  if not admin_ok(i):
+   await i.response.send_message('Admin permission required.',ephemeral=True)
+   return False
+  return True
  async def gate(self,i):
   if not admin_ok(i):await i.response.send_message('Admin/Manage Server permission required.',ephemeral=True);return False
   return True
@@ -143,7 +153,10 @@ class CareerView(HomeView):
   text='\n'.join(f"**{r['stat'].title()}**: {r['score']:+.1f} ({r['evidence']} recent signals)" for r in rows) or 'No strong tendencies yet.'
   await i.response.send_message('🧬 **CAREER TENDENCIES**\n'+text+'\n\n±10 sustained evidence triggers an attribute change.',ephemeral=True)
 class PublicMenu(discord.ui.View):
- def __init__(self):super().__init__(timeout=None)
+ def __init__(self,admin=False):
+  super().__init__(timeout=None)
+  if not admin:
+   self.remove_item(self.admin)
  @discord.ui.button(label='Create Bowler',emoji='➕',style=discord.ButtonStyle.success,custom_id='gs:create')
  async def create(self,i,b):
   if get_bowler_by_owner(i.user.id):return await i.response.send_message('You already have a linked bowler.',ephemeral=True)
@@ -193,5 +206,5 @@ class PublicMenu(discord.ui.View):
 class Menu(commands.Cog):
  def __init__(self,bot):self.bot=bot
  @app_commands.command(name='menu',description='Open the Gutter Saints main menu')
- async def menu(self,i:discord.Interaction):await i.response.send_message('🎳 **THE GUTTER SAINTS**\nBowling, careers, achievements and tournament control.',view=PublicMenu(),ephemeral=True)
+ async def menu(self,i:discord.Interaction):await i.response.send_message('🎳 **THE GUTTER SAINTS**\nBowling, careers, achievements and tournament control.',view=PublicMenu(admin=admin_ok(i)),ephemeral=True)
 async def setup(bot):await bot.add_cog(Menu(bot))
