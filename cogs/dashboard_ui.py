@@ -159,20 +159,14 @@ class MatchSetupView(Nav):
   super().__init__()
   self.team=self.opponent=None
   self.bowler_a=self.bowler_b=None
-  self.mode='solo'
   self.lane='house'
-  self.add_item(Pick(self,'mode','Match type',[discord.SelectOption(label='Two bowlers (1 vs 1)',value='solo'),discord.SelectOption(label='Teams',value='team')],0))
   bowlers=rows('SELECT id,name FROM bowlers ORDER BY name')
-  teams=rows('SELECT id,name FROM teams ORDER BY name')
   if bowlers:
    self.add_item(Pick(self,'bowler_a','Bowler A',opts(bowlers),1))
    self.add_item(Pick(self,'bowler_b','Bowler B',opts(bowlers),2))
   self.add_item(Pick(self,'lane','Oil pattern',[discord.SelectOption(label=x.title(),value=x) for x in ('house','fresh','dry','oily','transition')],3))
-  self.teams=teams
  @discord.ui.button(label='Start Match',style=discord.ButtonStyle.success,row=4)
  async def start(self,i,b):
-  if self.mode=='team':
-   return await i.response.send_message('For team matches use /game_start with team names. This menu currently starts individual exhibitions.',ephemeral=True)
   if not self.bowler_a or not self.bowler_b:return await i.response.send_message('Choose Bowler A and Bowler B.',ephemeral=True)
   if self.bowler_a==self.bowler_b:return await i.response.send_message('Choose two different bowlers.',ephemeral=True)
   if i.channel_id in SESSIONS and not SESSIONS[i.channel_id].complete:return await i.response.send_message('A match is already active in this channel.',ephemeral=True)
@@ -186,7 +180,7 @@ class MatchSetupView(Nav):
   s=GameSession(players,lane=self.lane)
   SESSIONS[i.channel_id]=s
   for p in s.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
-  await i.response.send_message(f"🎳 **EXHIBITION — HEAD TO HEAD**\\n**{players[0].name}** vs **{players[1].name}**\\nLane: **{self.lane.title()}**\\nUse `/game_bowl` or `/game_auto` to play.")
+  await i.response.send_message(f"🎳 **EXHIBITION — HEAD TO HEAD**\n**{players[0].name}** vs **{players[1].name}**\nLane: **{self.lane.title()}**\nUse `/game_bowl` or `/game_auto` to play.")
   await i.channel.send(embed=__import__('ui.embeds',fromlist=['scoreboard_embed']).scoreboard_embed(s))
 
 class RecoveryView(Nav):
