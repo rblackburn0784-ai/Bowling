@@ -31,3 +31,8 @@ def publish(season_id, day=None):
         number=db.execute('SELECT COALESCE(MAX(issue_no),0)+1 n FROM season_gazette_issues WHERE season_id=?',(season_id,)).fetchone()['n']
         db.execute('INSERT INTO season_gazette_issues(season_id,issue_no,week_start,week_end,headline,body) VALUES(?,?,?,?,?,?)',(season_id,number,start,end,headline,chr(10).join(lines)))
         return dict(db.execute('SELECT * FROM season_gazette_issues WHERE season_id=? AND issue_no=?',(season_id,number)).fetchone()),True
+
+
+def publish_previous_week(season_id, today=None):
+    current=date.fromisoformat(today) if isinstance(today,str) else (today or date.today())
+    return publish(season_id,current-timedelta(days=7))
