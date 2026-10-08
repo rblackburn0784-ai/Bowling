@@ -1,5 +1,6 @@
 from pathlib import Path
 from PIL import Image,ImageDraw,ImageFont
+from services.bowler_sprites import draw_approach
 OUT=Path(__file__).resolve().parent.parent/'data'/'lane_cards';OUT.mkdir(parents=True,exist_ok=True)
 PIN_POS={7:(235,137),8:(305,137),9:(375,137),10:(445,137),4:(270,181),5:(340,181),6:(410,181),2:(305,225),3:(375,225),1:(340,269)}
 def _font(size=22,bold=False):
@@ -28,13 +29,16 @@ def _path(d,event,progress=1.0):
     pts=[start,(start[0]+int((breakx-start[0])*.55),500),(breakx,405),(impact,345)]
     seg=max(2,int(len(pts)*progress));d.line(pts[:seg],fill=(28,28,35),width=8,joint='curve')
     x,y=pts[min(seg-1,len(pts)-1)];d.ellipse((x-11,y-11,x+11,y+11),fill=(35,35,42),outline=(245,245,250))
-def lane_card(session,event=None,stage='leave'):
+def lane_card(session,event=None,stage='leave',sprite_frame=None):
     im,d=_base(session,event,stage)
     if event:
-        progress={'approach':.28,'path':.72,'breakpoint':.9,'impact':1.0,'leave':1.0}.get(stage,1.0);_path(d,event,progress)
+        active=next((p.bowler for p in session.players if p.bowler.id==event.get('bowler_id')),None)
+        drawn=bool(stage=='approach' and active and sprite_frame and draw_approach(im,active,sprite_frame))
+        if not drawn:
+            progress={'approach':.28,'path':.72,'breakpoint':.9,'impact':1.0,'leave':1.0}.get(stage,1.0);_path(d,event,progress)
         m=event.get('physics',{}).get('metrics',{})
         d.text((340,684),f"{event['bowler']} • {event.get('ball_key','hybrid').title()} • {m.get('speed','?')} mph • {m.get('revs','?')} rpm",font=_font(17,True),anchor='ma',fill=(245,245,250))
         d.text((340,711),f"Breakpoint {m.get('breakpoint','?')}' • Entry {m.get('entry_angle','?')}° • Transition {int(event.get('transition',0)*100)}%",font=_font(16),anchor='ma',fill=(245,226,172))
-    path=OUT/f"lane_{id(session)}_{stage}.png";im.resize((952,1064),Image.Resampling.LANCZOS).save(path,'PNG');return path
+    path=OUT/f"lane_{id(session)}_{stage}_{sprite_frame or 0}.png";im.resize((952,1064),Image.Resampling.LANCZOS).save(path,'PNG');return path
 def lane_sequence(session,event):
     return [lane_card(session,event,s) for s in ('approach','path','breakpoint','impact','leave')]
