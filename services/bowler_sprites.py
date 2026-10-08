@@ -27,6 +27,8 @@ def _image(key, frame):
 def sprite_key(bowler):
     # Explicit player assignment takes precedence. Names are convenience defaults.
     explicit = getattr(bowler, 'sprite_key', None)
+    if explicit == 'none':
+        return None
     if explicit in SUPPORTED:
         return explicit
     name = bowler.name.casefold().replace(' ', '').replace('_','')
