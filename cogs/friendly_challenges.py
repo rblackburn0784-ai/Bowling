@@ -27,7 +27,11 @@ class ChallengeComposer(discord.ui.View):
   if key in PENDING:return await i.response.send_message('A challenge is already pending.',ephemeral=True)
   if i.channel_id in SESSIONS and not SESSIONS[i.channel_id].complete:return await i.response.send_message('Channel already has an active match.',ephemeral=True)
   PENDING.add(key)
-  try:await i.channel.send(f"🎳 **FRIENDLY CHALLENGE**\n<@{z['owner_id']}>: **{a['name']}** challenges **{z['name']}**!\nUnranked • No standings or attributes • At most 1 non-ranking XP per day. Accept within 5 minutes.",view=ChallengeResponse(key,i.user.id,z['owner_id'],a['id'],z['id']),allowed_mentions=discord.AllowedMentions(users=True,roles=False,everyone=False))
+  try:
+   notice=(f"🎳 **FRIENDLY CHALLENGE**" + chr(10) +
+           f"<@{z['owner_id']}>: **{a['name']}** challenges **{z['name']}**!" + chr(10) +
+           "Unranked • No standings or attributes • At most 1 non-ranking XP per day. Accept within 5 minutes.")
+   await i.channel.send(notice,view=ChallengeResponse(key,i.user.id,z['owner_id'],a['id'],z['id']),allowed_mentions=discord.AllowedMentions(users=True,roles=False,everyone=False))
   except Exception:
    PENDING.discard(key);return await i.response.send_message('Unable to post challenge here.',ephemeral=True)
   await i.response.send_message('Challenge posted.',ephemeral=True)
