@@ -31,6 +31,8 @@ def init_db():
         con.executescript(SCHEMA)
         cols={r['name'] for r in con.execute('PRAGMA table_info(bowler_stats)')}
         if 'awards' not in cols: con.execute('ALTER TABLE bowler_stats ADD COLUMN awards INTEGER DEFAULT 0')
+        bcols={r['name'] for r in con.execute('PRAGMA table_info(bowlers)')}
+        if 'sprite_key' not in bcols: con.execute('ALTER TABLE bowlers ADD COLUMN sprite_key TEXT')
     ensure_v25_schema()
 
 def ensure_v22_schema():
