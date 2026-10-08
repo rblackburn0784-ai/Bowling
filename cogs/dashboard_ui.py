@@ -124,6 +124,10 @@ class TournamentManageView(Nav):
   await i.response.edit_message(content=None,embed=discord.Embed(title=f"🏆 Tournament Director — {tr['name']}",description=desc),view=DirectorView(tr['name']))
 
 class CompetitionDashboard(Nav):
+ @discord.ui.button(label='📅 Season Experience',style=discord.ButtonStyle.primary)
+ async def season(self,i,b):
+  from cogs.season_ui import SeasonExperience
+  await i.response.edit_message(content='📅 **Gutter Saints Season Experience**',embed=None,view=SeasonExperience())
  @discord.ui.button(label='🏆 Competition Director',style=discord.ButtonStyle.success)
  async def director(self,i,b):
   from cogs.competition_ui import CompetitionDirector
