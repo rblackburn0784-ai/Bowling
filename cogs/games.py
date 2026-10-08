@@ -104,10 +104,13 @@ class Games(commands.Cog):
   if getattr(s,'friendly_challenge',False):
    from services.analytics import player_summary
    with connect() as db:
+    db.execute('CREATE TABLE IF NOT EXISTS friendly_xp_daily(bowler_id INTEGER NOT NULL,day TEXT NOT NULL,PRIMARY KEY(bowler_id,day))')
     for p in s.players:
-     db.execute('INSERT OR IGNORE INTO bowler_progression(bowler_id) VALUES(?)',(p.bowler.id,))
-     db.execute('UPDATE bowler_progression SET xp=xp+1 WHERE bowler_id=?',(p.bowler.id,))
-   await ch.send('🤝 **FRIENDLY EXHIBITION COMPLETE** — No league points, rank changes, career attribute growth or achievements. Each bowler receives **1 XP** (non-ranking).')
+     granted=db.execute("INSERT OR IGNORE INTO friendly_xp_daily(bowler_id,day) VALUES(?,date('now'))",(p.bowler.id,)).rowcount
+     if granted:
+      db.execute('INSERT OR IGNORE INTO bowler_progression(bowler_id) VALUES(?)',(p.bowler.id,))
+      db.execute('UPDATE bowler_progression SET xp=xp+1 WHERE bowler_id=?',(p.bowler.id,))
+   await ch.send('🤝 **FRIENDLY EXHIBITION COMPLETE** — No league points, rank changes, career attribute growth or achievements. Each bowler can earn at most **1 non-ranking XP per UTC day** from friendly challenges.')
    await ch.send(embed=scoreboard_embed(s))
    s.persisted=True
    SESSIONS.pop(key,None)
