@@ -4,6 +4,7 @@ from PIL import Image,ImageDraw,ImageFont
 from storage.database import connect
 from services.season_presentation import season_home,week_fixtures,zones,season_award_races,season_records
 from services.season_gazette import publish,archive,get_issue
+from services.gazette_artwork import render_issue
 
 def _names(cid,ids):
  with connect() as c:
@@ -113,7 +114,7 @@ class SeasonExperience(discord.ui.View):
   if not i.user.guild_permissions.manage_guild:return await i.response.send_message('Manage Server permission required.',ephemeral=True)
   try:issue,created=publish(self.sid)
   except Exception as exc:return await i.response.send_message(f'Unable to publish: {type(exc).__name__}',ephemeral=True)
-  await i.response.send_message(embed=issue_embed(issue),content='New edition published.' if created else 'This week already has an archived issue.',ephemeral=True)
+  await i.response.send_message(embed=issue_embed(issue),file=discord.File(render_issue(issue),filename='gutter_gazette.png'),content='New edition published.' if created else 'This week already has an archived issue.',ephemeral=True)
 
 def issue_embed(x):
  return _embed(f"📰 Gazette • Issue #{x['issue_no']} • {x['week_start']}",[f"**{x['headline']}**",x['body']])
@@ -126,7 +127,7 @@ class GazetteIssuePick(discord.ui.Select):
  async def callback(self,i):
   x=get_issue(self.parent.sid,int(self.values[0]))
   if not x:return await i.response.send_message('Issue unavailable.',ephemeral=True)
-  await i.response.send_message(embed=issue_embed(x),ephemeral=True)
+  await i.response.send_message(embed=issue_embed(x),file=discord.File(render_issue(x),filename='gutter_gazette.png'),ephemeral=True)
 
 class GazetteArchive(discord.ui.View):
  def __init__(self,sid):
