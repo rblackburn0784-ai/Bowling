@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.8.2 — Competition Director & UI
+# Gutter Saints Bowling Bot v2.8.3 — Season Presentation & League Experience
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,15 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.8.3 Season Presentation & League Experience
+- Graphical 1100×580 season hub card rendered with Pillow from persistent season data.
+- Public Season Hub and Competition Director → Season Experience.
+- Fixture-week match centre, W/D/L form table, promotion/relegation and playoff zones.
+- Season award races: average (minimum three games), high game, strikes, split conversions and appearances.
+- Season high-game records and a season-specific Gutter Gazette bulletin built from actual results.
+- Competition selection through Discord dropdowns; all views work with team or individual competitions.
+- Season read models never modify global career totals.
 
 ## v2.8.2 Competition Director & UI
 - Makes Competition Director the primary admin tournament/league surface instead of requiring IDs and slash commands for routine operation.
