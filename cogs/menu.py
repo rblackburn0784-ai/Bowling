@@ -186,6 +186,11 @@ class PublicMenu(discord.ui.View):
   load=bowler_loadout(x.id);await i.response.send_message(f"🎯 **{x.name}'s Arsenal**\nPrimary: **{BALLS[load.get('primary_ball','hybrid')].name}**",view=ArsenalView(x.id),ephemeral=True)
  @discord.ui.button(label='Browse Bowlers',emoji='👀',style=discord.ButtonStyle.secondary,custom_id='gs:browse')
  async def browse(self,i,b):await i.response.send_message('🎳 **Bowlers**\n'+('\n'.join('• '+x['name'] for x in list_bowlers()) or 'None'),view=HomeView(),ephemeral=True)
+ @discord.ui.button(label='Challenge Bowler',emoji='⚔️',style=discord.ButtonStyle.primary,custom_id='gs:challenge')
+ async def challenge(self,i,b):
+  if not get_bowler_by_owner(i.user.id):return await i.response.send_message('Create your linked bowler before challenging anyone.',ephemeral=True)
+  from cogs.friendly_challenges import ChallengeComposer
+  await i.response.send_message('⚔️ **Friendly Exhibition Challenge** — Select a linked opponent. A public invitation will appear in this channel for them to accept or decline.',view=ChallengeComposer(i.user.id),ephemeral=True)
  @discord.ui.button(label='Season Hub',emoji='📅',style=discord.ButtonStyle.secondary,custom_id='gs:seasonhub')
  async def seasonhub(self,i,b):
   from cogs.season_ui import SeasonExperience
