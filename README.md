@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.8.3 — Season Presentation & League Experience
+# Gutter Saints Bowling Bot v2.8.3a — Weekly Gazette Archive
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,14 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.8.3a Weekly Gazette Archive
+- Immutable weekly issues stored per season and ISO Monday-Sunday week.
+- Archive browsing via Season Hub, with issue selection and historical issue retrieval.
+- Admin-only Publish Weekly Issue button (Manage Server permission).
+- Database unique constraints prevent duplicate editions for a season/week.
+- Each issue captures completed fixtures and bowler games recorded within its week.
+- Note: manual publishing only; automatic scheduled publication and image-rendered newspaper pages are not included.
 
 ## v2.8.3 Season Presentation & League Experience
 - Graphical 1100×580 season hub card rendered with Pillow from persistent season data.
