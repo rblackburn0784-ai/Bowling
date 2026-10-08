@@ -1,5 +1,6 @@
 import discord
 from services.commentary import event_text,perfect_watch
+from services.dude_commentary import stage_line
 from services.career import rank_title,rank_progress
 from services.v25 import archetype
 from services.v271 import bowler_loadout
@@ -49,8 +50,7 @@ def scoreboard_embed(session,last=None,team_names=None,director=None,stage=None,
         zones=last.get('lane_zones',{});line=last.get('line_boards',0);move=f' • Line {abs(line)} boards '+('left' if line>0 else 'right') if line else ''
         e.add_field(name='🎯 Shot Decision',value=f'**{ball}** • **{intent}** • Lane **{lane_no}** ({trans*100:.0f}% transition){move} • Target **{last.get("physics",{}).get("target","pocket")}**\nOil read: outside {zones.get("outside",0)*100:.0f}% • track {zones.get("track",0)*100:.0f}% • inside {zones.get("inside",0)*100:.0f}%',inline=False)
         if stage and stage!='leave':
-            updates={'approach':'🎳 On the approach — the bowler lines up the shot.', 'path':'🎳 Ball away — travelling down the lane.', 'breakpoint':'🎳 The ball reaches its breakpoint and starts to hook.', 'impact':'🎳 Into the pins — waiting for the leave to settle.'}
-            commentary=updates.get(stage,'🎳 Shot in progress.')
+            commentary=stage_line(session,stage,last)
         else:
             commentary=event_text(session,last)
             if director:commentary+='\n\n🎙️ **BROADCAST DIRECTOR**\n'+director
