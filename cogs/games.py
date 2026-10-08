@@ -7,7 +7,6 @@ from services.game_engine import GameSession
 from services.state import SESSIONS
 from services.media import pick
 from services.lane_visual import lane_card,lane_sequence
-from services.match_broadcast import broadcast_card
 from services.audio import play_sound
 from services.presentation import classify,AUDIO_MAP,GIF_MAP,layout_policy
 from services.commentary import line,streak_call,rivalry_call,contact_call,lane_call
@@ -22,15 +21,23 @@ from services.broadcast_director import match_context,persist_story,story_call,m
 def rb(r,team=None):
  b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']});b.team_name=team;return b
 LANE_MESSAGES={}
-async def update_lane(channel,session,event,stage='leave'):
- card=broadcast_card(session,event,stage)
+async def update_lane(channel,session,event,stage='leave',director=None):
+ card=lane_card(session,event,stage)
+ # A normal Discord embed stays readable below the image.
+ # Never reveal the new ball's result before the final animation stage.
+ if stage=='leave':
+  embed=scoreboard_embed(session,event,director=director)
+ else:
+  embed=scoreboard_embed(session)
+  embed.add_field(name='🎳 Ball in motion',value='Result pending — watch the pins.',inline=False)
  previous=LANE_MESSAGES.get(channel.id)
  if previous:
   try:
-   await previous.edit(embed=None,attachments=[discord.File(card,filename='gutter_broadcast.png')])
+   await previous.edit(embed=embed,attachments=[discord.File(card,filename='gutter_lane.png')])
    return previous
-  except (discord.NotFound,discord.Forbidden):LANE_MESSAGES.pop(channel.id,None)
- message=await channel.send(file=discord.File(card,filename='gutter_broadcast.png'))
+  except (discord.NotFound,discord.Forbidden):
+   LANE_MESSAGES.pop(channel.id,None)
+ message=await channel.send(embed=embed,file=discord.File(card,filename='gutter_lane.png'))
  LANE_MESSAGES[channel.id]=message
  return message
 
@@ -76,8 +83,8 @@ class Games(commands.Cog):
   ev['attribute_changes']=[] if getattr(s,'friendly_challenge',False) else delivery_growth(ev,s.rng)
   s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id']
   save_snapshot(i.channel_id,s,'post_ball')
-  await update_lane(i.channel,s,ev)
-  await self.reaction(i.channel,s,ev)
+  director=await self.reaction(i.channel,s,ev)
+  await update_lane(i.channel,s,ev,director=director)
   if s.complete:await self.finish(i.channel,s,i.channel_id)
  @app_commands.command(name='game_auto',description='Run the active game live with commentary and reactions')
  async def auto(self,i:discord.Interaction,delay:app_commands.Range[float,0.0,5.0]=0.7):
@@ -91,12 +98,12 @@ class Games(commands.Cog):
    s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id']
    save_snapshot(i.channel_id,s,'post_ball')
    if s.layout in ('broadcast','finals','chaos'):
-    for stage in ('approach','path','breakpoint','impact','leave'):
+    for stage in ('approach','path','breakpoint','impact'):
      await update_lane(i.channel,s,ev,stage)
      await asyncio.sleep(max(.12,min(.45,delay*.35)))
-   else:await update_lane(i.channel,s,ev)
+   director=await self.reaction(i.channel,s,ev)
+   await update_lane(i.channel,s,ev,'leave',director=director)
    await asyncio.sleep(max(0.35,min(1.0,delay)))
-   await self.reaction(i.channel,s,ev)
    await asyncio.sleep(delay)
   await self.finish(i.channel,s,i.channel_id)
  @app_commands.command(name='game_scoreboard')
@@ -130,8 +137,6 @@ class Games(commands.Cog):
     announcement=f'{top[1]} **{top[2]}** — {top[3]}'
    else:
     announcement=None
-  if announcement and s.layout in ('broadcast','finals','chaos'):
-   await ch.send('🎙️ **BROADCAST DIRECTOR** '+announcement)
   if policy['audio']:
    await play_sound(ch,AUDIO_MAP.get(event_kind,'pins'))
   # Optional media is theatrical, but don't send duplicate crowd hype/groan
@@ -142,6 +147,7 @@ class Games(commands.Cog):
   if not getattr(s,'friendly_challenge',False):
    for stat,delta,new,reason in ev.get('attribute_changes',[]):
     await ch.send(f"📈 **{ev['bowler']}** {stat.title()} {'+' if delta>0 else ''}{delta} → **{new}** ({reason})")
+  return announcement
  async def finish(self,ch,s,key):
   LANE_MESSAGES.pop(key,None)
   if getattr(s,'friendly_challenge',False):
