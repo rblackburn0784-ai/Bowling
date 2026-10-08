@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.8.3a — Weekly Gazette Archive
+# Gutter Saints Bowling Bot v2.8.3b — Weekly Gazette Production Pass
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,14 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.8.3b Weekly Gazette Production Pass
+- Every Monday (UTC), an hourly background job archives the preceding complete calendar week for active/completed seasons. The database prevents duplicate issues on restarts.
+- Each edition now has a printable newspaper-style PNG (1200×1550), attached when published or opened from the archive.
+- SQLite regression tests cover weekly duplicate prevention, immutable historical content, second-week numbering, missing seasons, newspaper rendering, and the admin permission guard.
+- GitHub Actions Python 3.13 workflow runs these tests and compiles the source on pushes.
+- The artwork is typographic newspaper design, not AI-generated illustrative photography.
+- Publication is archived automatically; posting into a public announcement channel is not yet configured.
 
 ## v2.8.3a Weekly Gazette Archive
 - Immutable weekly issues stored per season and ISO Monday-Sunday week.
