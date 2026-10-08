@@ -2,7 +2,8 @@ import io
 import discord
 from PIL import Image,ImageDraw,ImageFont
 from storage.database import connect
-from services.season_presentation import season_home,week_fixtures,zones,season_award_races,season_records,season_gazette
+from services.season_presentation import season_home,week_fixtures,zones,season_award_races,season_records
+from services.season_gazette import publish,archive,get_issue
 
 def _names(cid,ids):
  with connect() as c:
@@ -100,8 +101,33 @@ class SeasonExperience(discord.ui.View):
  @discord.ui.button(label='League Records',style=discord.ButtonStyle.secondary,row=2)
  async def records(self,i,b):
   if await self.need(i):await i.response.send_message(embed=_embed('🏛️ Season High Games',[f"{n}. **{r['name']}** — {r['score']}" for n,r in enumerate(season_records(self.sid),1)]),ephemeral=True)
- @discord.ui.button(label='Gutter Gazette',style=discord.ButtonStyle.secondary,row=2)
+ @discord.ui.button(label='Gazette Archive',style=discord.ButtonStyle.secondary,row=2)
  async def gazette(self,i,b):
   if not await self.need(i):return
-  g=season_gazette(self.sid)
-  await i.response.send_message(embed=_embed('📰 Gutter Gazette — Season Edition',[f"**{g['headline']}**",g['body']] if g else ['No season found.']),ephemeral=True)
+  issues=archive(self.sid)
+  if not issues:return await i.response.send_message('No published weekly editions yet.',ephemeral=True)
+  await i.response.send_message(embed=_embed('Newspaper Archive',[f"**Issue #{x['issue_no']}** • {x['week_start']} to {x['week_end']} — {x['headline']}" for x in issues]),view=GazetteArchive(self.sid),ephemeral=True)
+ @discord.ui.button(label='Publish Weekly Issue',style=discord.ButtonStyle.success,row=3)
+ async def publish_week(self,i,b):
+  if not await self.need(i):return
+  if not i.user.guild_permissions.manage_guild:return await i.response.send_message('Manage Server permission required.',ephemeral=True)
+  try:issue,created=publish(self.sid)
+  except Exception as exc:return await i.response.send_message(f'Unable to publish: {type(exc).__name__}',ephemeral=True)
+  await i.response.send_message(embed=issue_embed(issue),content='New edition published.' if created else 'This week already has an archived issue.',ephemeral=True)
+
+def issue_embed(x):
+ return _embed(f"📰 Gazette • Issue #{x['issue_no']} • {x['week_start']}",[f"**{x['headline']}**",x['body']])
+
+class GazetteIssuePick(discord.ui.Select):
+ def __init__(self,view):
+  self.parent=view
+  issues=archive(view.sid)
+  super().__init__(placeholder='Open archived issue',options=[discord.SelectOption(label=f"Issue #{x['issue_no']} — {x['week_start']}",value=str(x['issue_no'])) for x in issues] or [discord.SelectOption(label='No issues',value='0')])
+ async def callback(self,i):
+  x=get_issue(self.parent.sid,int(self.values[0]))
+  if not x:return await i.response.send_message('Issue unavailable.',ephemeral=True)
+  await i.response.send_message(embed=issue_embed(x),ephemeral=True)
+
+class GazetteArchive(discord.ui.View):
+ def __init__(self,sid):
+  super().__init__(timeout=900);self.sid=sid;self.add_item(GazetteIssuePick(self))
