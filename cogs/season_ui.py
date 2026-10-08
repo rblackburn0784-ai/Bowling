@@ -81,7 +81,12 @@ class LeagueWeekView(discord.ui.View):
   await i.response.send_message(embed=_embed('🔥 Promotion, Playoffs & Relegation',[f"{symbols[z]} **{n}. {r['name']}** — {r['points']} pts • {form}" for n,r,z,form in zones(self.cid)]),ephemeral=True)
 
 class SeasonExperience(discord.ui.View):
- def __init__(self,sid=None):super().__init__(timeout=900);self.sid=sid;self.add_item(SeasonSelect(self))
+ def __init__(self,sid=None,admin=False):
+  super().__init__(timeout=900)
+  self.sid=sid
+  self.admin=admin
+  self.add_item(SeasonSelect(self))
+  if not admin:self.remove_item(self.publish_week)
  async def need(self,i):
   if not self.sid:await i.response.send_message('Choose a season first.',ephemeral=True);return False
   return True
@@ -111,7 +116,7 @@ class SeasonExperience(discord.ui.View):
  @discord.ui.button(label='Publish Weekly Issue',style=discord.ButtonStyle.success,row=3)
  async def publish_week(self,i,b):
   if not await self.need(i):return
-  if not i.user.guild_permissions.manage_guild:return await i.response.send_message('Manage Server permission required.',ephemeral=True)
+  if not i.guild or not (i.user.guild_permissions.administrator or i.user.guild_permissions.manage_guild):return await i.response.send_message('Administrator or Manage Server permission required.',ephemeral=True)
   try:issue,created=publish(self.sid)
   except Exception as exc:return await i.response.send_message(f'Unable to publish: {type(exc).__name__}',ephemeral=True)
   await i.response.send_message(embed=issue_embed(issue),file=discord.File(render_issue(issue),filename='gutter_gazette.png'),content='New edition published.' if created else 'This week already has an archived issue.',ephemeral=True)
