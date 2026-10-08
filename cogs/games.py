@@ -20,6 +20,19 @@ from services.broadcast_director import match_context,persist_story,story_call,m
 
 def rb(r,team=None):
  b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']});b.team_name=team;return b
+LANE_MESSAGES={}
+async def update_lane(channel,session,event,stage='leave'):
+ card=lane_card(session,event,stage)
+ previous=LANE_MESSAGES.get(channel.id)
+ if previous:
+  try:
+   await previous.edit(embed=scoreboard_embed(session,event),attachments=[discord.File(card,filename='gutter_lane.png')])
+   return previous
+  except (discord.NotFound,discord.Forbidden):LANE_MESSAGES.pop(channel.id,None)
+ message=await channel.send(embed=scoreboard_embed(session,event),file=discord.File(card,filename='gutter_lane.png'))
+ LANE_MESSAGES[channel.id]=message
+ return message
+
 async def send_media(channel,kind):
  url=pick(kind)
  if url:await channel.send(url)
@@ -56,25 +69,33 @@ class Games(commands.Cog):
   s=SESSIONS.get(i.channel_id)
   if not s:return await i.response.send_message('No active game in this channel.',ephemeral=True)
   if s.complete:return await i.response.send_message('Game already complete.',ephemeral=True)
-  save_snapshot(i.channel_id,s,'pre_ball');ev=s.bowl();ev['attribute_changes']=[] if getattr(s,'friendly_challenge',False) else delivery_growth(ev,s.rng);s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id'];save_snapshot(i.channel_id,s,'post_ball');policy=layout_policy(s.layout,classify(ev));card=lane_card(s,ev)
-  await i.response.send_message(embed=scoreboard_embed(s,ev),file=discord.File(card,filename='gutter_lane.png') if policy['lane'] else discord.utils.MISSING);await self.reaction(i.channel,s,ev)
+  await i.response.defer(ephemeral=True)
+  save_snapshot(i.channel_id,s,'pre_ball')
+  ev=s.bowl()
+  ev['attribute_changes']=[] if getattr(s,'friendly_challenge',False) else delivery_growth(ev,s.rng)
+  s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id']
+  save_snapshot(i.channel_id,s,'post_ball')
+  await update_lane(i.channel,s,ev)
+  await self.reaction(i.channel,s,ev)
   if s.complete:await self.finish(i.channel,s,i.channel_id)
  @app_commands.command(name='game_auto',description='Run the active game live with commentary and reactions')
  async def auto(self,i:discord.Interaction,delay:app_commands.Range[float,0.0,5.0]=0.7):
   s=SESSIONS.get(i.channel_id)
   if not s:return await i.response.send_message('No active game.',ephemeral=True)
-  await i.response.defer();msg=await i.followup.send(embed=scoreboard_embed(s),wait=True)
+  await i.response.defer(ephemeral=True)
   while not s.complete:
-   save_snapshot(i.channel_id,s,'pre_ball');ev=s.bowl();ev['attribute_changes']=delivery_growth(ev,s.rng);s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id'];save_snapshot(i.channel_id,s,'post_ball');await msg.edit(embed=scoreboard_embed(s,ev));policy=layout_policy(s.layout,classify(ev))
-   if policy['lane']:
-    stages=lane_sequence(s,ev) if s.layout in ('broadcast','finals','chaos') else [lane_card(s,ev)]
-    seqmsg=None
-    for idx,card in enumerate(stages):
-     f=discord.File(card,filename=f'gutter_lane_{idx}.png')
-     if seqmsg is None:seqmsg=await i.channel.send(file=f)
-     else:await seqmsg.edit(attachments=[f])
+   save_snapshot(i.channel_id,s,'pre_ball')
+   ev=s.bowl()
+   ev['attribute_changes']=[] if getattr(s,'friendly_challenge',False) else delivery_growth(ev,s.rng)
+   s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id']
+   save_snapshot(i.channel_id,s,'post_ball')
+   if s.layout in ('broadcast','finals','chaos'):
+    for stage in ('approach','path','breakpoint','impact','leave'):
+     await update_lane(i.channel,s,ev,stage)
      await asyncio.sleep(max(.12,min(.45,delay*.35)))
-   await self.reaction(i.channel,s,ev);await asyncio.sleep(delay)
+   else:await update_lane(i.channel,s,ev)
+   await self.reaction(i.channel,s,ev)
+   await asyncio.sleep(delay)
   await self.finish(i.channel,s,i.channel_id)
  @app_commands.command(name='game_scoreboard')
  async def board(self,i:discord.Interaction):
@@ -101,6 +122,7 @@ class Games(commands.Cog):
   rival=rivalry_call(ev)
   if rival:await ch.send(rival)
  async def finish(self,ch,s,key):
+  LANE_MESSAGES.pop(key,None)
   if getattr(s,'friendly_challenge',False):
    from services.analytics import player_summary
    with connect() as db:
