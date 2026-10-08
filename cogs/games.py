@@ -56,7 +56,7 @@ class Games(commands.Cog):
   s=SESSIONS.get(i.channel_id)
   if not s:return await i.response.send_message('No active game in this channel.',ephemeral=True)
   if s.complete:return await i.response.send_message('Game already complete.',ephemeral=True)
-  save_snapshot(i.channel_id,s,'pre_ball');ev=s.bowl();ev['attribute_changes']=delivery_growth(ev,s.rng);s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id'];save_snapshot(i.channel_id,s,'post_ball');policy=layout_policy(s.layout,classify(ev));card=lane_card(s,ev)
+  save_snapshot(i.channel_id,s,'pre_ball');ev=s.bowl();ev['attribute_changes']=[] if getattr(s,'friendly_challenge',False) else delivery_growth(ev,s.rng);s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id'];save_snapshot(i.channel_id,s,'post_ball');policy=layout_policy(s.layout,classify(ev));card=lane_card(s,ev)
   await i.response.send_message(embed=scoreboard_embed(s,ev),file=discord.File(card,filename='gutter_lane.png') if policy['lane'] else discord.utils.MISSING);await self.reaction(i.channel,s,ev)
   if s.complete:await self.finish(i.channel,s,i.channel_id)
  @app_commands.command(name='game_auto',description='Run the active game live with commentary and reactions')
@@ -101,6 +101,17 @@ class Games(commands.Cog):
   rival=rivalry_call(ev)
   if rival:await ch.send(rival)
  async def finish(self,ch,s,key):
+  if getattr(s,'friendly_challenge',False):
+   from services.analytics import player_summary
+   with connect() as db:
+    for p in s.players:
+     db.execute('INSERT OR IGNORE INTO bowler_progression(bowler_id) VALUES(?)',(p.bowler.id,))
+     db.execute('UPDATE bowler_progression SET xp=xp+1 WHERE bowler_id=?',(p.bowler.id,))
+   await ch.send('🤝 **FRIENDLY EXHIBITION COMPLETE** — No league points, rank changes, career attribute growth or achievements. Each bowler receives **1 XP** (non-ranking).')
+   await ch.send(embed=scoreboard_embed(s))
+   s.persisted=True
+   SESSIONS.pop(key,None)
+   return
   gid=record_completed_session(s,key);totals=s.team_totals(); winner=max(totals,key=totals.get) if len(totals)>1 and len(set(totals.values()))>1 else None
   await ch.send('🏁 **GAME COMPLETE!**',embed=scoreboard_embed(s));summaries=sorted(((p,player_summary(p)) for p in s.players),key=lambda x:x[1]['score'],reverse=True);high=summaries[0];awards=[f"👑 **High Game:** {high[0].bowler.name} — {high[1]['score']}"]
   clean=[p.bowler.name for p,x in summaries if x['clean']]
