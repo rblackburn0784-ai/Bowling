@@ -95,6 +95,7 @@ class Games(commands.Cog):
      await update_lane(i.channel,s,ev,stage)
      await asyncio.sleep(max(.12,min(.45,delay*.35)))
    else:await update_lane(i.channel,s,ev)
+   await asyncio.sleep(max(0.35,min(1.0,delay)))
    await self.reaction(i.channel,s,ev)
    await asyncio.sleep(delay)
   await self.finish(i.channel,s,i.channel_id)
