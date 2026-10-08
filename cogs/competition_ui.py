@@ -49,6 +49,8 @@ def playoff_embed(cid):
  return discord.Embed(title=f"🔥 {co['name']} — Playoff Picture",description='\n'.join(lines) or 'No standings.',footer='Green = currently inside playoff cut' if cut else 'No playoff cut configured.')
 
 async def launch_fixture(i,cid):
+ from cogs.menu import admin_ok
+ if not admin_ok(i):return await i.response.send_message('Admin permission required.',ephemeral=True)
  f=next_fixture(cid)
  if not f:return await i.response.send_message('No scheduled playable fixture remains.',ephemeral=True)
  co=competition_view(cid)[0];home=fixture_roster(f['id'],f['home_id']);away=fixture_roster(f['id'],f['away_id'])
@@ -81,6 +83,12 @@ class SubPick(discord.ui.Select):
  async def callback(self,i):self.parent.bid=int(self.values[0]);await i.response.defer()
 
 class SubstituteManager(discord.ui.View):
+ async def interaction_check(self,i):
+  from cogs.menu import admin_ok
+  if not admin_ok(i):
+   await i.response.send_message('Admin permission required.',ephemeral=True)
+   return False
+  return True
  def __init__(self,cid):
   super().__init__(timeout=600);self.cid=cid;self.bid=None;self.add_item(SubPick(self))
  async def apply(self,i,value):
@@ -93,6 +101,12 @@ class SubstituteManager(discord.ui.View):
  async def starter(self,i,b):await self.apply(i,False)
 
 class CompetitionDirector(discord.ui.View):
+ async def interaction_check(self,i):
+  from cogs.menu import admin_ok
+  if not admin_ok(i):
+   await i.response.send_message('Admin permission required.',ephemeral=True)
+   return False
+  return True
  def __init__(self,cid=None):super().__init__(timeout=900);self.cid=cid;self.add_item(CompetitionPick(self))
  async def need(self,i):
   if not self.cid:await i.response.send_message('Choose a competition first.',ephemeral=True);return False
