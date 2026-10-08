@@ -71,16 +71,16 @@ async def launch_fixture(i,cid):
 
 class CompetitionPick(discord.ui.Select):
  def __init__(self,parent):
-  self.parent=parent;rs=_rows("SELECT id,name FROM competitions WHERE state IN ('registration','locked','active','completed') ORDER BY id DESC")
+  self.owner_view=parent;rs=_rows("SELECT id,name FROM competitions WHERE state IN ('registration','locked','active','completed') ORDER BY id DESC")
   super().__init__(placeholder='Select competition',options=_opts(rs) or [discord.SelectOption(label='No competitions',value='0')],row=0)
- async def callback(self,i):self.parent.cid=int(self.values[0]);await i.response.edit_message(embed=competition_embed(self.parent.cid),view=self.parent)
+ async def callback(self,i):self.owner_view.cid=int(self.values[0]);await i.response.edit_message(embed=competition_embed(self.owner_view.cid),view=self.owner_view)
 
 
 class SubPick(discord.ui.Select):
  def __init__(self,parent):
-  self.parent=parent;rs=_rows('''SELECT r.bowler_id id,t.name||' — '||b.name name FROM competition_rosters r JOIN teams t ON t.id=r.team_id JOIN bowlers b ON b.id=r.bowler_id WHERE r.competition_id=? ORDER BY t.name,r.slot''',(parent.cid,))
+  self.owner_view=parent;rs=_rows('''SELECT r.bowler_id id,t.name||' — '||b.name name FROM competition_rosters r JOIN teams t ON t.id=r.team_id JOIN bowlers b ON b.id=r.bowler_id WHERE r.competition_id=? ORDER BY t.name,r.slot''',(parent.cid,))
   super().__init__(placeholder='Choose locked-roster bowler',options=_opts(rs) or [discord.SelectOption(label='No roster',value='0')])
- async def callback(self,i):self.parent.bid=int(self.values[0]);await i.response.defer()
+ async def callback(self,i):self.owner_view.bid=int(self.values[0]);await i.response.defer()
 
 class SubstituteManager(discord.ui.View):
  async def interaction_check(self,i):
