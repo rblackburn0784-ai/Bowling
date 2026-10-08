@@ -32,15 +32,16 @@ def bowler_embed(b):
     e.set_footer(text=f'Attribute total: {b.stat_total} • Rank is career prestige')
     return e
 
-def scoreboard_embed(session,last=None,team_names=None,director=None,stage=None):
+def scoreboard_embed(session,last=None,team_names=None,director=None,stage=None,prior_cards=None,prior_scores=None):
     e=discord.Embed(title='🎳 Gutter Saints — Live Game',description=f'Lane: **{session.lane.title()}** • Seed: `{session.seed}`')
-    cards=session.card()
+    cards=prior_cards if stage and stage!='leave' and prior_cards is not None else session.card()
+    scores=prior_scores if stage and stage!='leave' and prior_scores is not None else session.scores()
     totals={}
     for p in session.players:
         frames=cards[p.bowler.name]+['·']*(10-len(cards[p.bowler.name]));value=' | '.join(f'{i+1}:{x}' for i,x in enumerate(frames[:10]))
-        if p.complete:value+=f"\n**Final: {session.scores()[p.bowler.name]}**"
+        if p.complete and p.bowler.name in scores:value+=f"\n**Final: {scores[p.bowler.name]}**"
         team=getattr(p.bowler,'team_name',None)
-        if p.complete and team:totals[team]=totals.get(team,0)+session.scores()[p.bowler.name]
+        if p.bowler.name in scores and team:totals[team]=totals.get(team,0)+session.scores()[p.bowler.name]
         e.add_field(name=f"{p.bowler.name}"+(f' — {team}' if team else ''),value=value,inline=False)
     if totals:e.add_field(name='🏆 Team Totals',value='\n'.join(f'**{k}: {v}**' for k,v in totals.items()),inline=False)
     if last:
@@ -54,7 +55,7 @@ def scoreboard_embed(session,last=None,team_names=None,director=None,stage=None)
             commentary=event_text(session,last)
             if director:commentary+='\n\n🎙️ **BROADCAST DIRECTOR**\n'+director
         e.add_field(name='🎙️ Game Updates',value=commentary[:1024],inline=False)
-        p=next(x for x in session.players if x.bowler.name==last['bowler']);watch=perfect_watch(p)
+        p=next(x for x in session.players if x.bowler.name==last['bowler']);watch=perfect_watch(p) if not stage or stage=='leave' else None
         if watch:e.add_field(name='🚨 Perfect Game Watch',value=watch,inline=False)
     return e
 
