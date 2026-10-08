@@ -25,11 +25,7 @@ async def update_lane(channel,session,event,stage='leave',director=None):
  card=lane_card(session,event,stage)
  # A normal Discord embed stays readable below the image.
  # Never reveal the new ball's result before the final animation stage.
- if stage=='leave':
-  embed=scoreboard_embed(session,event,director=director)
- else:
-  embed=discord.Embed(title='🎳 Gutter Saints — Live Game',description=f'Lane: **{session.lane.title()}** • Ball in motion')
-  embed.add_field(name='🎳 Game Updates',value='Result pending — watch the pins.',inline=False)
+ embed=scoreboard_embed(session,event,director=director,stage=stage)
  previous=LANE_MESSAGES.get(channel.id)
  if previous:
   try:
