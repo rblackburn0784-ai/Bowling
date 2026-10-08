@@ -57,6 +57,8 @@ class ChallengeResponse(discord.ui.View):
   players=[rb(by[x],by[x]['name']) for x in (self.a,self.b)]
   session=GameSession(players,lane='house');session.friendly_challenge=True
   for p in session.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
+  from cogs.games import LANE_MESSAGES
+  LANE_MESSAGES.pop(i.channel_id,None)
   SESSIONS[i.channel_id]=session;PENDING.discard(self.key)
   for x in self.children:x.disabled=True
   await i.response.edit_message(content=f"✅ **Challenge accepted!** 🎳 **{players[0].name}** vs **{players[1].name}**. Use /game_bowl or /game_auto.",view=self)
