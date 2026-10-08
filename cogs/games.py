@@ -103,26 +103,45 @@ class Games(commands.Cog):
  async def board(self,i:discord.Interaction):
   s=SESSIONS.get(i.channel_id);await i.response.send_message(embed=scoreboard_embed(s) if s else None,content=None if s else 'No active game.',ephemeral=not bool(s))
  async def reaction(self,ch,s,ev):
-  event_kind=classify(ev);policy=layout_policy(s.layout,event_kind);kind=GIF_MAP.get(event_kind,event_kind)
-  if policy['media'] and kind!='delivery':
+  """One editorial call per delivery; never repeat the graphic's play-by-play."""
+  event_kind=classify(ev)
+  policy=layout_policy(s.layout,event_kind)
+  kind=GIF_MAP.get(event_kind,event_kind)
+  # The broadcast image owns ordinary shot-by-shot commentary.
+  # Reserve channel announcements for milestones, never competing paraphrases.
+  stories=match_context(s,ev)
+  fresh=[]
+  for story_kind,icon,headline,detail in stories:
+   key=f'{story_kind}:{headline}'
+   if key not in s.story_seen:
+    s.story_seen.add(key)
+    fresh.append((story_kind,icon,headline,detail))
+    persist_story(s,story_kind,headline,detail)
+  milestone=streak_call(ev)
+  # A milestone is more important than a lead-change or a generic comeback.
+  # The other context is still recorded for end-of-match summaries.
+  if milestone:
+   announcement=milestone
+  else:
+   priority={'lead_change':5,'comeback':4,'clutch':3,'pb_watch':3,'tournament_pressure':2,'perfect_watch':2,'rivalry':1,'lane_read':0}
+   candidates=[story for story in fresh if priority.get(story[0],0)>=2]
+   if candidates:
+    top=max(candidates,key=lambda story:priority.get(story[0],0))
+    announcement=f'{top[1]} **{top[2]}** — {top[3]}'
+   else:
+    announcement=None
+  if announcement and s.layout in ('broadcast','finals','chaos'):
+   await ch.send('🎙️ **BROADCAST DIRECTOR** '+announcement)
+  if policy['audio']:
+   await play_sound(ch,AUDIO_MAP.get(event_kind,'pins'))
+  # Optional media is theatrical, but don't send duplicate crowd hype/groan
+  # for the same delivery, and don't flood normal broadcasts with GIFs.
+  if policy['media'] and kind!='delivery' and s.layout in ('finals','chaos'):
    await send_media(ch,kind)
-   if event_kind in ('strike','spare','turkey','six_pack','front_nine','perfect_watch','perfect_300','split_conversion','seven_ten_conversion'):await send_media(ch,'crowd_hype')
-   elif event_kind in ('split','seven_ten','gutter'):await send_media(ch,'crowd_groan')
-  if policy['audio']:await play_sound(ch,AUDIO_MAP.get(event_kind,'pins'))
-  lane_note=lane_call(ev)
-  if lane_note and getattr(s,'layout','broadcast')=='chaos':await ch.send(lane_note)
-  stories=match_context(s,ev);fresh=[]
-  for kind,icon,headline,detail in stories:
-   key=f'{kind}:{headline}'
-   if key not in s.story_seen:s.story_seen.add(key);fresh.append((kind,icon,headline,detail));persist_story(s,kind,headline,detail)
-  if fresh and getattr(s,'layout','broadcast') in ('finals','chaos'):await ch.send('🎙️ **BROADCAST DIRECTOR**\n'+story_call(fresh))
-  contact=contact_call(ev)
-  if contact and getattr(s,'layout','broadcast')=='chaos':await ch.send(contact)
-  call=streak_call(ev)
-  if call and getattr(s,'layout','broadcast') in ('finals','chaos'):await ch.send(call)
-  for stat,delta,new,reason in ev.get('attribute_changes',[]):await ch.send(f"📈 **{ev['bowler']}** {stat.title()} {'+' if delta>0 else ''}{delta} → **{new}** ({reason})")
-  rival=rivalry_call(ev)
-  if rival:await ch.send(rival)
+  # Attribute changes are gameplay notifications, not duplicate shot calls.
+  if not getattr(s,'friendly_challenge',False):
+   for stat,delta,new,reason in ev.get('attribute_changes',[]):
+    await ch.send(f"📈 **{ev['bowler']}** {stat.title()} {'+' if delta>0 else ''}{delta} → **{new}** ({reason})")
  async def finish(self,ch,s,key):
   LANE_MESSAGES.pop(key,None)
   if getattr(s,'friendly_challenge',False):
