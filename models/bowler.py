@@ -14,6 +14,7 @@ class Bowler:
     spin: int = 10
     nerves: int = 10
     team_name: str | None = None
+    sprite_key: str | None = None
 
     @property
     def stat_total(self):
