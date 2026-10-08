@@ -7,6 +7,7 @@ from services.game_engine import GameSession
 from services.state import SESSIONS
 from services.media import pick
 from services.lane_visual import lane_card,lane_sequence
+from services.bowler_sprites import sprite_key,has_sequence,APPROACH_FRAME_SECONDS
 from services.audio import play_sound
 from services.presentation import classify,AUDIO_MAP,GIF_MAP,layout_policy
 from services.commentary import line,streak_call,rivalry_call,contact_call,lane_call
@@ -21,8 +22,8 @@ from services.broadcast_director import match_context,persist_story,story_call,m
 def rb(r,team=None):
  b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']});b.team_name=team;b.sprite_key=r['sprite_key'] if 'sprite_key' in r.keys() else None;return b
 LANE_MESSAGES={}
-async def update_lane(channel,session,event,stage='leave',director=None,prior_cards=None,prior_scores=None):
- card=lane_card(session,event,stage)
+async def update_lane(channel,session,event,stage='leave',director=None,prior_cards=None,prior_scores=None,sprite_frame=None):
+ card=lane_card(session,event,stage,sprite_frame=sprite_frame)
  # A normal Discord embed stays readable below the image.
  # Never reveal the new ball's result before the final animation stage.
  embed=scoreboard_embed(session,event,director=director,stage=stage,prior_cards=prior_cards,prior_scores=prior_scores)
@@ -36,6 +37,22 @@ async def update_lane(channel,session,event,stage='leave',director=None,prior_ca
  message=await channel.send(embed=embed,file=discord.File(card,filename='gutter_lane.png'))
  LANE_MESSAGES[channel.id]=message
  return message
+
+async def animate_approach(channel,session,event,prior_cards,prior_scores):
+ bowler=next((p.bowler for p in session.players if p.bowler.id==event.get('bowler_id')),None)
+ key=sprite_key(bowler) if bowler else None
+ if not has_sequence(key):
+  await update_lane(channel,session,event,'approach',prior_cards=prior_cards,prior_scores=prior_scores)
+  return
+ for frame in range(1,6):
+  await update_lane(channel,session,event,'approach',prior_cards=prior_cards,prior_scores=prior_scores,sprite_frame=frame)
+  await asyncio.sleep(APPROACH_FRAME_SECONDS)
+
+async def animate_delivery(channel,session,event,prior_cards,prior_scores,delay):
+ await animate_approach(channel,session,event,prior_cards,prior_scores)
+ for stage in ('path','breakpoint','impact'):
+  await update_lane(channel,session,event,stage,prior_cards=prior_cards,prior_scores=prior_scores)
+  await asyncio.sleep(max(.12,min(.45,delay*.35)))
 
 async def send_media(channel,kind):
  url=pick(kind)
@@ -59,6 +76,19 @@ class Games(commands.Cog):
   await i.response.send_message(f"🎤 **WELCOME TO THE GUTTER SAINTS LANES!**\n**{team}**"+(f' vs **{opponent}**' if opponent else ''))
   for b in bowlers:await i.channel.send(line('entrance',name=b.name));await send_media(i.channel,'entrance')
   await i.channel.send(embed=scoreboard_embed(s))
+ @app_commands.command(name='bowler_sprite',description='Set the character sprite for a registered bowler')
+ @app_commands.default_permissions(manage_guild=True)
+ @app_commands.choices(character=[app_commands.Choice(name='The Dude',value='the_dude'),app_commands.Choice(name='Jesus',value='jesus'),app_commands.Choice(name='No Sprite',value='none')])
+ async def bowler_sprite(self,i:discord.Interaction,bowler:str,character:app_commands.Choice[str]):
+  if not i.guild or not i.user.guild_permissions.manage_guild:
+   return await i.response.send_message('Manage Server permission required.',ephemeral=True)
+  key=None if character.value=='none' else character.value
+  with connect() as db:
+   cur=db.execute('UPDATE bowlers SET sprite_key=? WHERE name=? COLLATE NOCASE',(key,bowler))
+  if not cur.rowcount:
+   return await i.response.send_message('Bowler not found.',ephemeral=True)
+  await i.response.send_message(f"🎳 **{bowler}** sprite: **{character.name}**. Applies to newly started or restored matches.",ephemeral=True)
+
  @app_commands.command(name='game_shot',description='Choose the next tactical shot intent')
  @app_commands.choices(intent=[app_commands.Choice(name=x.title(),value=x) for x in ['normal','safe','aggressive','recovery','spare','auto']])
  async def shot(self,i:discord.Interaction,intent:app_commands.Choice[str]):
@@ -75,12 +105,14 @@ class Games(commands.Cog):
   if s.complete:return await i.response.send_message('Game already complete.',ephemeral=True)
   await i.response.defer(ephemeral=True)
   save_snapshot(i.channel_id,s,'pre_ball')
+  prior_cards=s.card();prior_scores=s.scores()
   ev=s.bowl()
   ev['attribute_changes']=[] if getattr(s,'friendly_challenge',False) else delivery_growth(ev,s.rng)
   s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id']
   save_snapshot(i.channel_id,s,'post_ball')
+  await animate_delivery(i.channel,s,ev,prior_cards,prior_scores,.7)
   director=await self.reaction(i.channel,s,ev)
-  await update_lane(i.channel,s,ev,director=director)
+  await update_lane(i.channel,s,ev,'leave',director=director)
   if s.complete:await self.finish(i.channel,s,i.channel_id)
  @app_commands.command(name='game_auto',description='Run the active game live with commentary and reactions')
  async def auto(self,i:discord.Interaction,delay:app_commands.Range[float,0.0,5.0]=0.7):
@@ -95,9 +127,7 @@ class Games(commands.Cog):
    s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id']
    save_snapshot(i.channel_id,s,'post_ball')
    if s.layout in ('broadcast','finals','chaos'):
-    for stage in ('approach','path','breakpoint','impact'):
-     await update_lane(i.channel,s,ev,stage,prior_cards=prior_cards,prior_scores=prior_scores)
-     await asyncio.sleep(max(.12,min(.45,delay*.35)))
+    await animate_delivery(i.channel,s,ev,prior_cards,prior_scores,delay)
    director=await self.reaction(i.channel,s,ev)
    await update_lane(i.channel,s,ev,'leave',director=director)
    await asyncio.sleep(max(0.35,min(1.0,delay)))
