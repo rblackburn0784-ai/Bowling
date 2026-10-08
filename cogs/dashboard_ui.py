@@ -60,9 +60,9 @@ class TeamMemberView(Nav):
 
 class Pick(discord.ui.Select):
  def __init__(self,parent,key,placeholder,options,row):
-  self.parent=parent;self.key=key;super().__init__(placeholder=placeholder,options=options,row=row)
+  self.owner_view=parent;self.key=key;super().__init__(placeholder=placeholder,options=options,row=row)
  async def callback(self,i):
-  v=self.values[0];setattr(self.parent,self.key,int(v) if v.isdigit() else v);await i.response.defer()
+  v=self.values[0];setattr(self.owner_view,self.key,int(v) if v.isdigit() else v);await i.response.defer()
 
 class TeamRosterSelect(discord.ui.Select):
  def __init__(self):
@@ -198,8 +198,8 @@ class MatchDashboard(Nav):
 
 class AwardSelect(discord.ui.Select):
  def __init__(self,parent):
-  self.parent=parent;b=rows('SELECT id,name FROM bowlers ORDER BY name');super().__init__(placeholder='Choose bowler',options=opts(b) or [discord.SelectOption(label='No bowlers',value='0')])
- async def callback(self,i):self.parent.bowler=int(self.values[0]);await i.response.defer()
+  self.owner_view=parent;b=rows('SELECT id,name FROM bowlers ORDER BY name');super().__init__(placeholder='Choose bowler',options=opts(b) or [discord.SelectOption(label='No bowlers',value='0')])
+ async def callback(self,i):self.owner_view.bowler=int(self.values[0]);await i.response.defer()
 class AwardModal(discord.ui.Modal,title='Give Award'):
  title_in=discord.ui.TextInput(label='Award title',max_length=60)
  detail=discord.ui.TextInput(label='Detail',required=False,max_length=200)
