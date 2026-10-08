@@ -10,7 +10,7 @@ def _base(session,event,stage):
     d.rounded_rectangle((28,25,w-28,h-25),24,fill=(24,27,39),outline=(211,168,64),width=4)
     brand=getattr(session,'branding',None) or 'THE GUTTER SAINTS';d.text((w//2,50),brand[:38],font=_font(29,True),anchor='ma',fill=(245,226,172))
     lane_no=event.get('lane_no','—') if event else '—';oil=int((event.get('oil',.54) if event else .54)*100)
-    d.text((w//2,84),f"LANE {lane_no} • {session.lane.upper()} • OIL {oil}% • {stage.upper()}",font=_font(17),anchor='ma',fill=(205,205,215))
+    d.text((w//2,84),f"LANE {lane_no} • {session.lane.upper()} • OIL {oil}%",font=_font(17),anchor='ma',fill=(205,205,215))
     d.rounded_rectangle((185,120,495,310),20,fill=(238,226,194),outline=(120,90,55),width=3)
     standing=set((event['before'] if stage in ('approach','path','breakpoint') else event['after']) if event else session.current().standing);before=set(event['before'] if event else standing)
     for p,(x,y) in PIN_POS.items():
