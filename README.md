@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.8.3e — Unified Match Broadcast
+# Gutter Saints Bowling Bot v2.8.3g — Commentary Deduplication
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,15 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.8.3g Commentary Deduplication
+- The live graphical broadcast is the sole source of routine ball-by-ball commentary.
+- The Broadcast Director emits at most one priority milestone announcement per delivery.
+- Strike streak milestones take priority over concurrent lead-change/comeback stories.
+- Lead changes and other story events are still tracked for post-game reporting.
+- Finals/Chaos retain optional theatrical GIFs without duplicated crowd hype/groans.
+- Career progression notices remain separate; friendly challenges do not grant attribute growth.
+- Requires beta verification with /game_auto in broadcast, finals and chaos layouts.
 
 ## v2.8.3e Unified Live Match Broadcast
 - A single 1570×1064 graphical panel now combines the lane, pins, ball trajectory, bowler names, frame results and delivery commentary.
