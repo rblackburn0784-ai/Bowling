@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.8.3b — Weekly Gazette Production Pass
+# Gutter Saints Bowling Bot v2.8.3e — Unified Match Broadcast
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
@@ -30,6 +30,13 @@ A Discord bowling game and tournament platform with persistent SQLite careers, t
 3. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 4. For voice effects, install FFmpeg and place licensed audio in `assets/sounds/`.
 5. Run `python bot.py`.
+
+## v2.8.3e Unified Live Match Broadcast
+- A single 1570×1064 graphical panel now combines the lane, pins, ball trajectory, bowler names, frame results and delivery commentary.
+- The bot edits the same Discord attachment for each ball rather than sending separate lane and scoreboard graphics.
+- Routine lane notes and broadcast director announcements are folded into the broadcast experience; Finals and Chaos retain more theatrical messaging.
+- The underlying bowling engine and game scoring are unchanged.
+- Beta validation still required for Discord attachment edits, graphics, and match flow.
 
 ## v2.8.3b Weekly Gazette Production Pass
 - Every Monday (UTC), an hourly background job archives the preceding complete calendar week for active/completed seasons. The database prevents duplicate issues on restarts.
