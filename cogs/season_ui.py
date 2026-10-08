@@ -43,20 +43,20 @@ def _embed(title,lines):
 
 class SeasonSelect(discord.ui.Select):
  def __init__(self,parent):
-  self.parent=parent
+  self.owner_view=parent
   with connect() as c:rows=c.execute('SELECT id,name FROM seasons ORDER BY id DESC LIMIT 25').fetchall()
   super().__init__(placeholder='Choose season',options=[discord.SelectOption(label=r['name'][:100],value=str(r['id'])) for r in rows] or [discord.SelectOption(label='No seasons available',value='0')])
  async def callback(self,i):
-  self.parent.sid=int(self.values[0]);data=season_home(self.parent.sid)
-  await i.response.edit_message(embed=_embed('📅 Season Home',[f"**{data[0]['name']}** — {data[0]['status'].title()}",f"Competitions: {len(data[1])}"] if data else ['No season selected']),view=self.parent)
+  self.owner_view.sid=int(self.values[0]);data=season_home(self.owner_view.sid)
+  await i.response.edit_message(embed=_embed('📅 Season Home',[f"**{data[0]['name']}** — {data[0]['status'].title()}",f"Competitions: {len(data[1])}"] if data else ['No season selected']),view=self.owner_view)
 
 class CompetitionSelect(discord.ui.Select):
  def __init__(self,parent,sid):
-  self.parent=parent
+  self.owner_view=parent
   with connect() as c:rows=c.execute('SELECT id,name FROM competitions WHERE season_id=? ORDER BY id DESC LIMIT 25',(sid,)).fetchall()
   super().__init__(placeholder='Choose season competition',options=[discord.SelectOption(label=r['name'][:100],value=str(r['id'])) for r in rows] or [discord.SelectOption(label='No competitions',value='0')],row=0)
  async def callback(self,i):
-  self.parent.cid=int(self.values[0]);await i.response.edit_message(embed=_embed('🏆 Competition selected',[f"Competition #{self.parent.cid}",'Choose Fixtures, Form Table or Zones below.']),view=self.parent)
+  self.owner_view.cid=int(self.values[0]);await i.response.edit_message(embed=_embed('🏆 Competition selected',[f"Competition #{self.owner_view.cid}",'Choose Fixtures, Form Table or Zones below.']),view=self.owner_view)
 
 class LeagueWeekView(discord.ui.View):
  def __init__(self,sid):
@@ -121,11 +121,11 @@ def issue_embed(x):
 
 class GazetteIssuePick(discord.ui.Select):
  def __init__(self,view):
-  self.parent=view
+  self.owner_view=view
   issues=archive(view.sid)
   super().__init__(placeholder='Open archived issue',options=[discord.SelectOption(label=f"Issue #{x['issue_no']} — {x['week_start']}",value=str(x['issue_no'])) for x in issues] or [discord.SelectOption(label='No issues',value='0')])
  async def callback(self,i):
-  x=get_issue(self.parent.sid,int(self.values[0]))
+  x=get_issue(self.owner_view.sid,int(self.values[0]))
   if not x:return await i.response.send_message('Issue unavailable.',ephemeral=True)
   await i.response.send_message(embed=issue_embed(x),file=discord.File(render_issue(x),filename='gutter_gazette.png'),ephemeral=True)
 
