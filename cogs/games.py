@@ -19,7 +19,7 @@ from services.career import delivery_growth,add_tendency,add_timeline_event
 from services.broadcast_director import match_context,persist_story,story_call,match_story_summary
 
 def rb(r,team=None):
- b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']});b.team_name=team;return b
+ b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']});b.team_name=team;b.sprite_key=r['sprite_key'] if 'sprite_key' in r.keys() else None;return b
 LANE_MESSAGES={}
 async def update_lane(channel,session,event,stage='leave',director=None,prior_cards=None,prior_scores=None):
  card=lane_card(session,event,stage)
