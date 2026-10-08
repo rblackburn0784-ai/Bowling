@@ -7,6 +7,7 @@ from services.game_engine import GameSession
 from services.state import SESSIONS
 from services.media import pick
 from services.lane_visual import lane_card,lane_sequence
+from services.match_broadcast import broadcast_card
 from services.audio import play_sound
 from services.presentation import classify,AUDIO_MAP,GIF_MAP,layout_policy
 from services.commentary import line,streak_call,rivalry_call,contact_call,lane_call
@@ -22,14 +23,14 @@ def rb(r,team=None):
  b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']});b.team_name=team;return b
 LANE_MESSAGES={}
 async def update_lane(channel,session,event,stage='leave'):
- card=lane_card(session,event,stage)
+ card=broadcast_card(session,event,stage)
  previous=LANE_MESSAGES.get(channel.id)
  if previous:
   try:
-   await previous.edit(embed=scoreboard_embed(session,event),attachments=[discord.File(card,filename='gutter_lane.png')])
+   await previous.edit(embed=None,attachments=[discord.File(card,filename='gutter_broadcast.png')])
    return previous
   except (discord.NotFound,discord.Forbidden):LANE_MESSAGES.pop(channel.id,None)
- message=await channel.send(embed=scoreboard_embed(session,event),file=discord.File(card,filename='gutter_lane.png'))
+ message=await channel.send(file=discord.File(card,filename='gutter_broadcast.png'))
  LANE_MESSAGES[channel.id]=message
  return message
 
@@ -108,16 +109,16 @@ class Games(commands.Cog):
    elif event_kind in ('split','seven_ten','gutter'):await send_media(ch,'crowd_groan')
   if policy['audio']:await play_sound(ch,AUDIO_MAP.get(event_kind,'pins'))
   lane_note=lane_call(ev)
-  if lane_note:await ch.send(lane_note)
+  if lane_note and getattr(s,'layout','broadcast')=='chaos':await ch.send(lane_note)
   stories=match_context(s,ev);fresh=[]
   for kind,icon,headline,detail in stories:
    key=f'{kind}:{headline}'
    if key not in s.story_seen:s.story_seen.add(key);fresh.append((kind,icon,headline,detail));persist_story(s,kind,headline,detail)
-  if fresh:await ch.send('🎙️ **BROADCAST DIRECTOR**\n'+story_call(fresh))
+  if fresh and getattr(s,'layout','broadcast') in ('finals','chaos'):await ch.send('🎙️ **BROADCAST DIRECTOR**\n'+story_call(fresh))
   contact=contact_call(ev)
-  if contact:await ch.send(contact)
+  if contact and getattr(s,'layout','broadcast')=='chaos':await ch.send(contact)
   call=streak_call(ev)
-  if call:await ch.send(call)
+  if call and getattr(s,'layout','broadcast') in ('finals','chaos'):await ch.send(call)
   for stat,delta,new,reason in ev.get('attribute_changes',[]):await ch.send(f"📈 **{ev['bowler']}** {stat.title()} {'+' if delta>0 else ''}{delta} → **{new}** ({reason})")
   rival=rivalry_call(ev)
   if rival:await ch.send(rival)
