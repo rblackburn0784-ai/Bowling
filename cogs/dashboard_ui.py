@@ -17,6 +17,12 @@ async def nav(i,title,view,body='Choose an option below.'):await i.response.edit
 
 class Nav(discord.ui.View):
  def __init__(self):super().__init__(timeout=600)
+ async def interaction_check(self,i):
+  from cogs.menu import admin_ok
+  if not admin_ok(i):
+   await i.response.send_message('Admin permission required.',ephemeral=True)
+   return False
+  return True
  @discord.ui.button(label='🛠️ Admin Home',style=discord.ButtonStyle.secondary,row=4)
  async def admin(self,i,b):
   from cogs.menu import AdminMenu
