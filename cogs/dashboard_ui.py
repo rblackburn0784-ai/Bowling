@@ -156,22 +156,38 @@ class TournamentDashboard(Nav):
 
 class MatchSetupView(Nav):
  def __init__(self):
-  super().__init__();teams=rows('SELECT id,name FROM teams ORDER BY name');self.team=self.opponent=None;self.lane='house'
-  if teams:
-   self.add_item(Pick(self,'team','Team A',opts(teams),0))
-   op=[discord.SelectOption(label='Solo team game',value='none')]+opts(teams)[:24];self.add_item(Pick(self,'opponent','Opponent',op,1))
-  self.add_item(Pick(self,'lane','Oil pattern',[discord.SelectOption(label=x.title(),value=x) for x in ('house','fresh','dry','oily','transition')],2))
- @discord.ui.button(label='Start Match',style=discord.ButtonStyle.success,row=3)
+  super().__init__()
+  self.team=self.opponent=None
+  self.bowler_a=self.bowler_b=None
+  self.mode='solo'
+  self.lane='house'
+  self.add_item(Pick(self,'mode','Match type',[discord.SelectOption(label='Two bowlers (1 vs 1)',value='solo'),discord.SelectOption(label='Teams',value='team')],0))
+  bowlers=rows('SELECT id,name FROM bowlers ORDER BY name')
+  teams=rows('SELECT id,name FROM teams ORDER BY name')
+  if bowlers:
+   self.add_item(Pick(self,'bowler_a','Bowler A',opts(bowlers),1))
+   self.add_item(Pick(self,'bowler_b','Bowler B',opts(bowlers),2))
+  self.add_item(Pick(self,'lane','Oil pattern',[discord.SelectOption(label=x.title(),value=x) for x in ('house','fresh','dry','oily','transition')],3))
+  self.teams=teams
+ @discord.ui.button(label='Start Match',style=discord.ButtonStyle.success,row=4)
  async def start(self,i,b):
-  if not self.team:return await i.response.send_message('Choose Team A.',ephemeral=True)
-  ta=rows('SELECT name FROM teams WHERE id=?',(self.team,));opp=None if self.opponent in (None,'none') else rows('SELECT name FROM teams WHERE id=?',(self.opponent,))
-  if not ta:return await i.response.send_message('Team no longer exists.',ephemeral=True)
-  if opp and opp[0]['name']==ta[0]['name']:return await i.response.send_message('Choose a different opponent.',ephemeral=True)
-  cog=i.client.get_cog('Games')
-  if not cog:return await i.response.send_message('Games system is unavailable.',ephemeral=True)
-  from discord import app_commands
-  lane=app_commands.Choice(name=self.lane.title(),value=self.lane)
-  await cog.start.callback(cog,i,ta[0]['name'],opp[0]['name'] if opp else None,lane,None)
+  if self.mode=='team':
+   return await i.response.send_message('For team matches use /game_start with team names. This menu currently starts individual exhibitions.',ephemeral=True)
+  if not self.bowler_a or not self.bowler_b:return await i.response.send_message('Choose Bowler A and Bowler B.',ephemeral=True)
+  if self.bowler_a==self.bowler_b:return await i.response.send_message('Choose two different bowlers.',ephemeral=True)
+  if i.channel_id in SESSIONS and not SESSIONS[i.channel_id].complete:return await i.response.send_message('A match is already active in this channel.',ephemeral=True)
+  selected=rows('SELECT * FROM bowlers WHERE id IN (?,?)',(self.bowler_a,self.bowler_b))
+  by_id={x['id']:x for x in selected}
+  if len(by_id)!=2:return await i.response.send_message('One of the bowlers no longer exists.',ephemeral=True)
+  from cogs.games import rb
+  from services.game_engine import GameSession
+  from services.v271 import bowler_loadout
+  players=[rb(by_id[bid],by_id[bid]['name']) for bid in (self.bowler_a,self.bowler_b)]
+  s=GameSession(players,lane=self.lane)
+  SESSIONS[i.channel_id]=s
+  for p in s.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
+  await i.response.send_message(f"🎳 **EXHIBITION — HEAD TO HEAD**\\n**{players[0].name}** vs **{players[1].name}**\\nLane: **{self.lane.title()}**\\nUse `/game_bowl` or `/game_auto` to play.")
+  await i.channel.send(embed=__import__('ui.embeds',fromlist=['scoreboard_embed']).scoreboard_embed(s))
 
 class RecoveryView(Nav):
  @discord.ui.button(label='Undo Last Ball',style=discord.ButtonStyle.danger)
