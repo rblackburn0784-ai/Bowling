@@ -21,11 +21,11 @@ from services.broadcast_director import match_context,persist_story,story_call,m
 def rb(r,team=None):
  b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']});b.team_name=team;return b
 LANE_MESSAGES={}
-async def update_lane(channel,session,event,stage='leave',director=None):
+async def update_lane(channel,session,event,stage='leave',director=None,prior_cards=None,prior_scores=None):
  card=lane_card(session,event,stage)
  # A normal Discord embed stays readable below the image.
  # Never reveal the new ball's result before the final animation stage.
- embed=scoreboard_embed(session,event,director=director,stage=stage)
+ embed=scoreboard_embed(session,event,director=director,stage=stage,prior_cards=prior_cards,prior_scores=prior_scores)
  previous=LANE_MESSAGES.get(channel.id)
  if previous:
   try:
@@ -89,13 +89,14 @@ class Games(commands.Cog):
   await i.response.defer(ephemeral=True)
   while not s.complete:
    save_snapshot(i.channel_id,s,'pre_ball')
+   prior_cards=s.card();prior_scores=s.scores()
    ev=s.bowl()
    ev['attribute_changes']=[] if getattr(s,'friendly_challenge',False) else delivery_growth(ev,s.rng)
    s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id']
    save_snapshot(i.channel_id,s,'post_ball')
    if s.layout in ('broadcast','finals','chaos'):
     for stage in ('approach','path','breakpoint','impact'):
-     await update_lane(i.channel,s,ev,stage)
+     await update_lane(i.channel,s,ev,stage,prior_cards=prior_cards,prior_scores=prior_scores)
      await asyncio.sleep(max(.12,min(.45,delay*.35)))
    director=await self.reaction(i.channel,s,ev)
    await update_lane(i.channel,s,ev,'leave',director=director)
