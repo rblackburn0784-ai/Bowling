@@ -171,6 +171,10 @@ class PublicMenu(discord.ui.View):
   load=bowler_loadout(x.id);await i.response.send_message(f"🎯 **{x.name}'s Arsenal**\nPrimary: **{BALLS[load.get('primary_ball','hybrid')].name}**",view=ArsenalView(x.id),ephemeral=True)
  @discord.ui.button(label='Browse Bowlers',emoji='👀',style=discord.ButtonStyle.secondary,custom_id='gs:browse')
  async def browse(self,i,b):await i.response.send_message('🎳 **Bowlers**\n'+('\n'.join('• '+x['name'] for x in list_bowlers()) or 'None'),view=HomeView(),ephemeral=True)
+ @discord.ui.button(label='Season Hub',emoji='📅',style=discord.ButtonStyle.secondary,custom_id='gs:seasonhub')
+ async def seasonhub(self,i,b):
+  from cogs.season_ui import SeasonExperience
+  await i.response.send_message('📅 **Gutter Saints Season Hub**',view=SeasonExperience(),ephemeral=True)
  @discord.ui.button(label='My Competition',emoji='🏆',style=discord.ButtonStyle.primary,custom_id='gs:mycompetition')
  async def mycompetition(self,i,b):
   from cogs.competition_ui import my_competitions_embed
