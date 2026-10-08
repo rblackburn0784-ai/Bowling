@@ -28,8 +28,8 @@ async def update_lane(channel,session,event,stage='leave',director=None):
  if stage=='leave':
   embed=scoreboard_embed(session,event,director=director)
  else:
-  embed=scoreboard_embed(session)
-  embed.add_field(name='🎳 Ball in motion',value='Result pending — watch the pins.',inline=False)
+  embed=discord.Embed(title='🎳 Gutter Saints — Live Game',description=f'Lane: **{session.lane.title()}** • Ball in motion')
+  embed.add_field(name='🎳 Game Updates',value='Result pending — watch the pins.',inline=False)
  previous=LANE_MESSAGES.get(channel.id)
  if previous:
   try:
@@ -114,8 +114,8 @@ class Games(commands.Cog):
   event_kind=classify(ev)
   policy=layout_policy(s.layout,event_kind)
   kind=GIF_MAP.get(event_kind,event_kind)
-  # The broadcast image owns ordinary shot-by-shot commentary.
-  # Reserve channel announcements for milestones, never competing paraphrases.
+  # The scoreboard embed owns ordinary shot-by-shot commentary.
+  # Return one milestone to the same embed, never a competing channel post.
   stories=match_context(s,ev)
   fresh=[]
   for story_kind,icon,headline,detail in stories:
