@@ -1,5 +1,6 @@
 import random
 from services.analytics import named_leave
+from services.dude_commentary import event_line
 LINES={
 'strike':['💥 **{name} buries the pocket — STRIKE!**','⚡ Ten back in a hurry! **{name}** has all of them.','🔥 **{name}** sends the rack into orbit!'],
 'spare':['🧹 **{name}** cleans it up for the spare.','🎯 No loose ends — spare converted by **{name}**.'],
@@ -12,13 +13,14 @@ LINES={
 'entrance':['🎤 The lights drop. **{name}** steps onto the approach.','📣 Make some noise — **{name}** has entered the lanes!'],}
 def line(kind,**kw): return random.choice(LINES.get(kind,LINES['normal'])).format(**kw)
 def event_text(session,event):
-    name=event['bowler']; leave=event.get('leave_name') or named_leave(event.get('after',[])) or 'split'
-    if event.get('split_conversion'):return line('split_convert',name=name,leave=event.get('split_name') or leave)
-    if event['pins']==0:return line('gutter',name=name,pins=0)
-    if event['pins']==10:return line('strike',name=name,pins=10)
-    if event.get('split'):return line('split',name=name,pins=event['pins'],leave=leave)
-    if event.get('spare'):return line('spare',name=name,pins=event['pins'])
-    return line('normal',name=name,pins=event['pins'])
+    if event.get('split_conversion'): kind='split_convert'
+    elif event.get('pins',0)==0: kind='gutter'
+    elif event.get('pins',0)==10: kind='strike'
+    elif event.get('split'): kind='split'
+    elif event.get('spare'): kind='spare'
+    else: kind='normal'
+    return event_line(session,kind,event)
+
 def streak_call(event):
     n=event.get('strike_streak',0); name=event['bowler'];names={3:'🦃 TURKEY!',4:'🔥 FOUR-BAGGER!',5:'🔥 FIVE IN A ROW!',6:'🎒 SIX-PACK!',7:'🚂 SEVEN STRAIGHT!',8:'🚂 EIGHT STRAIGHT!',9:'🚨 FRONT NINE!',10:'🚨 TEN STRAIGHT!',11:'🚨 ELEVEN! ONE BALL FROM 300!',12:'🏆 PERFECT 300!'}
     return f"{names[n]} **{name}**" if n in names else None
