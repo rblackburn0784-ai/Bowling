@@ -178,6 +178,8 @@ class MatchSetupView(Nav):
   from services.v271 import bowler_loadout
   players=[rb(by_id[bid],by_id[bid]['name']) for bid in (self.bowler_a,self.bowler_b)]
   s=GameSession(players,lane=self.lane)
+  from cogs.games import LANE_MESSAGES
+  LANE_MESSAGES.pop(i.channel_id,None)
   SESSIONS[i.channel_id]=s
   for p in s.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
   await i.response.send_message(f"🎳 **EXHIBITION — HEAD TO HEAD**\n**{players[0].name}** vs **{players[1].name}**\nLane: **{self.lane.title()}**\nUse `/game_bowl` or `/game_auto` to play.")
