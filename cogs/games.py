@@ -82,7 +82,7 @@ class Games(commands.Cog):
  async def bowler_sprite(self,i:discord.Interaction,bowler:str,character:app_commands.Choice[str]):
   if not i.guild or not i.user.guild_permissions.manage_guild:
    return await i.response.send_message('Manage Server permission required.',ephemeral=True)
-  key=None if character.value=='none' else character.value
+  key=character.value
   with connect() as db:
    cur=db.execute('UPDATE bowlers SET sprite_key=? WHERE name=? COLLATE NOCASE',(key,bowler))
   if not cur.rowcount:
