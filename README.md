@@ -1,4 +1,4 @@
-# Gutter Saints Bowling Bot v2.8.3g — Commentary Deduplication
+# Gutter Saints Bowling Bot v2.8.5 — Bowler Sprite Approach Animation
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
 
