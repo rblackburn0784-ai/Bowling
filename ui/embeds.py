@@ -32,7 +32,7 @@ def bowler_embed(b):
     e.set_footer(text=f'Attribute total: {b.stat_total} • Rank is career prestige')
     return e
 
-def scoreboard_embed(session,last=None,team_names=None,director=None):
+def scoreboard_embed(session,last=None,team_names=None,director=None,stage=None):
     e=discord.Embed(title='🎳 Gutter Saints — Live Game',description=f'Lane: **{session.lane.title()}** • Seed: `{session.seed}`')
     cards=session.card()
     totals={}
@@ -47,8 +47,12 @@ def scoreboard_embed(session,last=None,team_names=None,director=None):
         intent=last.get('shot_intent','normal').title();ball=last.get('ball_key','hybrid').title();lane_no=last.get('lane_no','?');trans=last.get('transition',0)
         zones=last.get('lane_zones',{});line=last.get('line_boards',0);move=f' • Line {abs(line)} boards '+('left' if line>0 else 'right') if line else ''
         e.add_field(name='🎯 Shot Decision',value=f'**{ball}** • **{intent}** • Lane **{lane_no}** ({trans*100:.0f}% transition){move} • Target **{last.get("physics",{}).get("target","pocket")}**\nOil read: outside {zones.get("outside",0)*100:.0f}% • track {zones.get("track",0)*100:.0f}% • inside {zones.get("inside",0)*100:.0f}%',inline=False)
-        commentary=event_text(session,last)
-        if director:commentary+='\n\n🎙️ **BROADCAST DIRECTOR**\n'+director
+        if stage and stage!='leave':
+            updates={'approach':'🎳 On the approach — the bowler lines up the shot.', 'path':'🎳 Ball away — travelling down the lane.', 'breakpoint':'🎳 The ball reaches its breakpoint and starts to hook.', 'impact':'🎳 Into the pins — waiting for the leave to settle.'}
+            commentary=updates.get(stage,'🎳 Shot in progress.')
+        else:
+            commentary=event_text(session,last)
+            if director:commentary+='\n\n🎙️ **BROADCAST DIRECTOR**\n'+director
         e.add_field(name='🎙️ Game Updates',value=commentary[:1024],inline=False)
         p=next(x for x in session.players if x.bowler.name==last['bowler']);watch=perfect_watch(p)
         if watch:e.add_field(name='🚨 Perfect Game Watch',value=watch,inline=False)
