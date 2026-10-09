@@ -39,7 +39,7 @@ class SecondBallPlaybackTests(unittest.TestCase):
     scene.pin_layers(canvas,event,'impact',frame_index)
     frames.append(canvas)
   def changed(a,b):
-   return ImageChops.difference(a,b).getbbox() is not None
+   return ImageChops.difference(a.convert('RGB'),b.convert('RGB')).getbbox() is not None
   self.assertTrue(changed(frames[0],frames[2]),'Mid-impact pin tilt was skipped')
   self.assertTrue(changed(frames[2],frames[4]),'Final fallen pin was not drawn')
   self.assertTrue(changed(frames[1],frames[3]),'Knockdown lacks intermediate motion')
