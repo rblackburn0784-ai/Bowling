@@ -18,4 +18,5 @@ jobs:
       - run: python -m unittest discover -s tests -p test_ball_sprites.py -v
       - run: python -m unittest discover -s tests -p test_scene_renderer.py -v
       - run: python -m unittest discover -s tests -p test_scene_scale_tuning.py -v
+      - run: python -m unittest discover -s tests -p test_asset_path_compatibility.py -v
       - run: python -m compileall -q services cogs storage ui
