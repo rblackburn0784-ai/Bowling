@@ -1,6 +1,14 @@
-# Gutter Saints Bowling Bot v2.8.5b — Cinematic Lane & Pin Animations
+# Gutter Saints Bowling Bot v2.8.5c — Scale Tuning Pass
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5c — Scale Tuning Pass
+- The Dude and Jesus approach sprites enlarged from the former 440→382px pose-height sequence to 760→650px, and maximum pose width expanded from 390px to 650px. Their feet remain anchored near the close end of the 941×1672 photographic lane.
+- Settled fallen head-on pin sprites enlarged by 12%; overhead fallen sprites by 10%. Upright pins and the intermediate tipping frames retain their existing scale and locations.
+- This is a visual-only change to `services/scene_renderer.py`. It does not alter lane art assets, selected ball types, scores, gameplay RNG, stat progression, or pin states.
+- The v2.8.5b cinematic sprite asset ZIP remains compatible; **no replacement ZIP or sprite redownload is needed**.
+- Added `tests/test_scene_scale_tuning.py` to CI to protect bowler anchors, falling-pin scale and pin-state immutability.
+- Live Discord timing and mobile layout still require beta confirmation.
 
 ## v2.8.5b — Cinematic Lane, Real Pin Sprites & Synced Bowlers
 - Replaces the geometric drawing with a Gutter Saints 941×1672 master background, rendered at 753×1338 for Discord. All gameplay information remains in the separate readable embed beneath the image.
