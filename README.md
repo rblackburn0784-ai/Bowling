@@ -1,6 +1,15 @@
-# Gutter Saints Bowling Bot v2.8.5g — Second-Ball Visibility Fix
+# Gutter Saints Bowling Bot v2.8.5h — Scoreboard Identity & Sprite Labels
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5h — Clear Scoreboard Identity and Sprite Labels
+- Live scoreboard now shows **Bowler Name — Team Name** for team-v-team games and other sessions with a real scoring team.
+- Solo exhibitions and player challenges no longer set the bowler's name as a fake team. When the bowler is registered on a team roster, that affiliation is shown **for display only**; otherwise the label reads **Independent**.
+- Each bowler's score field identifies their animation: `🎭 Sprite: The Dude`, `🎭 Sprite: Jesus`, or `None (standard approach)`. If a character was assigned but the sprite PNGs are missing, the scoreboard explicitly shows an art-missing fallback.
+- Frame-by-frame scoreboard and final totals are unchanged. Registered team affiliation does **not** count toward team totals in independent exhibition matches.
+- The additional display affiliation is stored in match snapshots and restores; older saved snapshots load with no affiliation if it was not previously recorded.
+- New regression tests cover real teams, solo affiliation, old duplicate-name data, sprite assignment and snapshot restoration.
+- No artwork, assets or bowling physics changed. Pull and restart to apply the embed update.
 
 ## v2.8.5g — Second Delivery Ball Visibility
 - Fixes the second-ball/spare presentation where The Dude or Jesus animated but the travelling ball was obscured.
