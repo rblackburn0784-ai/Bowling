@@ -143,9 +143,9 @@ def _bowler(base,session,event,frame):
     source=bowler_sprites._image(key,frame)
     if source is None:
         return False
-    heights=(440,423,406,390,382)
-    pose=_fit(source,390,heights[frame-1])
-    bottoms=(1640,1631,1620,1610,1600)
+    heights=(760,730,700,675,650)
+    pose=_fit(source,650,heights[frame-1])
+    bottoms=(1660,1650,1640,1630,1620)
     _paste(base,pose,(SIZE[0]-pose.width)/2,bottoms[frame-1]-pose.height)
     return True
 
