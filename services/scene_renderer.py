@@ -14,13 +14,7 @@ from services import bowler_sprites, ball_sprites
 ROOT=Path(__file__).resolve().parent.parent
 BG=ROOT/'assets'/'lane'/'gutter_saints_empty.png'
 PINS=ROOT/'assets'/'pins'
-# Accept both the canonical v2.8.5b ZIP layout and the older sprite-pack
-# layout used by existing installations. No files need to be moved.
-LANE_ALTERNATES=(ROOT/'assets'/'Lane.png',ROOT/'assets'/'lane.png')
-PINS_ALTERNATE=ROOT/'assets'
-# First overhead ZIP accidentally assigned these filenames to different pin
-# numbers; remap only when reading the older assets/overhead folder.
-LEGACY_OVERHEAD_FILES={1:1,2:4,3:5,4:2,5:3,6:10,7:6,8:7,9:9,10:8}
+# Canonical folders: assets/lane/gutter_saints_empty.png and assets/pins/{overhead,vertical}.
 OUT=ROOT/'data'/'lane_cards'
 SIZE=(941,1672)
 EXPORT_SIZE=(753,1338)
@@ -38,10 +32,7 @@ FRONT={
 FALLS=('fall_left','fall_backward','fall_right','fall_forward')
 
 def _lane_file():
-    for path in (BG,*LANE_ALTERNATES):
-        if path.is_file():
-            return path
-    return None
+    return BG if BG.is_file() else None
 
 @lru_cache(maxsize=1)
 def _background():
@@ -59,18 +50,7 @@ def _background():
 def _pin(view,name):
     path=PINS/view/(name+'.png')
     if not path.is_file():
-        # Older pin pack exported into assets/overhead and assets/vertical.
-        # Its overhead sprites were incorrectly numbered in the original ZIP.
-        fallback_name=name
-        if view=='overhead' and name.startswith('pin_'):
-            try:
-                pin_number=int(name[4:])
-                fallback_name=f"pin_{LEGACY_OVERHEAD_FILES.get(pin_number,pin_number)}"
-            except ValueError:
-                pass
-        path=PINS_ALTERNATE/view/(fallback_name+'.png')
-        if not path.is_file():
-            return None
+        return None
     try:
         with Image.open(path) as im:
             return im.convert('RGBA')
