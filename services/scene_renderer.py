@@ -166,7 +166,7 @@ def _bowler(base,session,event,frame):
         if ball is not None:
             diameter=90
             held=_fit(ball,diameter,diameter)
-            source.alpha_composite(held,(source.width-held.width+7,
+            source.alpha_composite(held,(source.width-held.width-4,
                                          round(source.height*.59)-held.height//2))
     pose=_fit(source,650,heights[frame-1])
     _paste(base,pose,(SIZE[0]-pose.width)/2,bottoms[frame-1]-pose.height)
