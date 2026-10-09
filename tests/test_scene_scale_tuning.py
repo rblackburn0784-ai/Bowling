@@ -1,0 +1,57 @@
+"""v2.8.5c visual scale regression tests; no artwork files required."""
+import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
+from PIL import Image
+from services import scene_renderer as scene
+
+
+class SceneScaleTests(unittest.TestCase):
+    def test_bowler_approach_size_and_floor_anchor(self):
+        session=SimpleNamespace(players=[SimpleNamespace(
+            bowler=SimpleNamespace(id=42,name='TheDude',sprite_key='the_dude'))])
+        event={'bowler_id':42}
+        sample=Image.new('RGBA',(300,600),(255,255,255,255))
+        recorded=[]
+
+        with patch.object(scene.bowler_sprites,'sprite_key',return_value='the_dude'), \
+             patch.object(scene.bowler_sprites,'has_sequence',return_value=True), \
+             patch.object(scene.bowler_sprites,'_image',return_value=sample), \
+             patch.object(scene,'_paste',side_effect=lambda base,img,x,y: recorded.append((img.size,x,y))):
+            for frame,expected_height,expected_floor in [
+                (1,760,1660),(2,730,1650),(3,700,1640),
+                (4,675,1630),(5,650,1620)
+            ]:
+                self.assertTrue(scene._bowler(Image.new('RGBA',scene.SIZE),session,event,frame))
+                size,x,y=recorded[-1]
+                self.assertEqual(size[1],expected_height)
+                self.assertEqual(round(y)+size[1],expected_floor)
+                self.assertGreater(size[1],440)
+                self.assertGreaterEqual(x,0)
+                self.assertLessEqual(x+size[0],scene.SIZE[0])
+
+    def test_fallen_pin_scales_but_upright_is_unchanged(self):
+        img=Image.new('RGBA',(60,30),(255,255,255,255))
+        recorded=[]
+        with patch.object(scene,'_pin',return_value=img), \
+             patch.object(scene,'_paste',side_effect=lambda base,sprite,x,y: recorded.append(sprite.size)):
+            for view,scale in [('vertical',1.12),('overhead',1.10)]:
+                scene._fall(Image.new('RGBA',scene.SIZE),view,1,1.0)
+                self.assertEqual(recorded[-1],(round(60*scale),round(30*scale)))
+                scene._fall(Image.new('RGBA',scene.SIZE),view,1,0.0)
+                if view=='overhead':
+                    self.assertEqual(recorded[-1],(60,30))
+                else:
+                    # Upright vertical uses the existing per-pin perspective adjustment.
+                    self.assertEqual(recorded[-1],(round(60*1.08),round(30*1.08)))
+
+    def test_visual_changes_do_not_modify_pin_state(self):
+        event={'before':[1,2,3,7,10],'down':[1,7],'after':[2,3,10]}
+        before={key:list(value) for key,value in event.items()}
+        with patch.object(scene,'_pin',return_value=None):
+            scene.pin_layers(Image.new('RGBA',scene.SIZE),event,'impact',impact_frame=3)
+        self.assertEqual(event,before)
+
+
+if __name__=='__main__':
+    unittest.main()
