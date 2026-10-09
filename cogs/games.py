@@ -22,8 +22,8 @@ from services.broadcast_director import match_context,persist_story,story_call,m
 def rb(r,team=None):
  b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']});b.team_name=team;b.sprite_key=r['sprite_key'] if 'sprite_key' in r.keys() else None;return b
 LANE_MESSAGES={}
-async def update_lane(channel,session,event,stage='leave',director=None,prior_cards=None,prior_scores=None,sprite_frame=None):
- card=lane_card(session,event,stage,sprite_frame=sprite_frame)
+async def update_lane(channel,session,event,stage='leave',director=None,prior_cards=None,prior_scores=None,sprite_frame=None,ball_frame=0,ball_progress=None):
+ card=lane_card(session,event,stage,sprite_frame=sprite_frame,ball_frame=ball_frame,ball_progress=ball_progress)
  # A normal Discord embed stays readable below the image.
  # Never reveal the new ball's result before the final animation stage.
  embed=scoreboard_embed(session,event,director=director,stage=stage,prior_cards=prior_cards,prior_scores=prior_scores)
@@ -48,11 +48,26 @@ async def animate_approach(channel,session,event,prior_cards,prior_scores):
   await update_lane(channel,session,event,'approach',prior_cards=prior_cards,prior_scores=prior_scores,sprite_frame=frame)
   await asyncio.sleep(APPROACH_FRAME_SECONDS)
 
+# Continuous percentages along the existing calculated ball path.
+# The approach renderer does not touch the path. Ball movement begins
+# only after the bowler has finished the fifth release pose.
+BALL_STAGE_PROGRESS={
+ 'path':(.12,.32,.50,.62),
+ 'breakpoint':(.70,.78,.85),
+ 'impact':(.92,.98,1.0),
+}
+
 async def animate_delivery(channel,session,event,prior_cards,prior_scores,delay):
  await animate_approach(channel,session,event,prior_cards,prior_scores)
- for stage in ('path','breakpoint','impact'):
-  await update_lane(channel,session,event,stage,prior_cards=prior_cards,prior_scores=prior_scores)
-  await asyncio.sleep(max(.12,min(.45,delay*.35)))
+ # Discord message edits are serial: no overlapping attachments or
+ # potentially reordered animation frames.
+ frame_delay=max(.16,min(.32,delay*.30))
+ for stage,positions in BALL_STAGE_PROGRESS.items():
+  for index,progress in enumerate(positions):
+   await update_lane(channel,session,event,stage,
+      prior_cards=prior_cards,prior_scores=prior_scores,
+      ball_frame=index+1,ball_progress=progress)
+   await asyncio.sleep(frame_delay)
 
 async def send_media(channel,kind):
  url=pick(kind)
@@ -126,8 +141,7 @@ class Games(commands.Cog):
    ev['attribute_changes']=[] if getattr(s,'friendly_challenge',False) else delivery_growth(ev,s.rng)
    s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id']
    save_snapshot(i.channel_id,s,'post_ball')
-   if s.layout in ('broadcast','finals','chaos'):
-    await animate_delivery(i.channel,s,ev,prior_cards,prior_scores,delay)
+   await animate_delivery(i.channel,s,ev,prior_cards,prior_scores,delay)
    director=await self.reaction(i.channel,s,ev)
    await update_lane(i.channel,s,ev,'leave',director=director)
    await asyncio.sleep(max(0.35,min(1.0,delay)))
