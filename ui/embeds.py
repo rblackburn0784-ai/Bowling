@@ -1,6 +1,7 @@
 import discord
 from services.commentary import event_text,perfect_watch
 from services.dude_commentary import stage_line
+from services.bowler_sprites import sprite_key, has_sequence
 from services.career import rank_title,rank_progress
 from services.v25 import archetype
 from services.v271 import bowler_loadout
@@ -33,17 +34,47 @@ def bowler_embed(b):
     e.set_footer(text=f'Attribute total: {b.stat_total} • Rank is career prestige')
     return e
 
+def scoreboard_identity(bowler):
+    """Show the real team/affiliation, never the bowler's name twice."""
+    name=str(bowler.name)
+    team=getattr(bowler,'team_name',None)
+    affiliation=getattr(bowler,'affiliation',None)
+    team=team.strip() if isinstance(team,str) else None
+    affiliation=affiliation.strip() if isinstance(affiliation,str) else None
+    if not team or team.casefold()==name.casefold():
+        team=affiliation
+    if not team or team.casefold()==name.casefold():
+        team='Independent'
+    return f'{name} — {team}'[:256]
+
+
+def scoreboard_sprite(bowler):
+    """Report the actual character selected for this game's animation."""
+    key=sprite_key(bowler)
+    names={'the_dude':'The Dude','jesus':'Jesus'}
+    if key is None:
+        return 'None (standard approach)'
+    label=names.get(key,key.replace('_',' ').title())
+    if not has_sequence(key):
+        return f'{label} (art missing — standard approach)'
+    return label
+
+
 def scoreboard_embed(session,last=None,team_names=None,director=None,stage=None,prior_cards=None,prior_scores=None):
     e=discord.Embed(title='🎳 Gutter Saints — Live Game',description=f'Lane: **{session.lane.title()}** • Seed: `{session.seed}`')
     cards=prior_cards if stage and stage!='leave' and prior_cards is not None else session.card()
     scores=prior_scores if stage and stage!='leave' and prior_scores is not None else session.scores()
     totals={}
     for p in session.players:
-        frames=cards[p.bowler.name]+['·']*(10-len(cards[p.bowler.name]));value=' | '.join(f'{i+1}:{x}' for i,x in enumerate(frames[:10]))
+        frames=cards[p.bowler.name]+['·']*(10-len(cards[p.bowler.name]))
+        value=f"🎭 Sprite: **{scoreboard_sprite(p.bowler)}**\n"+' | '.join(f'{i+1}:{x}' for i,x in enumerate(frames[:10]))
         if p.complete and p.bowler.name in scores:value+=f"\n**Final: {scores[p.bowler.name]}**"
         team=getattr(p.bowler,'team_name',None)
-        if p.bowler.name in scores and team:totals[team]=totals.get(team,0)+session.scores()[p.bowler.name]
-        e.add_field(name=f"{p.bowler.name}"+(f' — {team}' if team else ''),value=value,inline=False)
+        # Only real team competitions add team totals; club affiliation is
+        # a display-only detail in individual exhibitions/challenges.
+        if team and team.strip().casefold()!=p.bowler.name.casefold() and p.bowler.name in scores:
+            totals[team]=totals.get(team,0)+scores[p.bowler.name]
+        e.add_field(name=scoreboard_identity(p.bowler),value=value,inline=False)
     if totals:e.add_field(name='🏆 Team Totals',value='\n'.join(f'**{k}: {v}**' for k,v in totals.items()),inline=False)
     if last:
         intent=last.get('shot_intent','normal').title();ball=last.get('ball_key','hybrid').title();lane_no=last.get('lane_no','?');trans=last.get('transition',0)
