@@ -59,7 +59,8 @@ class LiveMatchControls(discord.ui.View):
    return await i.response.send_message('A ball or automatic game is already running.',ephemeral=True)
   await i.response.defer(ephemeral=True)
   cog=i.client.get_cog('Games')
-  if cog:await cog.play_one(i.channel,self.session)
+  if cog and not await cog.play_one(i.channel,self.session):
+   await i.followup.send('Match already bowling or the controls are out of date.',ephemeral=True)
 
  @discord.ui.button(label='▶ Auto Play',style=discord.ButtonStyle.success,custom_id='gutter:auto-bowl')
  async def auto_play(self,i,b):
@@ -67,7 +68,8 @@ class LiveMatchControls(discord.ui.View):
    return await i.response.send_message('A ball or automatic game is already running.',ephemeral=True)
   await i.response.defer(ephemeral=True)
   cog=i.client.get_cog('Games')
-  if cog:await cog.play_all(i.channel,self.session)
+  if cog and not await cog.play_all(i.channel,self.session):
+   await i.followup.send('Match already bowling or the controls are out of date.',ephemeral=True)
 
 async def post_match_controls(channel,session):
  """Post the one live scoreboard that future ball renders will edit in place."""
@@ -213,7 +215,8 @@ class Games(commands.Cog):
    return await i.response.send_message('Only a competing bowler or server administrator can control this match.',ephemeral=True)
   if i.channel_id in MATCH_BUSY:return await i.response.send_message('Match already bowling.',ephemeral=True)
   await i.response.defer(ephemeral=True)
-  await self.play_one(i.channel,s)
+  if not await self.play_one(i.channel,s):
+   await i.followup.send('Match already bowling or no longer active.',ephemeral=True)
 
  @app_commands.command(name='game_auto',description='Run the active match automatically at the standard broadcast pace')
  async def auto(self,i:discord.Interaction):
@@ -223,7 +226,8 @@ class Games(commands.Cog):
    return await i.response.send_message('Only a competing bowler or server administrator can control this match.',ephemeral=True)
   if i.channel_id in MATCH_BUSY:return await i.response.send_message('Match already bowling.',ephemeral=True)
   await i.response.defer(ephemeral=True)
-  await self.play_all(i.channel,s)
+  if not await self.play_all(i.channel,s):
+   await i.followup.send('Match already bowling or no longer active.',ephemeral=True)
 
  @app_commands.command(name='game_scoreboard')
  async def board(self,i:discord.Interaction):
