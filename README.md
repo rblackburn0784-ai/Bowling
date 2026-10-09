@@ -1,6 +1,18 @@
-# Gutter Saints Bowling Bot v2.8.5d — Asset Folder Compatibility
+# Gutter Saints Bowling Bot v2.8.5e — Auto Sprite Assignment & Match Controls
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5e — Auto Sprite Assignment & Live Match Controls
+- **Canonical art folders only.** Use `assets/lane/gutter_saints_empty.png`, `assets/pins/overhead/*.png` and `assets/pins/vertical/*.png`. The 10 bowling balls remain in `assets/balls/` and the two 5-frame character sequences in `assets/sprites/the_dude/` and `assets/sprites/jesus/`. The older root-level artwork folder aliases are no longer used.
+- **Automatic character mapping at match creation.** For two unassigned bowlers, the first is shown as **The Dude** and the second as **Jesus**, regardless of registered bowler name. Works for team games, admin exhibitions, friendly challenges and competition fixtures because it is applied in `GameSession`.
+- Existing explicit character assignments are preserved, including **No Sprite**. A real bowler named TheDude/Jesus keeps the matching character. For larger matches, unassigned bowlers share/reuse the available character sprites.
+- Assignments are for the current match **only**. They do not overwrite registered bowler data or affect physics, rank, gameplay RNG or career development.
+- Every newly started match displays a live scoreboard with **🎳 Bowl Next Ball** and **▶ Auto Play** buttons. The live lane message is edited in place as before. The same controls appear on the administrator's Match Dashboard.
+- Competing Discord-linked players and server administrators can use public live-match buttons. Non-participants and old/stale match-control messages are rejected.
+- Auto Play uses a fixed presentation pace: approximately **1.25 seconds between completed deliveries**, plus the existing approach/ball-flight frames. The `/game_auto` slash command now takes **no delay argument**. `/game_bowl` remains available.
+- Guards prevent the buttons, manual command and Auto Play from bowling simultaneously in the same channel. When auto completes, the existing result/awards flow remains unchanged.
+- Added tests: `python -m unittest discover -s tests -p test_match_controls.py -v` and refreshed canonical asset folder tests.
+- No replacement assets are required if the canonical folders are already populated. Restart the bot after updating its Python code and let Discord resync the changed `/game_auto` command.
 
 ## v2.8.5d — Asset Folder Compatibility
 - Fixes the visual fallback for installs that extracted the earlier sprite ZIP at the root of `assets/`: the cinematic lane renderer now recognises `assets/Lane.png` in addition to `assets/lane/gutter_saints_empty.png`.
