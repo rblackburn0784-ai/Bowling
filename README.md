@@ -1,6 +1,18 @@
-# Gutter Saints Bowling Bot v2.8.5j — Full Second-Ball Playback & Pinfall
+# Gutter Saints Bowling Bot v2.8.5l — Full-Width Broadcast Lane
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5l — Full-Width Discord Broadcast & Visible Ball / Pin Cameras
+- **Fixes the tiny portrait preview:** Discord scales long attachments to a limited inline height. Raising the original 565×1004 source resolution does not meaningfully increase its display width. The renderer now produces a compact **9:8** broadcast canvas instead of trying ever-larger portrait GIFs.
+- **Three simultaneous cinematic camera views**, composited entirely from the existing 941×1672 photographic scene: a zoomed top-down pin deck, a head-on pin pit showing impact/fallen sprites, and a full-width lower action lane showing the animated bowler and the rolling ball.
+- **The Dude and Jesus remain their current sprites**, with original coordinates and existing lane/pin assets left unchanged. The composition crops camera regions but does not rewrite or stretch source PNG files on disk.
+- **The overhead and head-on close-ups both follow the same game-engine pin states**, including individual standing pins and only the pins actually falling on spare shots.
+- **The travelling bowling-ball sprite is visually larger** (82px to 38px on the master scene) so the light-coloured Plastic spare ball remains visible when Discord downsizes the output. Ball selection, physics path, revs and scoring do not change.
+- New GIF tiers are **900×800**, **810×720**, **720×640** (all 9:8, same onscreen aspect ratio) rather than 565×1004/540×960/520×925. GIF encoder retains 160 shared colours and existing 7.5MB maximum.
+- The final `Leave` still switches to the corresponding wide view: no ball remains visible after the delivery is complete, which is intentional; the ball travels only within the earlier GIF stages.
+- Adds tests covering aspect ratios, overhead and pit fall consistency, second-ball Plastic sprite visibility inside the actual widened action camera, and unchanged `before/down/after` state.
+- All required assets stay in `assets/lane/`, `assets/pins/`, `assets/balls/` and `assets/sprites/`. **No new PNGs or file moves needed.**
+- Discord's actual preview size depends on client settings and window size. Live beta verification remains necessary.
 
 ## v2.8.5j — Second-Ball GIF Playback & Visible Pinfall
 - Addresses reports that the **first ball animated fully** but a **second-ball spare showed a bowler approach followed by an apparently instant result, without visible ball travel or pin collapse**.
