@@ -10,7 +10,9 @@ from PIL import Image
 from services import scene_renderer
 
 MAX_GIF_BYTES=7_500_000
-SIZES=((565,1004),(540,960),(520,925))
+# A 9:8 composition fills Discord's width much better than portrait art.
+# These are resolution fallbacks, all with the SAME on-screen aspect ratio.
+SIZES=((900,800),(810,720),(720,640))
 # (stage, character frame, ball progress, impact-frame, milliseconds)
 # Each GIF gets a clearly visible full approach, ball flight, and *progressive*
 # pin knockdown. The final frames hold settled fallen pins long enough to see
