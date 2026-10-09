@@ -33,11 +33,11 @@ class SpareBallVisibilityTests(unittest.TestCase):
             ('plastic','plastic_cream_black.png',(249,237,212)),
             ('hybrid','hybrid_pink_black.png',(225,45,120)),
         ):
-            with self.subTest(ball=ball_key), \\
-                 patch.object(scene,'_background',return_value=background), \\
-                 patch.object(scene,'pin_layers'), \\
-                 patch.object(scene,'_bowler',side_effect=giant_bowler), \\
-                 patch.object(scene.ball_sprites,'resolve_ball_variant',return_value=filename), \\
+            with self.subTest(ball=ball_key), \
+                 patch.object(scene,'_background',return_value=background), \
+                 patch.object(scene,'pin_layers'), \
+                 patch.object(scene,'_bowler',side_effect=giant_bowler), \
+                 patch.object(scene.ball_sprites,'resolve_ball_variant',return_value=filename), \
                  patch.object(scene.ball_sprites,'_load',return_value=balls[filename]):
                 event=dict(self.spare,ball_key=ball_key,ball=2 if ball_key=='plastic' else 1)
                 approach=scene.render_scene_image(self.session,event,'approach',
