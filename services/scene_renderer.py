@@ -101,11 +101,14 @@ def _fall(base,view,p,progress):
     direction=FALLS[(p*7)%4]
     fallen=_pin(view,direction)
     standing=_pin(view,f'pin_{p}' if view=='overhead' else 'standing')
-    if progress<.34 and standing is not None:
+    if progress<.15 and standing is not None:
         _upright(base,view,p)
         return
-    if progress<.68 and standing is not None:
-        angle=(-32 if p%2 else 32)*(1 if view=='vertical' else -.65)
+    if progress<.80 and standing is not None:
+        # Intermediate positions rather than an instant upright -> fallen
+        # transition. Works for individual pin drops on spare deliveries too.
+        tilt=min(1.0,max(0.0,(progress-.15)/.65))
+        angle=(-70 if p%2 else 70)*tilt*(1 if view=='vertical' else -.65)
         rotated=standing.rotate(angle,Image.Resampling.BICUBIC,expand=True)
         if view=='vertical':
             _paste(base,rotated,x-rotated.width/2,y-rotated.height)
@@ -137,7 +140,7 @@ def pin_layers(base,event,stage='approach',impact_frame=0):
                 if p in after:
                     _upright(base,view,p)
             elif stage=='impact' and p in down:
-                _fall(base,view,p,max(0,min(1,(impact_frame-1)/2)))
+                _fall(base,view,p,max(0,min(1,(impact_frame-1)/4)))
             else:
                 _upright(base,view,p)
 
