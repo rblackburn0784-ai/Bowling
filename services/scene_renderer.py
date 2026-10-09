@@ -108,6 +108,10 @@ def _fall(base,view,p,progress):
         return
     if fallen is None:
         return
+    # v2.8.5c: slightly enlarge settled fallen sprites only.
+    # Upright pins and the intermediate lean retain their original sizing.
+    scale = 1.12 if view=='vertical' else 1.10
+    fallen = fallen.resize((round(fallen.width*scale),round(fallen.height*scale)),Image.Resampling.LANCZOS)
     if view=='vertical':
         _paste(base,fallen,x-fallen.width/2,y-fallen.height*.65)
     else:
