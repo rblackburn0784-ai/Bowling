@@ -12,14 +12,23 @@ from services import scene_renderer
 MAX_GIF_BYTES=7_500_000
 SIZES=((565,1004),(480,854),(405,720))
 # (stage, character frame, ball progress, impact-frame, milliseconds)
+# Each GIF gets a clearly visible full approach, ball flight, and *progressive*
+# pin knockdown. The final frames hold settled fallen pins long enough to see
+# them before the scoreboard switches to the post-delivery leave.
 ANIMATION_SEQUENCE=(
-    *(('approach',i,None,0,120) for i in range(1,6)),
-    *(('path',None,p,j,100) for j,p in enumerate((.05,.12,.19,.27,.35,.44,.53,.61),1)),
-    *(('breakpoint',None,p,j,105) for j,p in enumerate((.67,.73,.79,.84,.89),1)),
-    ('impact',None,.93,1,115),
-    ('impact',None,.97,2,130),
-    ('impact',None,1.0,3,430),
+    *(('approach',i,None,0,105) for i in range(1,6)),
+    *(('path',None,p,j,90) for j,p in enumerate((.05,.12,.19,.27,.35,.44,.53,.61),1)),
+    *(('breakpoint',None,p,j,95) for j,p in enumerate((.67,.73,.79,.84,.89),1)),
+    ('impact',None,.92,1,115),  # contact, pins upright
+    ('impact',None,.955,2,120), # slight tip
+    ('impact',None,.98,3,145),  # half fall
+    ('impact',None,1.0,4,155),  # deep fall
+    ('impact',None,1.0,5,540),  # knocked-down pins held visibly
 )
+# discord.File uploads do not tell us when the client actually begins playing
+# the GIF. Leave headroom so slower clients can see flight and pinfall before
+# the result image replaces the attachment.
+DISCORD_PLAYBACK_HEADROOM_SECONDS=1.5
 DURATION_SECONDS=sum(item[-1] for item in ANIMATION_SEQUENCE)/1000
 
 def _frames(session,event,size):
