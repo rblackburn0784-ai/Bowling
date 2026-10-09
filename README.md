@@ -1,6 +1,15 @@
-# Gutter Saints Bowling Bot v2.8.5h — Scoreboard Identity & Sprite Labels
+# Gutter Saints Bowling Bot v2.8.5i — First & Second Ball Layering Fix
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5i — First & Second Ball Visual Release Fix
+- Fixes first-ball visual regression where the bowling ball appeared unnaturally **on top of** The Dude/Jesus character's torso after the v2.8.5g update.
+- Fixes disappearing second-ball/spare travel: the actual `Plastic` PNG is present and healthy, but the old projected ball line ran directly **behind the enlarged 760px bowler** for most of the GIF. It was a projection/occlusion issue, not missing PNGs.
+- Restores natural **foreground bowler compositing** and starts the released ball along the visible side of the character before smoothly easing back onto its unchanged existing lane path by the breakpoint.
+- Maintains the selected Solid, Hybrid, Pearl, Urethane and Plastic sprite appearance, perspective scale, rotation and single-upload GIF playback. The shot result and scoring remain concealed until after impact.
+- Adds tests for both strike and spare ball visibility, preventing a ball painted over the bowler, continuous projection and return to the original physics-derived endpoint, plus loading `plastic_cream_black.png` from the existing assets location.
+- **No asset replacement is necessary.** Continue using `assets/lane/gutter_saints_empty.png`, `assets/pins/{overhead,vertical}`, `assets/balls`, and `assets/sprites/{the_dude,jesus}`.
+- No changes to physics, scoring, ball selection, lane transition, rank, progression or career records. A fresh Discord exhibition remains the final visual verification step.
 
 ## v2.8.5h — Clear Scoreboard Identity and Sprite Labels
 - Live scoreboard now shows **Bowler Name — Team Name** for team-v-team games and other sessions with a real scoring team.
