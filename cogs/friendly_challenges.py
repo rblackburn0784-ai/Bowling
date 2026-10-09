@@ -61,7 +61,7 @@ class ChallengeResponse(discord.ui.View):
   LANE_MESSAGES.pop(i.channel_id,None)
   SESSIONS[i.channel_id]=session;PENDING.discard(self.key)
   for x in self.children:x.disabled=True
-  await i.response.edit_message(content=f"✅ **Challenge accepted!** 🎳 **{players[0].name}** vs **{players[1].name}**. Use /game_bowl or /game_auto.",view=self)
+  await i.response.edit_message(content=f"✅ **Challenge accepted!** 🎳 **{players[0].name}** vs **{players[1].name}**. Use the Bowl Next Ball / Auto Play buttons on the live scoreboard.",view=self)
   from cogs.games import post_match_controls
   await post_match_controls(i.channel,session)
  @discord.ui.button(label='Decline',style=discord.ButtonStyle.danger)
