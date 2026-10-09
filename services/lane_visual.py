@@ -2,6 +2,7 @@ from pathlib import Path
 from PIL import Image,ImageDraw,ImageFont
 from services.bowler_sprites import draw_approach
 from services.ball_sprites import draw_lane_ball
+from services import scene_renderer
 OUT=Path(__file__).resolve().parent.parent/'data'/'lane_cards';OUT.mkdir(parents=True,exist_ok=True)
 PIN_POS={7:(235,137),8:(305,137),9:(375,137),10:(445,137),4:(270,181),5:(340,181),6:(410,181),2:(305,225),3:(375,225),1:(340,269)}
 def _font(size=22,bold=False):
@@ -31,6 +32,9 @@ def _path(d,event,progress=1.0):
     seg=max(2,int(len(pts)*progress));d.line(pts[:seg],fill=(28,28,35),width=8,joint='curve')
     x,y=pts[min(seg-1,len(pts)-1)];d.ellipse((x-11,y-11,x+11,y+11),fill=(35,35,42),outline=(245,245,250))
 def lane_card(session,event=None,stage='leave',sprite_frame=None,ball_frame=0,ball_progress=None):
+    # New cinematic art is optional: missing assets preserve the existing lane.
+    if scene_renderer.available():
+        return scene_renderer.render_scene(session,event,stage,sprite_frame,ball_frame,ball_progress)
     im,d=_base(session,event,stage)
     if event:
         active=next((p.bowler for p in session.players if p.bowler.id==event.get('bowler_id')),None)
