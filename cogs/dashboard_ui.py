@@ -208,7 +208,8 @@ class MatchDashboard(Nav):
   from cogs.games import MATCH_BUSY
   if i.channel_id in MATCH_BUSY:return await i.response.send_message('The match is already bowling.',ephemeral=True)
   await i.response.defer(ephemeral=True)
-  await i.client.get_cog('Games').play_one(i.channel,s)
+  if not await i.client.get_cog('Games').play_one(i.channel,s):
+   await i.followup.send('Match already bowling or no longer active.',ephemeral=True)
  @discord.ui.button(label='▶ Auto Play',style=discord.ButtonStyle.success)
  async def auto_play(self,i,b):
   s=SESSIONS.get(i.channel_id)
@@ -216,7 +217,8 @@ class MatchDashboard(Nav):
   from cogs.games import MATCH_BUSY
   if i.channel_id in MATCH_BUSY:return await i.response.send_message('The match is already bowling.',ephemeral=True)
   await i.response.defer(ephemeral=True)
-  await i.client.get_cog('Games').play_all(i.channel,s)
+  if not await i.client.get_cog('Games').play_all(i.channel,s):
+   await i.followup.send('Match already bowling or no longer active.',ephemeral=True)
  @discord.ui.button(label='📺 Lane View',style=discord.ButtonStyle.primary)
  async def lane(self,i,b):
   s=SESSIONS.get(i.channel_id)
