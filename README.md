@@ -1,6 +1,18 @@
-# Gutter Saints Bowling Bot v2.8.5a — Ball Sprite Integration
+# Gutter Saints Bowling Bot v2.8.5b — Cinematic Lane & Pin Animations
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5b — Cinematic Lane, Real Pin Sprites & Synced Bowlers
+- Replaces the geometric drawing with a Gutter Saints 941×1672 master background, rendered at 753×1338 for Discord. All gameplay information remains in the separate readable embed beneath the image.
+- Two independent pin decks: numbered dirty/scuffed 10-pin overhead view, plus realistic head-on pins in the lane pit. Both read the same event's before/down/after lists.
+- Impact has three visual states: upright → leaning → fallen. Only pins in event.down animate; event.after alone controls the settled leave. Reset racks and subsequent spares are driven by the engine, never by a guessed visual result.
+- The Dude and Jesus use the existing five-frame approach animations, scaled to the near end of the new photographic lane. Their follow-through pose stays visible during ball travel, breakpoint, impact and result.
+- The real selected Solid/Pearl/Hybrid/Urethane/Plastic ball follows the existing engine-rendered trajectory on the new lane and rotates according to the derived rev rate. No scoring/physics/rank/stat changes.
+- Existing `lane_card` and Discord message-editing pathways automatically use the new scene when its image exists. If absent, the old lane renderer remains available.
+- Install the required graphic files from **Gutter_Saints_v2.8.5b_Cinematic_Lane_Assets.zip** by extracting its `assets/` directory next to `bot.py`. This supersedes the earlier ball, bowler and pin sprite ZIPs and corrects the initial overhead sprite file numbering.
+- The generated photo background is intentionally pin-free; actual pins are composited over it at render time.
+- Regression tests: `python -m unittest discover -s tests -p test_scene_renderer.py -v`.
+- Discord's message-edit rate limits can make frame playback slower than the configured pause. Beta-test a full match before using it for a tournament.
 
 ## v2.8.5a — Ball Sprites, Spin & Approach Handoff
 - Ten transparent ball sprites mapped to the existing five ball types: Solid (3), Pearl (2), Hybrid (2), Urethane (2), Plastic (1).
