@@ -28,6 +28,15 @@ MATCH_BUSY=set()
 AUTO_BETWEEN_BALLS=1.25
 AUTO_FRAME_DELAY=1.0
 
+def can_operate_match(member,session):
+ permissions=getattr(member,'guild_permissions',None)
+ if permissions and (permissions.administrator or permissions.manage_guild):
+  return True
+ return getattr(member,'id',None) in {
+  getattr(player.bowler,'owner_id',None) for player in session.players
+  if getattr(player.bowler,'owner_id',None) not in (None,0)
+ }
+
 class LiveMatchControls(discord.ui.View):
  """Buttons belong to the current channel's active match, not a stale view."""
  def __init__(self,channel_id,session):
@@ -39,11 +48,7 @@ class LiveMatchControls(discord.ui.View):
   if i.channel_id!=self.channel_id or SESSIONS.get(self.channel_id) is not self.session or self.session.complete:
    await i.response.send_message('This match has finished or its controls are out of date.',ephemeral=True)
    return False
-  member=i.user
-  permissions=getattr(member,'guild_permissions',None)
-  is_admin=bool(permissions and (permissions.administrator or permissions.manage_guild))
-  participants={getattr(p.bowler,'owner_id',None) for p in self.session.players}
-  if not is_admin and member.id not in participants:
+  if not can_operate_match(i.user,self.session):
    await i.response.send_message('Only a competing player or server administrator can bowl this match.',ephemeral=True)
    return False
   return True
@@ -204,6 +209,8 @@ class Games(commands.Cog):
  async def bowl(self,i:discord.Interaction):
   s=SESSIONS.get(i.channel_id)
   if not s or s.complete:return await i.response.send_message('No active playable game.',ephemeral=True)
+  if not can_operate_match(i.user,s):
+   return await i.response.send_message('Only a competing bowler or server administrator can control this match.',ephemeral=True)
   if i.channel_id in MATCH_BUSY:return await i.response.send_message('Match already bowling.',ephemeral=True)
   await i.response.defer(ephemeral=True)
   await self.play_one(i.channel,s)
@@ -212,6 +219,8 @@ class Games(commands.Cog):
  async def auto(self,i:discord.Interaction):
   s=SESSIONS.get(i.channel_id)
   if not s or s.complete:return await i.response.send_message('No active playable game.',ephemeral=True)
+  if not can_operate_match(i.user,s):
+   return await i.response.send_message('Only a competing bowler or server administrator can control this match.',ephemeral=True)
   if i.channel_id in MATCH_BUSY:return await i.response.send_message('Match already bowling.',ephemeral=True)
   await i.response.defer(ephemeral=True)
   await self.play_all(i.channel,s)
