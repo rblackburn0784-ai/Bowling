@@ -69,7 +69,6 @@ class LiveMatchTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue((await permission(123))[0])
         self.assertTrue((await permission(999,admin=True))[0])
         self.assertFalse((await permission(999))[0])
-        self.assertFalse((await permission(123))[0] if False else False) if False else None
         session.complete=True
         self.assertFalse((await permission(123))[0])
         view.stop()
