@@ -10,6 +10,7 @@ import logging
 
 from PIL import Image, ImageDraw, ImageEnhance
 from services import bowler_sprites, ball_sprites
+from services.broadcast_layout import compose_broadcast
 
 ROOT=Path(__file__).resolve().parent.parent
 BG=ROOT/'assets'/'lane'/'gutter_saints_empty.png'
@@ -17,7 +18,7 @@ PINS=ROOT/'assets'/'pins'
 # Canonical folders: assets/lane/gutter_saints_empty.png and assets/pins/{overhead,vertical}.
 OUT=ROOT/'data'/'lane_cards'
 SIZE=(941,1672)
-EXPORT_SIZE=(753,1338)
+EXPORT_SIZE=(900,800)  # Wide 9:8 Discord broadcast, not pixel-only portrait enlargement
 # Real pin numbering: rearmost row 7-10, headpin 1 nearest the bowler.
 OVERHEAD={
  7:(305,100),8:(410,100),9:(515,100),10:(620,100),
@@ -235,7 +236,14 @@ def render_scene_image(session,event=None,stage='leave',sprite_frame=None,ball_f
             progress=ball_progress if ball_progress is not None else {'path':.45,'breakpoint':.77,'impact':.98}[stage]
             _ball(im,event,progress)
         _bowler(im,session,event,(sprite_frame or 1) if stage=='approach' else 5)
-    return im.convert('RGB').resize(output_size,Image.Resampling.LANCZOS)
+    im=im.convert('RGB')
+    # Desktop Discord caps inline media height. A taller source file still
+    # appears narrow (~200px), whatever its resolution. Recompose into two
+    # pin close-ups above the full-width action lane for wide broadcasts.
+    if output_size[0]/output_size[1]>=0.9:
+        return compose_broadcast(im,output_size)
+    # Preserve the portrait path for compatibility and legacy tests.
+    return im.resize(output_size,Image.Resampling.LANCZOS)
 
 
 def render_scene(session,event=None,stage='leave',sprite_frame=None,ball_frame=0,ball_progress=None):
