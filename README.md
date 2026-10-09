@@ -1,6 +1,19 @@
-# Gutter Saints Bowling Bot v2.8.5e — Auto Sprite Assignment & Match Controls
+# Gutter Saints Bowling Bot v2.8.5f — Smooth Motion & Sprite Polish
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5f — Smooth Motion, Fixed Jesus Frame 2 & Consistent Bowler Scale
+- **Smooth playback:** an entire delivery is encoded as a short single-play animated GIF before upload. The same live Discord message changes just twice per shot (GIF, then result), rather than uploading an image for each movement frame. This is substantially smoother and reduces API-rate-limit delays.
+- Timeline: 5 character approach poses → 8 travelling-ball poses → 5 breakpoint poses → 3 impact poses (21 frames; approximately **2.6 seconds** playback).
+- Automatic matches pause **0.7 seconds between completed deliveries**, plus the animation and rendering/upload time. `/game_auto` continues to use a fixed pace with no delay argument.
+- Game outcomes, frame results and Broadcast Director calls are shown **only after the GIF finishes**, never during the moving-ball animation.
+- Jesus sprite **frame 2** now gets its missing dark ball composited next to his carrying hand at render time; the original PNG does **not** need replacing.
+- All five Dude/Jesus animation frames now use a consistent **760px target body height** instead of making frame 5 visibly smaller. Feet remain anchored near the camera end of the lane.
+- The GIF is computed in a worker thread; colour palette, cropping and size are optimised, with smaller-resolution alternatives if an upload would exceed 7.5 MB. If rendering fails or cinematic art is absent, the original per-stage graphics remain as fallback.
+- Preserves `assets/lane/gutter_saints_empty.png`, `assets/pins/{overhead,vertical}`, `assets/balls` and `assets/sprites/{the_dude,jesus}`. **No artwork downloads or folder changes.**
+- Physics, lane transition, selected balls, scorekeeping and player stats remain untouched.
+- Added GIF regression tests and updated character-scale, Auto Play timing and asset-path test expectations.
+- GIF playback depends on viewers' Discord animated-media preferences. A complete match in Discord is still required to confirm real-world playback/synchronisation and GIF handling.
 
 ## v2.8.5e — Auto Sprite Assignment & Live Match Controls
 - **Canonical art folders only.** Use `assets/lane/gutter_saints_empty.png`, `assets/pins/overhead/*.png` and `assets/pins/vertical/*.png`. The 10 bowling balls remain in `assets/balls/` and the two 5-frame character sequences in `assets/sprites/the_dude/` and `assets/sprites/jesus/`. The older root-level artwork folder aliases are no longer used.
