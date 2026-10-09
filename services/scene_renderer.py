@@ -181,12 +181,16 @@ def _ball(base,event,progress):
     name=ball_sprites.resolve_ball_variant(event.get('ball_key'),event.get('bowler'))
     source=ball_sprites._load(name)
     size=round(71-(71-25)*fraction)
+    # Keep small/distance balls readable against the glossy wooden lane.
+    # The plastic spare ball is cream-coloured and otherwise blends into it.
+    r=size/2
+    d=ImageDraw.Draw(base)
+    d.ellipse((px-r-3,py-r-1,px+r+3,py+r+5),
+              fill=(19,14,19,205),outline=(236,225,203,220),width=1)
     if source:
         sprite=_fit(source,size,size).rotate(ball_sprites._spin_angle(event,progress),Image.Resampling.BICUBIC,expand=True)
         _paste(base,sprite,px-sprite.width/2,py-sprite.height/2)
     else:
-        d=ImageDraw.Draw(base)
-        r=size/2
         d.ellipse((px-r,py-r,px+r,py+r),fill='#251d35',outline='#faf1ff',width=2)
 
 def render_scene_image(session,event=None,stage='leave',sprite_frame=None,ball_frame=0,
@@ -198,10 +202,12 @@ def render_scene_image(session,event=None,stage='leave',sprite_frame=None,ball_f
     im=background.copy()
     if event:
         pin_layers(im,event,stage,ball_frame)
+        # The large approach pose formerly covered the travelling ball;
+        # draw the bowler first, then composite the released ball above it.
+        _bowler(im,session,event,(sprite_frame or 1) if stage=='approach' else 5)
         if stage in ('path','breakpoint','impact'):
             progress=ball_progress if ball_progress is not None else {'path':.45,'breakpoint':.77,'impact':.98}[stage]
             _ball(im,event,progress)
-        _bowler(im,session,event,(sprite_frame or 1) if stage=='approach' else 5)
     return im.convert('RGB').resize(output_size,Image.Resampling.LANCZOS)
 
 
