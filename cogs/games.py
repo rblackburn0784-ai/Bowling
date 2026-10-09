@@ -21,7 +21,21 @@ from services.career import delivery_growth,add_tendency,add_timeline_event
 from services.broadcast_director import match_context,persist_story,story_call,match_story_summary
 
 def rb(r,team=None):
- b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']});b.team_name=team;b.sprite_key=r['sprite_key'] if 'sprite_key' in r.keys() else None;return b
+ b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']})
+ b.team_name=team
+ b.sprite_key=r['sprite_key'] if 'sprite_key' in r.keys() else None
+ if team:
+  b.affiliation=team
+ else:
+  # Solo exhibitions and friendly challenges can show an existing club
+  # affiliation without misclassifying the match as team-v-team.
+  with connect() as db:
+   memberships=db.execute(
+    'SELECT t.name FROM teams t JOIN team_members tm ON tm.team_id=t.id '
+    'WHERE tm.bowler_id=? ORDER BY t.name COLLATE NOCASE LIMIT 1',(b.id,)
+   ).fetchone()
+  b.affiliation=memberships['name'] if memberships else None
+ return b
 LANE_MESSAGES={}
 MATCH_BUSY=set()
 # Fixed broadcast pacing: frame changes are deliberately slower than
