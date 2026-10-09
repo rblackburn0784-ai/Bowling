@@ -201,6 +201,22 @@ class RecoveryView(Nav):
 class MatchDashboard(Nav):
  @discord.ui.button(label='🎳 Start Match',style=discord.ButtonStyle.success)
  async def start(self,i,b):await nav(i,'🎳 **Exhibition Match Setup**',MatchSetupView())
+ @discord.ui.button(label='🎳 Bowl Next Ball',style=discord.ButtonStyle.primary)
+ async def bowl_one(self,i,b):
+  s=SESSIONS.get(i.channel_id)
+  if not s or s.complete:return await i.response.send_message('No active match in this channel.',ephemeral=True)
+  from cogs.games import MATCH_BUSY
+  if i.channel_id in MATCH_BUSY:return await i.response.send_message('The match is already bowling.',ephemeral=True)
+  await i.response.defer(ephemeral=True)
+  await i.client.get_cog('Games').play_one(i.channel,s)
+ @discord.ui.button(label='▶ Auto Play',style=discord.ButtonStyle.success)
+ async def auto_play(self,i,b):
+  s=SESSIONS.get(i.channel_id)
+  if not s or s.complete:return await i.response.send_message('No active match in this channel.',ephemeral=True)
+  from cogs.games import MATCH_BUSY
+  if i.channel_id in MATCH_BUSY:return await i.response.send_message('The match is already bowling.',ephemeral=True)
+  await i.response.defer(ephemeral=True)
+  await i.client.get_cog('Games').play_all(i.channel,s)
  @discord.ui.button(label='📺 Lane View',style=discord.ButtonStyle.primary)
  async def lane(self,i,b):
   s=SESSIONS.get(i.channel_id)
