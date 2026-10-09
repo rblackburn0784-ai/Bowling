@@ -201,7 +201,10 @@ def _projected_ball(event,progress):
     else:
         t=(progress-.62)/.20
         release_offset=195.0*(1.0-t*t*(3.0-2.0*t))
-    return px+release_offset,py,round(71-(71-25)*fraction)
+    # The old ball shrank to 25px at impact: under 6px in a 200px-wide
+    # Discord preview, essentially invisible. This visual-only broadcast
+    # scale keeps the spare Plastic ball and every other type readable.
+    return px+release_offset,py,round(82-(82-38)*fraction)
 
 
 def _ball(base,event,progress):
