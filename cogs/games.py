@@ -22,6 +22,55 @@ from services.broadcast_director import match_context,persist_story,story_call,m
 def rb(r,team=None):
  b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']});b.team_name=team;b.sprite_key=r['sprite_key'] if 'sprite_key' in r.keys() else None;return b
 LANE_MESSAGES={}
+MATCH_BUSY=set()
+# Fixed broadcast pacing: frame changes are deliberately slower than
+# the typical Discord attachment-edit rate, with a pause between deliveries.
+AUTO_BETWEEN_BALLS=1.25
+AUTO_FRAME_DELAY=1.0
+
+class LiveMatchControls(discord.ui.View):
+ """Buttons belong to the current channel's active match, not a stale view."""
+ def __init__(self,channel_id,session):
+  super().__init__(timeout=3600)
+  self.channel_id=channel_id
+  self.session=session
+
+ async def interaction_check(self,i):
+  if i.channel_id!=self.channel_id or SESSIONS.get(self.channel_id) is not self.session or self.session.complete:
+   await i.response.send_message('This match has finished or its controls are out of date.',ephemeral=True)
+   return False
+  member=i.user
+  permissions=getattr(member,'guild_permissions',None)
+  is_admin=bool(permissions and (permissions.administrator or permissions.manage_guild))
+  participants={getattr(p.bowler,'owner_id',None) for p in self.session.players}
+  if not is_admin and member.id not in participants:
+   await i.response.send_message('Only a competing player or server administrator can bowl this match.',ephemeral=True)
+   return False
+  return True
+
+ @discord.ui.button(label='🎳 Bowl Next Ball',style=discord.ButtonStyle.primary,custom_id='gutter:manual-bowl')
+ async def bowl_next(self,i,b):
+  if i.channel_id in MATCH_BUSY:
+   return await i.response.send_message('A ball or automatic game is already running.',ephemeral=True)
+  await i.response.defer(ephemeral=True)
+  cog=i.client.get_cog('Games')
+  if cog:await cog.play_one(i.channel,self.session)
+
+ @discord.ui.button(label='▶ Auto Play',style=discord.ButtonStyle.success,custom_id='gutter:auto-bowl')
+ async def auto_play(self,i,b):
+  if i.channel_id in MATCH_BUSY:
+   return await i.response.send_message('A ball or automatic game is already running.',ephemeral=True)
+  await i.response.defer(ephemeral=True)
+  cog=i.client.get_cog('Games')
+  if cog:await cog.play_all(i.channel,self.session)
+
+async def post_match_controls(channel,session):
+ """Post the one live scoreboard that future ball renders will edit in place."""
+ LANE_MESSAGES.pop(channel.id,None)
+ msg=await channel.send(embed=scoreboard_embed(session),
+                        view=LiveMatchControls(channel.id,session))
+ LANE_MESSAGES[channel.id]=msg
+ return msg
 async def update_lane(channel,session,event,stage='leave',director=None,prior_cards=None,prior_scores=None,sprite_frame=None,ball_frame=0,ball_progress=None):
  card=lane_card(session,event,stage,sprite_frame=sprite_frame,ball_frame=ball_frame,ball_progress=ball_progress)
  # A normal Discord embed stays readable below the image.
@@ -34,7 +83,7 @@ async def update_lane(channel,session,event,stage='leave',director=None,prior_ca
    return previous
   except (discord.NotFound,discord.Forbidden):
    LANE_MESSAGES.pop(channel.id,None)
- message=await channel.send(embed=embed,file=discord.File(card,filename='gutter_lane.png'))
+ message=await channel.send(embed=embed,file=discord.File(card,filename='gutter_lane.png'),view=LiveMatchControls(channel.id,session))
  LANE_MESSAGES[channel.id]=message
  return message
 
@@ -90,7 +139,7 @@ class Games(commands.Cog):
   for p in s.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
   await i.response.send_message(f"🎤 **WELCOME TO THE GUTTER SAINTS LANES!**\n**{team}**"+(f' vs **{opponent}**' if opponent else ''))
   for b in bowlers:await i.channel.send(line('entrance',name=b.name));await send_media(i.channel,'entrance')
-  await i.channel.send(embed=scoreboard_embed(s))
+  await post_match_controls(i.channel,s)
  @app_commands.command(name='bowler_sprite',description='Set the character sprite for a registered bowler')
  @app_commands.default_permissions(manage_guild=True)
  @app_commands.choices(character=[app_commands.Choice(name='The Dude',value='the_dude'),app_commands.Choice(name='Jesus',value='jesus'),app_commands.Choice(name='No Sprite',value='none')])
@@ -113,40 +162,60 @@ class Games(commands.Cog):
   if p.standing!=set(__import__('services.pin_engine',fromlist=['ALL']).ALL) and intent.value!='spare':return await i.response.send_message('A leave is standing — Spare intent is automatic.',ephemeral=True)
   p.next_intent=intent.value
   await i.response.send_message(f"🎯 **{p.bowler.name}** next shot: **{intent.name}**.",ephemeral=True)
- @app_commands.command(name='game_bowl',description='Bowl the next delivery')
- async def bowl(self,i:discord.Interaction):
-  s=SESSIONS.get(i.channel_id)
-  if not s:return await i.response.send_message('No active game in this channel.',ephemeral=True)
-  if s.complete:return await i.response.send_message('Game already complete.',ephemeral=True)
-  await i.response.defer(ephemeral=True)
-  save_snapshot(i.channel_id,s,'pre_ball')
+ async def _deliver(self,ch,s):
+  key=ch.id
+  save_snapshot(key,s,'pre_ball')
   prior_cards=s.card();prior_scores=s.scores()
   ev=s.bowl()
   ev['attribute_changes']=[] if getattr(s,'friendly_challenge',False) else delivery_growth(ev,s.rng)
   s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id']
-  save_snapshot(i.channel_id,s,'post_ball')
-  await animate_delivery(i.channel,s,ev,prior_cards,prior_scores,.7)
-  director=await self.reaction(i.channel,s,ev)
-  await update_lane(i.channel,s,ev,'leave',director=director)
-  if s.complete:await self.finish(i.channel,s,i.channel_id)
- @app_commands.command(name='game_auto',description='Run the active game live with commentary and reactions')
- async def auto(self,i:discord.Interaction,delay:app_commands.Range[float,0.0,5.0]=0.7):
+  save_snapshot(key,s,'post_ball')
+  await animate_delivery(ch,s,ev,prior_cards,prior_scores,AUTO_FRAME_DELAY)
+  director=await self.reaction(ch,s,ev)
+  await update_lane(ch,s,ev,'leave',director=director)
+  if s.complete:
+   await self.finish(ch,s,key)
+
+ async def play_one(self,ch,s):
+  key=ch.id
+  if key in MATCH_BUSY or s.complete or SESSIONS.get(key) is not s:
+   return False
+  MATCH_BUSY.add(key)
+  try:
+   await self._deliver(ch,s)
+   return True
+  finally:
+   MATCH_BUSY.discard(key)
+
+ async def play_all(self,ch,s):
+  key=ch.id
+  if key in MATCH_BUSY or s.complete or SESSIONS.get(key) is not s:
+   return False
+  MATCH_BUSY.add(key)
+  try:
+   while not s.complete and SESSIONS.get(key) is s:
+    await self._deliver(ch,s)
+    if not s.complete:await asyncio.sleep(AUTO_BETWEEN_BALLS)
+   return True
+  finally:
+   MATCH_BUSY.discard(key)
+
+ @app_commands.command(name='game_bowl',description='Bowl the next delivery manually')
+ async def bowl(self,i:discord.Interaction):
   s=SESSIONS.get(i.channel_id)
-  if not s:return await i.response.send_message('No active game.',ephemeral=True)
+  if not s or s.complete:return await i.response.send_message('No active playable game.',ephemeral=True)
+  if i.channel_id in MATCH_BUSY:return await i.response.send_message('Match already bowling.',ephemeral=True)
   await i.response.defer(ephemeral=True)
-  while not s.complete:
-   save_snapshot(i.channel_id,s,'pre_ball')
-   prior_cards=s.card();prior_scores=s.scores()
-   ev=s.bowl()
-   ev['attribute_changes']=[] if getattr(s,'friendly_challenge',False) else delivery_growth(ev,s.rng)
-   s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id']
-   save_snapshot(i.channel_id,s,'post_ball')
-   await animate_delivery(i.channel,s,ev,prior_cards,prior_scores,delay)
-   director=await self.reaction(i.channel,s,ev)
-   await update_lane(i.channel,s,ev,'leave',director=director)
-   await asyncio.sleep(max(0.35,min(1.0,delay)))
-   await asyncio.sleep(delay)
-  await self.finish(i.channel,s,i.channel_id)
+  await self.play_one(i.channel,s)
+
+ @app_commands.command(name='game_auto',description='Run the active match automatically at the standard broadcast pace')
+ async def auto(self,i:discord.Interaction):
+  s=SESSIONS.get(i.channel_id)
+  if not s or s.complete:return await i.response.send_message('No active playable game.',ephemeral=True)
+  if i.channel_id in MATCH_BUSY:return await i.response.send_message('Match already bowling.',ephemeral=True)
+  await i.response.defer(ephemeral=True)
+  await self.play_all(i.channel,s)
+
  @app_commands.command(name='game_scoreboard')
  async def board(self,i:discord.Interaction):
   s=SESSIONS.get(i.channel_id);await i.response.send_message(embed=scoreboard_embed(s) if s else None,content=None if s else 'No active game.',ephemeral=not bool(s))
