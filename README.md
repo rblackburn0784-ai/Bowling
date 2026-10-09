@@ -1,6 +1,15 @@
-# Gutter Saints Bowling Bot v2.8.5f — Smooth Motion & Sprite Polish
+# Gutter Saints Bowling Bot v2.8.5g — Second-Ball Visibility Fix
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5g — Second Delivery Ball Visibility
+- Fixes the second-ball/spare presentation where The Dude or Jesus animated but the travelling ball was obscured.
+- The larger character sprite used to be drawn on top of the ball and could hide its early journey. The compositor now draws the bowler first, then the released ball over the scene.
+- Adds a subtle dark contrast/shadow ring around the travelling ball, particularly useful for the light cream-and-black **Plastic** spare ball against the polished wooden lane.
+- Animated GIFs now derive a shared 256-colour palette from approach, travel, breakpoint and impact frames, instead of just the first approach frame. This preserves colours when a spare uses a different ball from the character's carrying pose.
+- Uses the correct gameplay `event['ball_key']`: strike balls remain the bowler's chosen type; spare shots use Plastic. No physics, RNG, rank or career changes.
+- Adds automated second-delivery regressions for bowler occlusion and preservation of the spare ball in the encoded GIF.
+- No changes to assets or folders. Pull the source update and restart. Live Discord testing is still required.
 
 ## v2.8.5f — Smooth Motion, Fixed Jesus Frame 2 & Consistent Bowler Scale
 - **Smooth playback:** an entire delivery is encoded as a short single-play animated GIF before upload. The same live Discord message changes just twice per shot (GIF, then result), rather than uploading an image for each movement frame. This is substantially smoother and reduces API-rate-limit delays.
