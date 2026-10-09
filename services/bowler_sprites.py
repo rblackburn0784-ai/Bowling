@@ -59,3 +59,33 @@ def draw_approach(base, bowler, frame):
     y = bottom-height
     base.paste(pose,(x,y),pose)
     return True
+
+def assign_match_sprites(bowlers):
+    """Give every unassigned match bowler a presentation-only character.
+
+    Stable per match: first unassigned uses The Dude, second Jesus, then
+    alternates. Explicit selections including 'none' are never overwritten.
+    Existing named TheDude/Jesus take priority. This changes only in-memory
+    bowler objects, not the SQLite roster or player attributes.
+    """
+    players = list(bowlers)
+    occupied = set()
+    for bowler in players:
+        character = sprite_key(bowler)
+        if character in SUPPORTED:
+            occupied.add(character)
+    for bowler in players:
+        if getattr(bowler, 'sprite_key', None) is not None:
+            continue
+        natural = sprite_key(bowler)
+        if natural:
+            bowler.sprite_key = natural
+            continue
+        choice = next((key for key in SUPPORTED if key not in occupied),None)
+        if choice is None:
+            choice = SUPPORTED[sum(1 for p in players[:players.index(bowler)]
+                                   if getattr(p, 'sprite_key', None) in SUPPORTED) % len(SUPPORTED)]
+        bowler.sprite_key=choice
+        occupied.add(choice)
+    return {getattr(bowler, 'id',idx):sprite_key(bowler)
+            for idx,bowler in enumerate(players)}
