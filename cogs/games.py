@@ -7,7 +7,7 @@ from services.game_engine import GameSession
 from services.state import SESSIONS
 from services.media import pick
 from services.lane_visual import lane_card,lane_sequence
-from services.shot_animation import animated_shot
+from services.shot_animation import animated_shot,DISCORD_PLAYBACK_HEADROOM_SECONDS
 from services.bowler_sprites import sprite_key,has_sequence,APPROACH_FRAME_SECONDS
 from services.audio import play_sound
 from services.presentation import classify,AUDIO_MAP,GIF_MAP,layout_policy
@@ -140,7 +140,10 @@ async def animate_delivery(channel,session,event,prior_cards,prior_scores,delay)
   embed=scoreboard_embed(session,event,stage='approach',
                          prior_cards=prior_cards,prior_scores=prior_scores)
   previous=LANE_MESSAGES.get(channel.id)
-  picture=discord.File(gif,filename='gutter_motion.gif')
+  # A unique filename per ball avoids client/CDN recycling of a prior
+  # single-play GIF (particularly the second ball of the same frame).
+  sequence=getattr(session,'ball_count',0)
+  picture=discord.File(gif,filename=f'gutter_motion_{session.seed}_{sequence}.gif')
   if previous:
    try:
     await previous.edit(embed=embed,attachments=[picture])
@@ -151,9 +154,11 @@ async def animate_delivery(channel,session,event,prior_cards,prior_scores,delay)
    msg=await channel.send(embed=embed,file=picture,
                           view=LiveMatchControls(channel.id,session))
    LANE_MESSAGES[channel.id]=msg
-  # GIF encodes the full approach -> travel -> breakpoint -> impact.
-  # Reveal actual pins / score only AFTER playback should have finished.
-  await asyncio.sleep(duration+.25)
+  # The Discord API acknowledges the attachment before each client's
+  # renderer actually starts playing it. Allow time for slow attachment
+  # loading instead of replacing the animation midway through pinfall.
+  # GIF contains only presentation frames; score stays pre-delivery here.
+  await asyncio.sleep(duration+DISCORD_PLAYBACK_HEADROOM_SECONDS)
   return
 
  # Graceful legacy fallback if art, GIF support or an asset is missing.
