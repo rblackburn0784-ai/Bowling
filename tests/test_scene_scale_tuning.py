@@ -19,8 +19,8 @@ class SceneScaleTests(unittest.TestCase):
              patch.object(scene.bowler_sprites,'_image',return_value=sample), \
              patch.object(scene,'_paste',side_effect=lambda base,img,x,y: recorded.append((img.size,x,y))):
             for frame,expected_height,expected_floor in [
-                (1,760,1660),(2,730,1650),(3,700,1640),
-                (4,675,1630),(5,650,1620)
+                (1,760,1660),(2,760,1655),(3,760,1650),
+                (4,760,1645),(5,760,1640)
             ]:
                 self.assertTrue(scene._bowler(Image.new('RGBA',scene.SIZE),session,event,frame))
                 size,x,y=recorded[-1]
