@@ -8,9 +8,16 @@ class DudeCommentaryTests(unittest.TestCase):
   for category,pairs in {**STAGES,**EVENTS}.items():
    self.assertGreaterEqual(len(pairs[0])*len(pairs[1]),25,category)
  def test_stage_no_repeat_within_cycle(self):
-  event={'bowler':'TheDude'}
+  # Different deliveries receive different calls until 25 combinations cycle.
+  # Repainting the same delivery (for GIF or Discord message refresh) must
+  # keep its commentary unchanged.
   for stage in STAGES:
-   lines=[stage_line(self.session,stage,event) for _ in range(25)]
+   lines=[]
+   for _ in range(25):
+    delivery={'bowler':'TheDude'}
+    first=stage_line(self.session,stage,delivery)
+    self.assertEqual(stage_line(self.session,stage,delivery),first)
+    lines.append(first)
    self.assertEqual(len(set(lines)),25,stage)
  def test_result_no_repeat_within_cycle(self):
   event={'bowler':'TheDude','pins':8,'leave_name':'7-10'}
