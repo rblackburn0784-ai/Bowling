@@ -1,4 +1,4 @@
-import asyncio,discord
+import asyncio,discord,logging
 from discord import app_commands
 from discord.ext import commands
 from services.roster import team_roster
@@ -7,6 +7,7 @@ from services.game_engine import GameSession
 from services.state import SESSIONS
 from services.media import pick
 from services.lane_visual import lane_card,lane_sequence
+from services.shot_animation import animated_shot
 from services.bowler_sprites import sprite_key,has_sequence,APPROACH_FRAME_SECONDS
 from services.audio import play_sound
 from services.presentation import classify,AUDIO_MAP,GIF_MAP,layout_policy
@@ -25,7 +26,7 @@ LANE_MESSAGES={}
 MATCH_BUSY=set()
 # Fixed broadcast pacing: frame changes are deliberately slower than
 # the typical Discord attachment-edit rate, with a pause between deliveries.
-AUTO_BETWEEN_BALLS=1.25
+AUTO_BETWEEN_BALLS=0.7
 AUTO_FRAME_DELAY=1.0
 
 def can_operate_match(member,session):
@@ -114,9 +115,35 @@ BALL_STAGE_PROGRESS={
 }
 
 async def animate_delivery(channel,session,event,prior_cards,prior_scores,delay):
+ # Build the moving picture off-thread, then upload just ONE animated GIF.
+ # This removes Discord's per-frame upload latency / slideshow effect.
+ try:
+  gif,duration=await asyncio.to_thread(animated_shot,session,event)
+ except Exception:
+  logging.exception('Animated lane render failed; using still-image fallback')
+  gif,duration=None,0
+ if gif is not None:
+  embed=scoreboard_embed(session,event,stage='approach',
+                         prior_cards=prior_cards,prior_scores=prior_scores)
+  previous=LANE_MESSAGES.get(channel.id)
+  picture=discord.File(gif,filename='gutter_motion.gif')
+  if previous:
+   try:
+    await previous.edit(embed=embed,attachments=[picture])
+   except (discord.NotFound,discord.Forbidden):
+    LANE_MESSAGES.pop(channel.id,None)
+    previous=None
+  if previous is None:
+   msg=await channel.send(embed=embed,file=picture,
+                          view=LiveMatchControls(channel.id,session))
+   LANE_MESSAGES[channel.id]=msg
+  # GIF encodes the full approach -> travel -> breakpoint -> impact.
+  # Reveal actual pins / score only AFTER playback should have finished.
+  await asyncio.sleep(duration+.25)
+  return
+
+ # Graceful legacy fallback if art, GIF support or an asset is missing.
  await animate_approach(channel,session,event,prior_cards,prior_scores)
- # Discord message edits are serial: no overlapping attachments or
- # potentially reordered animation frames.
  frame_delay=max(.16,min(.32,delay*.30))
  for stage,positions in BALL_STAGE_PROGRESS.items():
   for index,progress in enumerate(positions):
