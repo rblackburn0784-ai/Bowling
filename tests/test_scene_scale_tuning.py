@@ -30,6 +30,23 @@ class SceneScaleTests(unittest.TestCase):
                 self.assertGreaterEqual(x,0)
                 self.assertLessEqual(x+size[0],scene.SIZE[0])
 
+    def test_jesus_second_pose_receives_visible_held_ball(self):
+        bowler=SimpleNamespace(id=9,name='Jesus',sprite_key='jesus')
+        session=SimpleNamespace(players=[SimpleNamespace(bowler=bowler)])
+        source=Image.new('RGBA',(354,694),(0,0,0,0))
+        ball=Image.new('RGBA',(90,90),(215,30,45,255))
+        renders=[]
+        with patch.object(scene.bowler_sprites,'sprite_key',return_value='jesus'), \
+             patch.object(scene.bowler_sprites,'has_sequence',return_value=True), \
+             patch.object(scene.bowler_sprites,'_image',return_value=source), \
+             patch.object(scene.ball_sprites,'_load',return_value=ball) as loaded, \
+             patch.object(scene,'_paste',side_effect=lambda base,img,x,y: renders.append(img.copy())):
+            self.assertTrue(scene._bowler(Image.new('RGBA',scene.SIZE),session,{'bowler_id':9},2))
+            loaded.assert_called_once_with('urethane_black.png')
+            self.assertTrue(renders[-1].getbbox())
+            self.assertTrue(scene._bowler(Image.new('RGBA',scene.SIZE),session,{'bowler_id':9},5))
+            loaded.assert_called_once()
+
     def test_fallen_pin_scales_but_upright_is_unchanged(self):
         img=Image.new('RGBA',(60,30),(255,255,255,255))
         recorded=[]
