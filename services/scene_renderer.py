@@ -172,15 +172,38 @@ def _bowler(base,session,event,frame):
     _paste(base,pose,(SIZE[0]-pose.width)/2,bottoms[frame-1]-pose.height)
     return True
 
-def _ball(base,event,progress):
+def _projected_ball(event,progress):
+    """Map the physical lane line into the photographic camera perspective.
+
+    Near the foul line the ball must emerge alongside the right-hand
+    release of the large Dude/Jesus sprite. The underlying physics line is
+    retained and smoothly regained by the breakpoint. No gameplay mutation.
+    """
+    progress=max(0.0,min(1.0,float(progress)))
     pts=ball_sprites.path_points(event)
     x,y=ball_sprites.point_on_path(pts,progress)
     fraction=max(0.,min(1.,(640-y)/295))
     px=470+(x-340)*(1.3-.55*fraction)
     py=1535-795*fraction
+    # Both five-pose characters carry on their right side. The original
+    # centre-line projection was completely under their 760px follow-through
+    # silhouette until nearly the pin deck, hiding the entire second shot.
+    # Start at the visible release-side of the bowler, then ease to the
+    # engine's original trajectory once the ball clears the foreground.
+    if progress<=.62:
+        release_offset=195.0
+    elif progress>=.82:
+        release_offset=0.0
+    else:
+        t=(progress-.62)/.20
+        release_offset=195.0*(1.0-t*t*(3.0-2.0*t))
+    return px+release_offset,py,round(71-(71-25)*fraction)
+
+
+def _ball(base,event,progress):
+    px,py,size=_projected_ball(event,progress)
     name=ball_sprites.resolve_ball_variant(event.get('ball_key'),event.get('bowler'))
     source=ball_sprites._load(name)
-    size=round(71-(71-25)*fraction)
     # Keep small/distance balls readable against the glossy wooden lane.
     # The plastic spare ball is cream-coloured and otherwise blends into it.
     r=size/2
@@ -202,12 +225,13 @@ def render_scene_image(session,event=None,stage='leave',sprite_frame=None,ball_f
     im=background.copy()
     if event:
         pin_layers(im,event,stage,ball_frame)
-        # The large approach pose formerly covered the travelling ball;
-        # draw the bowler first, then composite the released ball above it.
-        _bowler(im,session,event,(sprite_frame or 1) if stage=='approach' else 5)
+        # The character belongs in the foreground: never paint a ball
+        # across a bowler's body. The projected ball begins alongside the
+        # release hand and returns to the normal lane path before impact.
         if stage in ('path','breakpoint','impact'):
             progress=ball_progress if ball_progress is not None else {'path':.45,'breakpoint':.77,'impact':.98}[stage]
             _ball(im,event,progress)
+        _bowler(im,session,event,(sprite_frame or 1) if stage=='approach' else 5)
     return im.convert('RGB').resize(output_size,Image.Resampling.LANCZOS)
 
 
