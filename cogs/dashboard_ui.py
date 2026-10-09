@@ -182,7 +182,7 @@ class MatchSetupView(Nav):
   LANE_MESSAGES.pop(i.channel_id,None)
   SESSIONS[i.channel_id]=s
   for p in s.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
-  await i.response.send_message(f"🎳 **EXHIBITION — HEAD TO HEAD**\n**{players[0].name}** vs **{players[1].name}**\nLane: **{self.lane.title()}**\nUse `/game_bowl` or `/game_auto` to play.")
+  await i.response.send_message(f"🎳 **EXHIBITION — HEAD TO HEAD**\n**{players[0].name}** vs **{players[1].name}**\nLane: **{self.lane.title()}**\nUse the **Bowl Next Ball** or **Auto Play** buttons on the live scoreboard below.")
   from cogs.games import post_match_controls
   await post_match_controls(i.channel,s)
 
