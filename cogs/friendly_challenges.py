@@ -54,7 +54,7 @@ class ChallengeResponse(discord.ui.View):
   from services.game_engine import GameSession
   from services.v271 import bowler_loadout
   from ui.embeds import scoreboard_embed
-  players=[rb(by[x],by[x]['name']) for x in (self.a,self.b)]
+  players=[rb(by[x]) for x in (self.a,self.b)]
   session=GameSession(players,lane='house');session.friendly_challenge=True
   for p in session.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
   from cogs.games import LANE_MESSAGES
