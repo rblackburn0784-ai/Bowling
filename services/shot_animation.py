@@ -10,7 +10,7 @@ from PIL import Image
 from services import scene_renderer
 
 MAX_GIF_BYTES=7_500_000
-SIZES=((565,1004),(480,854),(405,720))
+SIZES=((565,1004),(540,960),(520,925))
 # (stage, character frame, ball progress, impact-frame, milliseconds)
 # Each GIF gets a clearly visible full approach, ball flight, and *progressive*
 # pin knockdown. The final frames hold settled fallen pins long enough to see
@@ -54,7 +54,7 @@ def _encode(frames):
     for index,(x,y) in zip(sample_ids,positions):
         tile=frames[index].resize((w//2,h//2),Image.Resampling.LANCZOS)
         montage.paste(tile,(x,y))
-    palette=montage.quantize(colors=256,method=Image.Quantize.MEDIANCUT)
+    palette=montage.quantize(colors=160,method=Image.Quantize.MEDIANCUT)
     indexed=[frame.quantize(palette=palette,dither=Image.Dither.NONE) for frame in frames]
     output=BytesIO()
     indexed[0].save(output,format='GIF',save_all=True,append_images=indexed[1:],
