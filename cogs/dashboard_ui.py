@@ -183,7 +183,8 @@ class MatchSetupView(Nav):
   SESSIONS[i.channel_id]=s
   for p in s.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
   await i.response.send_message(f"🎳 **EXHIBITION — HEAD TO HEAD**\n**{players[0].name}** vs **{players[1].name}**\nLane: **{self.lane.title()}**\nUse `/game_bowl` or `/game_auto` to play.")
-  await i.channel.send(embed=__import__('ui.embeds',fromlist=['scoreboard_embed']).scoreboard_embed(s))
+  from cogs.games import post_match_controls
+  await post_match_controls(i.channel,s)
 
 class RecoveryView(Nav):
  @discord.ui.button(label='Undo Last Ball',style=discord.ButtonStyle.danger)
