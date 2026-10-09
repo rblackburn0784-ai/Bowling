@@ -15,6 +15,8 @@ class Bowler:
     nerves: int = 10
     team_name: str | None = None
     sprite_key: str | None = None
+    # Registered team affiliation for display; team_name is the scoring team.
+    affiliation: str | None = None
 
     @property
     def stat_total(self):
