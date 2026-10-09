@@ -9,7 +9,7 @@ from services.bowler_sprites import assign_match_sprites
 from services.game_engine import GameSession
 from services.state import SESSIONS
 from cogs.games import (AUTO_BETWEEN_BALLS, AUTO_FRAME_DELAY, MATCH_BUSY,
-                        LiveMatchControls, Games)
+                        LiveMatchControls, Games, can_operate_match)
 
 
 def bowler(number,name,sprite=None):
@@ -40,6 +40,16 @@ class MatchSpriteTests(unittest.TestCase):
         assigned=assign_match_sprites([player,challenger])
         self.assertEqual(assigned[1],'the_dude')
         self.assertEqual(assigned[2],'jesus')
+
+    def test_player_permissions_are_consistent_for_buttons_and_commands(self):
+        session=SimpleNamespace(players=[SimpleNamespace(
+            bowler=SimpleNamespace(owner_id=123))])
+        def member(ident,admin=False):
+            return SimpleNamespace(id=ident,guild_permissions=SimpleNamespace(
+                administrator=admin,manage_guild=False))
+        self.assertTrue(can_operate_match(member(123),session))
+        self.assertTrue(can_operate_match(member(999,admin=True),session))
+        self.assertFalse(can_operate_match(member(999),session))
 
     def test_default_pacing(self):
         self.assertGreaterEqual(AUTO_BETWEEN_BALLS,1)
