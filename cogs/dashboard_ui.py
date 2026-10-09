@@ -176,7 +176,7 @@ class MatchSetupView(Nav):
   from cogs.games import rb
   from services.game_engine import GameSession
   from services.v271 import bowler_loadout
-  players=[rb(by_id[bid],by_id[bid]['name']) for bid in (self.bowler_a,self.bowler_b)]
+  players=[rb(by_id[bid]) for bid in (self.bowler_a,self.bowler_b)]
   s=GameSession(players,lane=self.lane)
   from cogs.games import LANE_MESSAGES
   LANE_MESSAGES.pop(i.channel_id,None)
