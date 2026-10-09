@@ -34,12 +34,18 @@ def _frames(session,event,size):
     return frames
 
 def _encode(frames):
-    # A single shared palette avoids frame-to-frame colour flashes.
-    sample=Image.new('RGB',(frames[0].width,frames[0].height))
-    sample.paste(frames[0])
-    # Palette is derived from a representative frame that includes the
-    # character, background and equipment. Optimisation compresses still areas.
-    palette=sample.quantize(colors=128,method=Image.Quantize.MEDIANCUT)
+    # A stable shared palette keeps motion smooth. Sample approach, ball
+    # travel, breakpoint and impact, *not just the first approach pose*:
+    # spare deliveries use a cream Plastic ball that may be absent from
+    # the bowler's pose, and a first-frame-only palette can lose its colours.
+    w,h=frames[0].size
+    montage=Image.new('RGB',(w,h))
+    sample_ids=(0,7,min(14,len(frames)-1),len(frames)-1)
+    positions=((0,0),(w//2,0),(0,h//2),(w//2,h//2))
+    for index,(x,y) in zip(sample_ids,positions):
+        tile=frames[index].resize((w//2,h//2),Image.Resampling.LANCZOS)
+        montage.paste(tile,(x,y))
+    palette=montage.quantize(colors=256,method=Image.Quantize.MEDIANCUT)
     indexed=[frame.quantize(palette=palette,dither=Image.Dither.NONE) for frame in frames]
     output=BytesIO()
     indexed[0].save(output,format='GIF',save_all=True,append_images=indexed[1:],
