@@ -1,6 +1,15 @@
-# Gutter Saints Bowling Bot v2.8.5c — Scale Tuning Pass
+# Gutter Saints Bowling Bot v2.8.5d — Asset Folder Compatibility
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5d — Asset Folder Compatibility
+- Fixes the visual fallback for installs that extracted the earlier sprite ZIP at the root of `assets/`: the cinematic lane renderer now recognises `assets/Lane.png` in addition to `assets/lane/gutter_saints_empty.png`.
+- Detects both `assets/overhead/` and `assets/vertical/` plus the canonical `assets/pins/overhead/` and `assets/pins/vertical/`.
+- On the older root-level overhead pack, remaps the original mislabeled sprite filenames so pin artwork visually matches the correct physical pin positions. Canonical `assets/pins/overhead` numbering is left unchanged.
+- Existing `assets/balls/` and `assets/sprites/the_dude/`, `assets/sprites/jesus/` already match and do not need moving.
+- Cinematic render activates automatically when a valid lane image is found; restart the bot after pulling to clear the cached legacy fallback.
+- Named bowlers other than The Dude or Jesus require assigning a character using admin `/bowler_sprite` (name exactly matching the registered bowler). For instance assign Benny to The Dude and Josh to Jesus for a beta test. Other bowlers retain an empty approach when no character is assigned.
+- Tests added: `python -m unittest discover -s tests -p test_asset_path_compatibility.py -v`; no changes to physics or career logic.
 
 ## v2.8.5c — Scale Tuning Pass
 - The Dude and Jesus approach sprites enlarged from the former 440→382px pose-height sequence to 760→650px, and maximum pose width expanded from 390px to 650px. Their feet remain anchored near the close end of the 941×1672 photographic lane.
