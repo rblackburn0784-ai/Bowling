@@ -51,6 +51,50 @@ class SecondBallPlaybackTests(unittest.TestCase):
   self.assertEqual(event['down'],[3])
   self.assertEqual(event['after'],[1,7])
 
+class EncodedSecondBallTests(unittest.TestCase):
+ def test_spare_gif_encodes_visible_travel_and_falling_pin(self):
+  from services import shot_animation
+  bowler=SimpleNamespace(id=101,name='Test',sprite_key='jesus')
+  session=SimpleNamespace(players=[SimpleNamespace(bowler=bowler)])
+  event={'bowler_id':101,'bowler':'Test','ball_key':'plastic','ball':2,
+         'before':[1,3,5],'down':[3],'after':[1,5],
+         'handedness':'R','physics':{'miss':0,'metrics':{'revs':210,'entry_angle':3}}}
+  bg=Image.new('RGBA',scene.SIZE,(112,86,66,255))
+  pin_standing=Image.new('RGBA',(36,64),(246,243,228,255))
+  pin_fallen=Image.new('RGBA',(70,38),(205,28,38,255))
+  bowling_ball=Image.new('RGBA',(90,90),(245,235,200,255))
+  dummy_person=Image.new('RGBA',(260,600),(70,35,127,255))
+  def pin(view,name):
+   return pin_fallen if name.startswith('fall_') else pin_standing
+  with patch.object(scene,'_background',return_value=bg), \
+       patch.object(scene,'_pin',side_effect=pin), \
+       patch.object(scene.bowler_sprites,'sprite_key',return_value='jesus'), \
+       patch.object(scene.bowler_sprites,'has_sequence',return_value=True), \
+       patch.object(scene.bowler_sprites,'_image',return_value=dummy_person), \
+       patch.object(scene.ball_sprites,'_load',return_value=bowling_ball):
+   frames=shot_animation._frames(session,event,(405,720))
+  self.assertEqual(len(frames),len(ANIMATION_SEQUENCE))
+  diff=lambda a,b: ImageChops.difference(a,b).getbbox() is not None
+  self.assertTrue(diff(frames[5],frames[12]),'GIF source lacks visible ball movement')
+  self.assertTrue(diff(frames[-5],frames[-1]),'GIF source lacks visible pin fall')
+  gif=shot_animation._encode(frames)
+  from PIL import Image as PillowImage
+  decoded=PillowImage.open(BytesIO(gif))
+  self.assertGreaterEqual(decoded.n_frames,15)
+  decoded.seek(0)
+  first=decoded.convert('RGB')
+  decoded.seek(decoded.n_frames-1)
+  last=decoded.convert('RGB')
+  # Pin 3 must change colour on the overhead board, including after GIF
+  # palette conversion/compression. This is a real second-ball hit.
+  pin_x=round(scene.OVERHEAD[3][0]*405/scene.SIZE[0])
+  pin_y=round(scene.OVERHEAD[3][1]*720/scene.SIZE[1])
+  self.assertNotEqual(first.getpixel((pin_x,pin_y)),last.getpixel((pin_x,pin_y)))
+  r,g,b=last.getpixel((pin_x,pin_y))
+  self.assertGreater(r,g+45)
+  self.assertGreater(r,b+45)
+
+
 class SinglePlayDeliveryTests(unittest.IsolatedAsyncioTestCase):
  async def test_second_delivery_gets_new_gif_and_waits_for_playback(self):
   channel=SimpleNamespace(id=987)
