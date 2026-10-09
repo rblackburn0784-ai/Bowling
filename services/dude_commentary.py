@@ -13,15 +13,24 @@ def _choose(session, key, pairs, **values):
     available = [n for n in range(len(pairs[0]) * len(pairs[1])) if n not in used]
     if not available:
         used.clear(); available = list(range(len(pairs[0]) * len(pairs[1])))
-    rng = getattr(session, 'rng', None)
-    index = (rng.choice(available) if rng and hasattr(rng, 'choice') else random.choice(available))
+    # Presentation-only random stream: commentary must NEVER advance the
+    # GameSession physics RNG. Repeated animation frames do not change rolls.
+    rng = getattr(session, '_dude_rng', None) if session is not None else None
+    if session is not None and rng is None:
+        rng = random.Random(int(getattr(session, 'seed', 0)) ^ 0x5A17E)
+        session._dude_rng = rng
+    index = (rng.choice(available) if rng else random.choice(available))
     used.add(index)
     a, b = divmod(index, len(pairs[1]))
     return (pairs[0][a] + ' ' + pairs[1][b]).format(**values)
 
 def stage_line(session, stage, event):
     if stage not in STAGES: return 'The shot is underway, man.'
-    return '🎙️ ' + _choose(session, 'stage:' + stage, STAGES[stage], name=event.get('bowler','Our bowler'))
+    # Re-rendering the same Discord stage must retain the same line.
+    seen=event.setdefault('_stage_commentary',{})
+    if stage not in seen:
+        seen[stage]='🎙️ ' + _choose(session, 'stage:' + stage, STAGES[stage], name=event.get('bowler','Our bowler'))
+    return seen[stage]
 
 def event_line(session, kind, event):
     pairs = EVENTS.get(kind, EVENTS['normal'])
