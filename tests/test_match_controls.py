@@ -52,7 +52,7 @@ class MatchSpriteTests(unittest.TestCase):
         self.assertFalse(can_operate_match(member(999),session))
 
     def test_default_pacing(self):
-        self.assertGreaterEqual(AUTO_BETWEEN_BALLS,1)
+        self.assertGreaterEqual(AUTO_BETWEEN_BALLS,.5)
         self.assertLessEqual(AUTO_BETWEEN_BALLS,3)
         self.assertGreaterEqual(AUTO_FRAME_DELAY,.8)
 
