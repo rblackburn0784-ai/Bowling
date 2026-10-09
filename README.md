@@ -1,6 +1,19 @@
-# Gutter Saints Bowling Bot v2.8.5 — Bowler Sprite Approach Animation
+# Gutter Saints Bowling Bot v2.8.5a — Ball Sprite Integration
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5a — Ball Sprites, Spin & Approach Handoff
+- Ten transparent ball sprites mapped to the existing five ball types: Solid (3), Pearl (2), Hybrid (2), Urethane (2), Plastic (1).
+- The selected artwork is stable per bowler and ball type, based on bowler identity. Every actual game delivery uses its real engine-selected `event['ball_key']` (including plastic spare shots).
+- Frame 5 of The Dude/Jesus approach must finish before ball travel starts; no travelling ball is drawn while a character is still holding it.
+- The ball follows the previous lane path geometry using smooth arc-length progress samples, rotates according to revolutions and handedness, and shrinks with distance.
+- Multiple Travel, Breakpoint and Impact subframes edit the same live Discord image and keep scoring commentary hidden until Leave.
+- Missing assets fall back to the simple circular ball without modifying simulation state. Results, oil physics, progression and scoring remain unchanged.
+- Varied commentary now uses a separate presentation RNG, so extra frames do not consume random numbers used for bowling shots.
+- Install graphics: extract `Gutter_Saints_v2.8.5a_Complete_Sprite_Pack.zip` in the repository root (`bot.py` folder). This includes The Dude, Jesus and all ten bowling ball PNGs.
+- PNGs are distributed separately from the GitHub source commit. Start/restart the bot after copying them.
+- Run: `python -m unittest discover -s tests -p test_ball_sprites.py -v`
+- CI tests and real Discord edit timing must be verified before production use.
 
 ## v2.7.1 integration
 - Public **My Arsenal** selector persists each bowler's primary strike ball; Plastic remains automatic for spares.
