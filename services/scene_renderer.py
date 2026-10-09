@@ -153,9 +153,22 @@ def _bowler(base,session,event,frame):
     source=bowler_sprites._image(key,frame)
     if source is None:
         return False
-    heights=(760,730,700,675,650)
+    # Hold a consistent body height through release. The original scale curve
+    # made Jesus appear to shrink noticeably on his fifth frame.
+    heights=(760,760,760,760,760)
+    bottoms=(1660,1655,1650,1645,1640)
+    if key=='jesus' and frame==2:
+        # Source frame 2 was rendered without a ball. Overlay one from the
+        # existing black urethane art at the low right-hand carry position.
+        # This only changes the visual layer; ball physics are unchanged.
+        source=source.copy()
+        ball=ball_sprites._load('urethane_black.png')
+        if ball is not None:
+            diameter=90
+            held=_fit(ball,diameter,diameter)
+            source.alpha_composite(held,(source.width-held.width+7,
+                                         round(source.height*.59)-held.height//2))
     pose=_fit(source,650,heights[frame-1])
-    bottoms=(1660,1650,1640,1630,1620)
     _paste(base,pose,(SIZE[0]-pose.width)/2,bottoms[frame-1]-pose.height)
     return True
 
@@ -176,7 +189,9 @@ def _ball(base,event,progress):
         r=size/2
         d.ellipse((px-r,py-r,px+r,py+r),fill='#251d35',outline='#faf1ff',width=2)
 
-def render_scene(session,event=None,stage='leave',sprite_frame=None,ball_frame=0,ball_progress=None):
+def render_scene_image(session,event=None,stage='leave',sprite_frame=None,ball_frame=0,
+                       ball_progress=None,output_size=EXPORT_SIZE):
+    """Compose a frame in memory for animated GIFs or still images."""
     background=_background()
     if background is None:
         return None
@@ -186,10 +201,15 @@ def render_scene(session,event=None,stage='leave',sprite_frame=None,ball_frame=0
         if stage in ('path','breakpoint','impact'):
             progress=ball_progress if ball_progress is not None else {'path':.45,'breakpoint':.77,'impact':.98}[stage]
             _ball(im,event,progress)
-        # Preserve the bowler's final pose while the ball is in motion.
         _bowler(im,session,event,(sprite_frame or 1) if stage=='approach' else 5)
+    return im.convert('RGB').resize(output_size,Image.Resampling.LANCZOS)
+
+
+def render_scene(session,event=None,stage='leave',sprite_frame=None,ball_frame=0,ball_progress=None):
+    image=render_scene_image(session,event,stage,sprite_frame,ball_frame,ball_progress)
+    if image is None:
+        return None
     OUT.mkdir(parents=True,exist_ok=True)
     path=OUT/f'scene_{id(session)}_{stage}_{sprite_frame or 0}_{ball_frame}.png'
-    im=im.convert('RGB').resize(EXPORT_SIZE,Image.Resampling.LANCZOS)
-    im.save(path,'PNG',optimize=True)
+    image.save(path,'PNG',optimize=True)
     return path
