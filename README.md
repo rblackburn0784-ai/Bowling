@@ -1,6 +1,16 @@
-# Gutter Saints Bowling Bot v2.8.5i — First & Second Ball Layering Fix
+# Gutter Saints Bowling Bot v2.8.5j — Full Second-Ball Playback & Pinfall
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5j — Second-Ball GIF Playback & Visible Pinfall
+- Addresses reports that the **first ball animated fully** but a **second-ball spare showed a bowler approach followed by an apparently instant result, without visible ball travel or pin collapse**.
+- Distinct, per-delivery GIF filenames (`gutter_motion_<seed>_<ball_count>.gif`) prevent stale single-play GIF attachments from being reused between balls.
+- Waits for the animated GIF's duration **plus 1.5 seconds of client playback headroom**, instead of replacing it with the final result after a mere quarter-second. This accommodates Discord's attachment-loading and image-decoding delay; results remain hidden until after the moving picture should finish.
+- Enlarged impact presentation from 3 to **5 GIF frames**, showing contact, tipping and fallen pins, ending with a visible held-down pose. The 10-pin overhead view and head-on rack use the same engine `before`/`down`/`after` state.
+- Ball flight still uses the same Solid/Pearl/Hybrid/Urethane/Plastic artwork selected by the engine, a single GIF upload, foreground bowler and smooth visual release path. No additional PNGs or renamed files are necessary.
+- Added tests for distinct second-ball attachments, sufficient GIF playback time, progressive pinfall on an actual second-ball leave, and an encoded GIF containing visible ball flight and pinfall.
+- This is **presentation-only**. No bowling RNG, physics, score, career, rank or tournament progression changes.
+- Beta test in Discord remains important: playback start latency and reduced-motion/autoplay preferences are client-specific. The additional 1.5-second safety margin makes Auto Play marginally longer but is meant to avoid truncating the shot before impact.
 
 ## v2.8.5i — First & Second Ball Visual Release Fix
 - Fixes first-ball visual regression where the bowling ball appeared unnaturally **on top of** The Dude/Jesus character's torso after the v2.8.5g update.
