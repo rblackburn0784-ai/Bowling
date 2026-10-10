@@ -26,6 +26,7 @@ jobs:
       - run: python -m unittest discover -s tests -p test_second_ball_playback.py -v
       - run: python -m unittest discover -s tests -p test_wide_broadcast.py -v
       - run: python -m unittest discover -s tests -p test_left_hero_reanchor.py -v
+      - run: python -m unittest discover -s tests -p test_new_camera_plates.py -v
       - run: python -m unittest discover -s tests -p test_victory_celebration.py -v
       - run: python -m unittest discover -s tests -p test_scoreboard_identity.py -v
       - run: python -m compileall -q services cogs storage ui
