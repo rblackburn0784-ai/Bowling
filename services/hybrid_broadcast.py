@@ -1,102 +1,90 @@
-"""Hybrid Gutter Saints broadcast: full portrait lane left, two pin cameras right.
+"""Hybrid presentation: uncropped, pixel-filled hero lane; independent pin cameras.
 
-The new 941x1672 left lane is rendered separately from the two pin cameras.
-This is ONLY a camera/layout compositor. All camera overlays use one shared
-before/down/after event, even when the left lane art changes.
-
-Crucially: the portrait lane is letterboxed, never stretched or cropped.
-That keeps The Dude, Jesus, their ball releases and the entire house visible.
+The left lane's 941×1672 aspect ratio is preserved in a 422×750 panel.
+No matte/letterbox padding, scene distortion, or missing edge artwork.
+All three cameras read the same shot event, but have separate backgrounds.
 """
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image,ImageDraw,ImageFont
 
-BASE_SIZE=(1000,750)      # 4:3 Discord-friendly display
 SOURCE_SIZE=(941,1672)
-HERO_BOX=(0,0,610,750)
-OVERHEAD_BOX=(620,0,1000,365)
-PIT_BOX=(620,377,1000,750)
+BASE_SIZE=(850,750)
+HERO_BOX=(0,0,422,750)
+OVERHEAD_BOX=(432,0,850,365)
+PIT_BOX=(432,377,850,750)
+# Legacy crops retained for backward compatibility only.
 OVERHEAD_CROP=(250,28,680,400)
 PIT_CROP=(312,545,626,835)
 INK=(13,15,21)
 GOLD=(183,134,70)
 PALE=(246,216,167)
-DIVIDER=(36,31,29)
 
-def fit_rectangle(source_size, destination):
-    """Centre a whole image in a box, preserving aspect ratio exactly."""
+def fit_rectangle(source_size,destination):
+    """Return undistorted contained rectangle; useful for compatibility."""
     sw,sh=source_size
     x1,y1,x2,y2=destination
     tw,th=x2-x1,y2-y1
-    if not all(v>0 for v in (sw,sh,tw,th)):
+    if not all(x>0 for x in (sw,sh,tw,th)):
         raise ValueError('Invalid camera dimensions')
-    ratio=min(tw/sw,th/sh)
-    w=max(1,round(sw*ratio))
-    h=max(1,round(sh*ratio))
-    return (x1+(tw-w)//2,y1+(th-h)//2,w,h)
+    scale=min(tw/sw,th/sh)
+    w=max(1,round(sw*scale))
+    h=max(1,round(sh*scale))
+    return x1+(tw-w)//2,y1+(th-h)//2,w,h
 
-def _draw_camera(canvas,source,crop,viewport):
-    """Show the full camera crop without stretching or losing any pins."""
-    box=source.crop(crop)
-    x,y,w,h=fit_rectangle(box.size,viewport)
-    box=box.resize((w,h),Image.Resampling.LANCZOS)
-    canvas.paste(box,(x,y))
-    return (x,y,w,h)
+def _camera_cover(source,viewport):
+    """Fill the camera viewport without distorting sprites or the scene."""
+    x1,y1,x2,y2=viewport
+    w,h=x2-x1,y2-y1
+    if w<=0 or h<=0:
+        raise ValueError('Invalid camera viewport')
+    sw,sh=source.size
+    desired=w/h
+    have=sw/sh
+    if have>desired:
+        crop_width=round(sh*desired)
+        left=(sw-crop_width)//2
+        area=(left,0,left+crop_width,sh)
+    else:
+        crop_height=round(sw/desired)
+        top=(sh-crop_height)//2
+        area=(0,top,sw,top+crop_height)
+    return source.crop(area).resize((w,h),Image.Resampling.LANCZOS)
 
-def _header(canvas,box,text):
+def _header(canvas,box,label):
     x1,y1,x2,_=box
-    d=ImageDraw.Draw(canvas)
-    d.rectangle((x1,y1,x2-1,y1+26),fill=(21,22,27))
-    d.line((x1+2,y1+27,x2-3,y1+27),fill=GOLD,width=2)
-    d.text((x1+10,y1+7),text,fill=PALE,font=ImageFont.load_default())
+    draw=ImageDraw.Draw(canvas)
+    draw.rectangle((x1,y1,x2-1,y1+27),fill=(20,20,25))
+    draw.line((x1+2,y1+28,x2-3,y1+28),fill=GOLD,width=2)
+    draw.text((x1+10,y1+8),label,fill=PALE,font=ImageFont.load_default())
 
 def compose_hybrid_broadcast(source,output_size=BASE_SIZE,cameras=None):
-    """Composites live lane, overhead and vertical pit into one wide image.
+    """Use supplied left lane and independent right-hand camera images.
 
-    source is the NEW left-lane game scene. cameras optionally contains
-    separately composed overhead/pit images from their original backgrounds.
-    No game state, sprites, ball paths, RNG or pin geometry are mutated.
+    Each region is fitted without changing pixel aspect ratio. The full hero
+    image remains visible, edge-to-edge, with zero unused space in HERO_BOX.
     """
     if source.size!=SOURCE_SIZE:
-        raise ValueError('Hybrid camera expects the original 941x1672 scene')
-    if any(v<=0 for v in output_size):
+        raise ValueError('Hybrid camera expects the 941x1672 hero lane')
+    if len(output_size)!=2 or any(x<=0 for x in output_size):
         raise ValueError('Output size must be positive')
-    canvas=Image.new('RGB',BASE_SIZE,INK)
-    d=ImageDraw.Draw(canvas)
-    # Matte/frame outside the original portrait. Never warp the bowler
-    # or stretch the lane width to fill HERO_BOX.
-    hx1,hy1,hx2,hy2=HERO_BOX
-    d.rectangle((hx1,hy1,hx2-1,hy2-1),fill=(16,17,22),outline=GOLD,width=2)
-    hero_area=(hx1+8,hy1+10,hx2-8,hy2-10)
-    lane_rect=_draw_camera(canvas,source,(0,0,*SOURCE_SIZE),hero_area)
-    x,y,w,h=lane_rect
-    d.rectangle((x-2,y-2,x+w+1,y+h+1),outline=(225,167,83),width=2)
-    # Small side accent bars keep the matte intentional without fake
-    # duplicated/stretched lane imagery behind the bowler.
-    for side in (hx1+17,hx2-19):
-        d.line((side,42,side,706),fill=DIVIDER,width=3)
-        d.line((side,116,side,206),fill=(112,49,35),width=3)
-
-    # Top-right overhead and bottom-right head-on camera.
-    # Use camera crops on the same actual rendered pin-state image.
-    for box in (OVERHEAD_BOX,PIT_BOX):
+    result=Image.new('RGB',BASE_SIZE,INK)
+    hero_width=HERO_BOX[2]-HERO_BOX[0]
+    hero_height=HERO_BOX[3]-HERO_BOX[1]
+    hero=source.convert('RGB').resize((hero_width,hero_height),Image.Resampling.LANCZOS)
+    # 422/750 vs 941/1672 differs by less than 0.03%; rounding only.
+    result.paste(hero,HERO_BOX[:2])
+    for box,name in ((OVERHEAD_BOX,'overhead'),(PIT_BOX,'pit')):
         x1,y1,x2,y2=box
-        d.rectangle((x1,y1,x2-1,y2-1),fill=(12,13,18),outline=GOLD,width=2)
-    oh=(OVERHEAD_BOX[0]+6,OVERHEAD_BOX[1]+35,OVERHEAD_BOX[2]-6,OVERHEAD_BOX[3]-8)
-    pit=(PIT_BOX[0]+6,PIT_BOX[1]+35,PIT_BOX[2]-6,PIT_BOX[3]-8)
-    # Keep the two historical right-hand camera backgrounds independent
-    # from the NEW hero artwork. The old crop fallback exists only for callers
-    # that directly use this compositor without supplying pin camera frames.
-    if cameras is not None:
-        overhead=cameras['overhead'].convert('RGB')
-        frontal=cameras['pit'].convert('RGB')
-        _draw_camera(canvas,overhead,(0,0,*overhead.size),oh)
-        _draw_camera(canvas,frontal,(0,0,*frontal.size),pit)
-    else:
-        _draw_camera(canvas,source,OVERHEAD_CROP,oh)
-        _draw_camera(canvas,source,PIT_CROP,pit)
-    _header(canvas,OVERHEAD_BOX,'PIN DECK  |  OVERHEAD')
-    _header(canvas,PIT_BOX,'PIN PIT  |  FRONT')
-    # One uniform resize of the *whole finished layout* for GIF fallback
-    # resolutions; all ratios, sprite proportions and cameras stay aligned.
+        if cameras is not None:
+            camera=cameras[name].convert('RGB')
+        else:
+            legacy=OVERHEAD_CROP if name=='overhead' else PIT_CROP
+            camera=source.convert('RGB').crop(legacy)
+        region=(x1+4,y1+31,x2-4,y2-5)
+        result.paste(_camera_cover(camera,region),region[:2])
+        draw=ImageDraw.Draw(result)
+        draw.rectangle((x1,y1,x2-1,y2-1),outline=GOLD,width=2)
+    _header(result,OVERHEAD_BOX,'PIN DECK  |  OVERHEAD')
+    _header(result,PIT_BOX,'PIN PIT  |  FRONT')
     if output_size!=BASE_SIZE:
-        canvas=canvas.resize(output_size,Image.Resampling.LANCZOS)
-    return canvas
+        return result.resize(output_size,Image.Resampling.LANCZOS)
+    return result
