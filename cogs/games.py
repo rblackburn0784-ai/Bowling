@@ -19,6 +19,8 @@ from ui.embeds import scoreboard_embed
 from services.v271 import bowler_loadout,tournament_presentation
 from services.career import delivery_growth,add_tendency,add_timeline_event
 from services.broadcast_director import match_context,persist_story,story_call,match_story_summary
+from services.victory_presentation import winning_bowler
+from services.scene_renderer import render_scene as render_victory_scene
 
 def rb(r,team=None):
  b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']})
@@ -179,6 +181,41 @@ async def animate_delivery(channel,session,event,prior_cards,prior_scores,delay)
       ball_frame=index+1,ball_progress=progress)
    await asyncio.sleep(frame_delay)
 
+async def publish_victory(channel,session,last_event=None):
+ """Edit the one live graphic to the champion's optional cheer.png pose.
+
+ Never risk losing the game result because Discord uploads or local
+ artwork fail. Both pin cameras remain unchanged from the last delivery.
+ """
+ champion=winning_bowler(session)
+ if champion is None:
+  return False
+ try:
+  event=dict(last_event or {'before':[],'down':[],'after':[]},
+             bowler_id=champion.bowler.id)
+  picture=render_victory_scene(session,event,'victory',
+                                victor_id=champion.bowler.id)
+  if picture is None:
+   return False
+  embed=scoreboard_embed(session)
+  embed.add_field(name='🏆 Match Winner',
+                  value=f'**{champion.bowler.name}** — Victory celebration',
+                  inline=False)
+  file=discord.File(picture,filename=f'gutter_victory_{session.seed}.png')
+  previous=LANE_MESSAGES.get(channel.id)
+  if previous:
+   try:
+    await previous.edit(embed=embed,attachments=[file],view=None)
+    return True
+   except (discord.NotFound,discord.Forbidden):
+    LANE_MESSAGES.pop(channel.id,None)
+  await channel.send(embed=embed,file=file)
+  return True
+ except Exception:
+  logging.exception('Could not publish victory sprite in channel %s',channel.id)
+  return False
+
+
 async def send_media(channel,kind):
  url=pick(kind)
  if url:await channel.send(url)
@@ -235,7 +272,7 @@ class Games(commands.Cog):
   director=await self.reaction(ch,s,ev)
   await update_lane(ch,s,ev,'leave',director=director)
   if s.complete:
-   await self.finish(ch,s,key)
+   await self.finish(ch,s,key,ev)
 
  async def play_one(self,ch,s):
   key=ch.id
@@ -325,8 +362,7 @@ class Games(commands.Cog):
    for stat,delta,new,reason in ev.get('attribute_changes',[]):
     await ch.send(f"📈 **{ev['bowler']}** {stat.title()} {'+' if delta>0 else ''}{delta} → **{new}** ({reason})")
   return announcement
- async def finish(self,ch,s,key):
-  LANE_MESSAGES.pop(key,None)
+ async def finish(self,ch,s,key,last_event=None):
   if getattr(s,'friendly_challenge',False):
    with connect() as db:
     db.execute('CREATE TABLE IF NOT EXISTS friendly_xp_daily(bowler_id INTEGER NOT NULL,day TEXT NOT NULL,PRIMARY KEY(bowler_id,day))')
@@ -338,6 +374,8 @@ class Games(commands.Cog):
    await ch.send('🤝 **FRIENDLY EXHIBITION COMPLETE** — No league points, rank changes, career attribute growth or achievements. Each bowler can earn at most **1 non-ranking XP per UTC day** from friendly challenges.')
    await ch.send(embed=scoreboard_embed(s))
    s.persisted=True
+   await publish_victory(ch,s,last_event)
+   LANE_MESSAGES.pop(key,None)
    SESSIONS.pop(key,None)
    return
   # Calculate all bowler summaries *before* recording the result so a
@@ -420,5 +458,7 @@ class Games(commands.Cog):
    from services.gazette import build_gazette,format_gazette
    g=build_gazette(s.tournament_id)
    if g:await ch.send(format_gazette(g))
+  await publish_victory(ch,s,last_event)
+  LANE_MESSAGES.pop(key,None)
   clear_session(key)
 async def setup(bot):await bot.add_cog(Games(bot))
