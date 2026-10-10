@@ -40,6 +40,12 @@ HERO_FRONT={
  4:(411,474),5:(465,474),6:(520,474),
  2:(438,487),3:(492,487),1:(465,500),
 }
+# The previously supplied resized overhead sprite pack has filenames
+# out of order relative to the red numbers printed on the pin heads.
+# Keep the user's existing files; resolve TRUE pin numbers at load time.
+OVERHEAD_ASSET_NUMBER={
+  1:1,2:4,3:5,4:2,5:3,6:10,7:6,8:7,9:9,10:8
+}
 FALLS=('fall_left','fall_backward','fall_right','fall_forward')
 
 def _lane_file():
@@ -112,7 +118,7 @@ def _camera_pin(base,name,p,progress=None):
     u,v=(CAMERA_OVERHEAD if overhead else CAMERA_PIT)[p]
     x,y=round(base.width*u),round(base.height*v)
     if overhead:
-        upright=_pin(view,f'pin_{p}')
+        upright=_pin(view,f'pin_{OVERHEAD_ASSET_NUMBER[p]}')
         target=(round(base.width*.082),round(base.height*.112))
     else:
         upright=_pin(view,'standing')
@@ -189,7 +195,7 @@ def _fallback_pin(base,x,y,diameter):
 def _upright(base,view,p,front_positions=None):
     if view=='overhead':
         x,y=OVERHEAD[p]
-        image=_pin(view,f'pin_{p}')
+        image=_pin(view,f'pin_{OVERHEAD_ASSET_NUMBER[p]}')
         if image:
             _paste(base,image,x-image.width/2,y-image.height/2)
         else:
