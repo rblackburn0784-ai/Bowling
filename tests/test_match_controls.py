@@ -83,6 +83,24 @@ class LiveMatchTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse((await permission(123))[0])
         view.stop()
 
+    async def test_autoplay_reports_postgame_failure_to_user(self):
+        channel=SimpleNamespace(id=884)
+        session=SimpleNamespace(complete=False)
+        view=LiveMatchControls(884,session)
+        followup=SimpleNamespace(send=AsyncMock())
+        response=SimpleNamespace(defer=AsyncMock())
+        client=SimpleNamespace(get_cog=lambda _:SimpleNamespace(
+            play_all=AsyncMock(side_effect=RuntimeError('postgame failure'))))
+        interaction=SimpleNamespace(channel_id=884,channel=channel,
+                                    response=response,followup=followup,client=client)
+        auto_button=next(button for button in view.children if button.label=='▶ Auto Play')
+        with __import__('unittest.mock',fromlist=['patch']).patch('cogs.games.logging.exception'):
+            await auto_button.callback(interaction)
+        response.defer.assert_awaited_once()
+        self.assertEqual(followup.send.await_count,1)
+        self.assertIn('already be recorded',followup.send.await_args.args[0])
+        view.stop()
+
     async def test_busy_guard_prevents_duplicate_balls(self):
         channel=SimpleNamespace(id=554)
         session=SimpleNamespace(complete=False)
