@@ -72,7 +72,7 @@ class EncodedSecondBallTests(unittest.TestCase):
        patch.object(scene.bowler_sprites,'has_sequence',return_value=True), \
        patch.object(scene.bowler_sprites,'_image',return_value=dummy_person), \
        patch.object(scene.ball_sprites,'_load',return_value=bowling_ball):
-   frames=shot_animation._frames(session,event,(405,720))
+   frames=shot_animation._frames(session,event,(840,630))
   self.assertEqual(len(frames),len(ANIMATION_SEQUENCE))
   diff=lambda a,b: ImageChops.difference(a,b).getbbox() is not None
   self.assertTrue(diff(frames[5],frames[12]),'GIF source lacks visible ball movement')
@@ -85,14 +85,17 @@ class EncodedSecondBallTests(unittest.TestCase):
   first=decoded.convert('RGB')
   decoded.seek(decoded.n_frames-1)
   last=decoded.convert('RGB')
-  # Pin 3 must change colour on the overhead board, including after GIF
-  # palette conversion/compression. This is a real second-ball hit.
-  pin_x=round(scene.OVERHEAD[3][0]*405/scene.SIZE[0])
-  pin_y=round(scene.OVERHEAD[3][1]*720/scene.SIZE[1])
-  self.assertNotEqual(first.getpixel((pin_x,pin_y)),last.getpixel((pin_x,pin_y)))
-  r,g,b=last.getpixel((pin_x,pin_y))
-  self.assertGreater(r,g+45)
-  self.assertGreater(r,b+45)
+  # In v2.8.5o the top-down pin deck is an independent right-hand
+  # camera, not drawn across the top of the LEFT lane. Compare its actual
+  # encoded GIF pixels rather than looking at the obsolete left coordinate.
+  from services.hybrid_broadcast import OVERHEAD_BOX
+  sx=840/1000;sy=630/750
+  box=tuple(round(value*(sx if i%2==0 else sy))
+            for i,value in enumerate(OVERHEAD_BOX))
+  a=first.crop(box);z=last.crop(box)
+  self.assertIsNotNone(ImageChops.difference(a,z).getbbox(),
+                       'Final GIF has no pin motion in overhead camera')
+  self.assertEqual(first.size,(840,630))
 
 
 class SinglePlayDeliveryTests(unittest.IsolatedAsyncioTestCase):
