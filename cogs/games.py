@@ -320,7 +320,6 @@ class Games(commands.Cog):
  async def finish(self,ch,s,key):
   LANE_MESSAGES.pop(key,None)
   if getattr(s,'friendly_challenge',False):
-   from services.analytics import player_summary
    with connect() as db:
     db.execute('CREATE TABLE IF NOT EXISTS friendly_xp_daily(bowler_id INTEGER NOT NULL,day TEXT NOT NULL,PRIMARY KEY(bowler_id,day))')
     for p in s.players:
