@@ -1,6 +1,15 @@
-# Gutter Saints Bowling Bot v2.8.5p — Calibrated Three-Camera Artwork
+# Gutter Saints Bowling Bot v2.8.5q — Visual Position & Scale Polish
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5q — Visual Position & Scale Polish
+- Increased The Dude / Jesus approach and winner-cheer poses by approximately **12%** (760 to 851 master pixels tall). Their feet still finish at the original approach-floor anchors, so characters do not float between frames.
+- Lowered every left-lane vertical pin anchor by **26 source pixels**, and shifted the cosmetic ball endpoint to match the new headpin. Increased upright left pins by **8%** and settled fallen left pins by **12%** relative to the prior renderer, including scale-consistent tipping frames.
+- Enlarged overhead upright and fallen pins by **10%**. Measured centres on the actual 1254×1254 photographic plate and aligned each logical pin to one of its large black locator circles. **Artwork caveat:** the image contains markers in a decorative **5-3-2 layout**, not a regulation 4-3-2-1 triangle, so this is a presentation-only mapping; bowling pin IDs and knockdown outcomes are unchanged.
+- Enlarged front-facing pit pins by **14%**, settled fallen sprites by **16%**, and shifted pit standing bases down by 8 pixels on the 1254×1254 plate.
+- Kept the **850×750 hybrid layout**, left-camera crop, both right-panel positions, GIF timings, 23 animation frames, game logic, RNG, rack state, career changes and scores unchanged.
+- Added real-plate geometric and scene rendering tests for matching overhead circle centres, grounded bowler scale, the lowered lane rack and matching ball endpoint, larger pit sprites and preserved pin events.
+- **No asset replacements:** keep the three v2.8.5p backgrounds, the existing pin/ball artwork and `cheer.png` files. Pull new Python code and restart; run an exhibition for the final Discord-size visual check.
 
 ## v2.8.5p — New Three-Camera PNG Calibration
 - Updated for the **three user-supplied PNGs**: `assets/lane/gutter_saints_empty.png` (941×1672), `assets/cameras/overhead_empty.png` (1254×1254), and `assets/cameras/pit_empty.png` (1254×1254).
