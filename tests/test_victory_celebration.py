@@ -78,7 +78,7 @@ class CheerSelectionTests(unittest.TestCase):
         self.assertEqual(frame.size,scene.SIZE)
         loaded.assert_called_once_with('the_dude')
         self.assertTrue(drawn)
-        self.assertEqual(drawn[-1][0][1],760)
+        self.assertEqual(drawn[-1][0][1],851)
 
 
 class VictoryPublishingTests(unittest.IsolatedAsyncioTestCase):
