@@ -33,12 +33,12 @@ FRONT={
  4:(411,720),5:(465,720),6:(520,720),
  2:(438,727),3:(492,727),1:(465,735),
 }
-# New no-overhead left artwork: the lane-3 pit sits at master y ~485-550.
+# New no-overhead left artwork: lane-3 pins sit at master y ~400-500.
 # The right camera positions remain the original FRONT and OVERHEAD values.
 HERO_FRONT={
- 7:(384,490),8:(438,490),9:(493,490),10:(547,490),
- 4:(411,503),5:(465,503),6:(520,503),
- 2:(438,516),3:(492,516),1:(465,530),
+ 7:(384,458),8:(438,458),9:(493,458),10:(547,458),
+ 4:(411,474),5:(465,474),6:(520,474),
+ 2:(438,487),3:(492,487),1:(465,500),
 }
 FALLS=('fall_left','fall_backward','fall_right','fall_forward')
 
@@ -245,8 +245,8 @@ def _projected_ball(event,progress):
     x,y=ball_sprites.point_on_path(pts,progress)
     fraction=max(0.,min(1.,(640-y)/295))
     px=470+(x-340)*(1.3-.55*fraction)
-    # New head-on pit is around y=520, not y=735 of the old combined art.
-    py=1515-990*fraction
+    # New head-on pit ends around y=500, not y=735 of the old combined art.
+    py=1515-1020*fraction
     # Both five-pose characters carry on their right side. The original
     # centre-line projection was completely under their 760px follow-through
     # silhouette until nearly the pin deck, hiding the entire second shot.
