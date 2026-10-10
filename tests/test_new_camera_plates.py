@@ -30,6 +30,10 @@ class NewArtworkCalibrationTests(unittest.TestCase):
         for name in ('overhead','pit'):
             self.assertEqual(self.plates[name].size,(1254,1254))
         self.assertEqual(set(scene.CAMERA_OVERHEAD),set(range(1,11)))
+        # Supplied overhead PNG file numbers are not the numbers painted
+        # on their heads; the decoder maps these exactly without a rename.
+        self.assertEqual(scene.OVERHEAD_ASSET_NUMBER,
+                         {1:1,2:4,3:5,4:2,5:3,6:10,7:6,8:7,9:9,10:8})
         self.assertEqual(set(scene.CAMERA_PIT),set(range(1,11)))
     def test_each_camera_shows_all_ten_at_calibrated_locations(self):
         with patch.object(scene,'_camera_background',side_effect=lambda k:self.plates[k]),\
