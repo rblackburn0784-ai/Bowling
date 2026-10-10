@@ -21,7 +21,7 @@ PIT_CROP=(312,545,626,835)
 # Canonical folders: assets/lane/gutter_saints_empty.png and assets/pins/{overhead,vertical}.
 OUT=ROOT/'data'/'lane_cards'
 SIZE=(941,1672)
-EXPORT_SIZE=(1000,750)  # 4:3 hybrid: full portrait lane left, overhead/pit right
+EXPORT_SIZE=(850,750)  # 17:15 hybrid; full left lane edge-to-edge, cameras right
 # Real pin numbering: rearmost row 7-10, headpin 1 nearest the bowler.
 OVERHEAD={
  7:(305,100),8:(410,100),9:(515,100),10:(620,100),
@@ -71,7 +71,7 @@ def _pin(view,name):
 
 @lru_cache(maxsize=2)
 def _camera_background(name):
-    """Immutable old pin camera artwork, unrelated to the updated left lane."""
+    """User-supplied square camera backgrounds, independent of left lane."""
     crop=OVERHEAD_CROP if name=='overhead' else PIT_CROP
     path=CAMERAS/('overhead_empty.png' if name=='overhead' else 'pit_empty.png')
     if path.is_file():
@@ -87,22 +87,86 @@ def _camera_background(name):
     return fallback
 
 
-def right_cameras(event,stage='approach',impact_frame=0):
-    """Build original two pin cameras on their own backgrounds.
+# Normalised anchors calibrated against the NEW square 1254x1254 photos.
+# Top camera: the pin deck forms a physically ordered 4-3-2-1 triangle.
+# Pit camera: front row near the approach-facing lower deck.
+CAMERA_OVERHEAD={
+  7:(.30,.30), 8:(.433,.30), 9:(.567,.30), 10:(.70,.30),
+  4:(.367,.46),5:(.50,.46),6:(.633,.46),
+  2:(.433,.625),3:(.567,.625),1:(.50,.79),
+}
+CAMERA_PIT={
+  7:(.365,.718),8:(.455,.718),9:(.545,.718),10:(.635,.718),
+  4:(.410,.748),5:(.50,.748),6:(.590,.748),
+  2:(.455,.777),3:(.545,.777),1:(.50,.807),
+}
 
-    Uses the SAME real bowling event as the left lane, but retains
-    pre-v2.8.5o pin locations and right panel compositions.
+def _camera_pin(base,name,p,progress=None):
+    """Composite one pin on the new overhead/pit photographic plate.
+
+    Coordinates are ratios of actual image dimensions, rather than the
+    obsolete 430x372/314x290 crops. The gameplay event provides pin truth.
     """
-    overlay=Image.new('RGBA',SIZE,(0,0,0,0))
-    if event:
-        pin_layers(overlay,event,stage,impact_frame)
+    overhead=name=='overhead'
+    view='overhead' if overhead else 'vertical'
+    u,v=(CAMERA_OVERHEAD if overhead else CAMERA_PIT)[p]
+    x,y=round(base.width*u),round(base.height*v)
+    if overhead:
+        upright=_pin(view,f'pin_{p}')
+        target=(round(base.width*.082),round(base.height*.112))
+    else:
+        upright=_pin(view,'standing')
+        target=(round(base.width*.078),round(base.height*.154))
+    if upright is None:
+        # All 10 real positions remain visible even if a sprite is missing.
+        if progress is None or progress<.8:
+            _fallback_pin(base,x,y-35 if not overhead else y,
+                          round(base.width*(.056 if overhead else .04)))
+        return
+    upright=_fit(upright,*target)
+    if progress is None or progress<.15:
+        _paste(base,upright,x-upright.width/2,
+               y-upright.height if not overhead else y-upright.height/2)
+        return
+    if progress<.8:
+        tilt=(progress-.15)/.65
+        angle=(-75 if p%2 else 75)*tilt*(1 if not overhead else -.7)
+        rotated=upright.rotate(angle,Image.Resampling.BICUBIC,expand=True)
+        _paste(base,rotated,x-rotated.width/2,
+               y-rotated.height if not overhead else y-rotated.height/2)
+        return
+    fallen=_pin(view,FALLS[(p*7)%4])
+    if fallen is None:
+        return
+    fallen=_fit(fallen,round(base.width*(.13 if overhead else .15)),
+                round(base.height*(.12 if overhead else .13)))
+    _paste(base,fallen,x-fallen.width/2,
+           y-fallen.height*.65 if not overhead else y-fallen.height/2)
+
+def right_cameras(event,stage='approach',impact_frame=0):
+    """Paint both new 1254px square camera backgrounds at native scale.
+
+    Right cameras and the left hero use the SAME down/after pin results.
+    No old source-image crop is used to place pin sprites.
+    """
     result={}
-    for name,crop in (('overhead',OVERHEAD_CROP),('pit',PIT_CROP)):
+    for name in ('overhead','pit'):
         background=_camera_background(name).copy()
-        foreground=overlay.crop(crop)
-        if background.size!=foreground.size:
-            background=background.resize(foreground.size,Image.Resampling.LANCZOS)
-        background.alpha_composite(foreground)
+        if event:
+            before=set(event.get('before',[]))
+            down=set(event.get('down',[])) & before
+            after=set(event.get('after',[]))
+            for p in sorted(before,reverse=True):
+                if p not in CAMERA_OVERHEAD:
+                    continue
+                if stage in ('leave','victory'):
+                    if p in after:
+                        _camera_pin(background,name,p)
+                elif stage=='impact' and p in down:
+                    _camera_pin(background,name,p,
+                                max(0,min(1,(impact_frame-1)/4)))
+                else:
+                    _camera_pin(background,name,p)
         result[name]=background.convert('RGB')
     return result
 
