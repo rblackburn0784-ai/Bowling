@@ -69,8 +69,8 @@ class HeroReanchorTests(unittest.TestCase):
         with patch.object(scene,'_pin',side_effect=lambda view,name:self.over if view=='overhead' else self.vert), \
              patch.object(scene,'_camera_background',side_effect=cameras), \
              patch.object(scene,'_bowler',return_value=False):
-            first=scene.right_cameras(self.event,'impact',ball_frame=5)
-            second=scene.right_cameras(self.event,'impact',ball_frame=5)
+            first=scene.right_cameras(self.event,'impact',impact_frame=5)
+            second=scene.right_cameras(self.event,'impact',impact_frame=5)
         self.assertEqual(first['overhead'].tobytes(),second['overhead'].tobytes())
         self.assertEqual(first['pit'].tobytes(),second['pit'].tobytes())
         screen1=hybrid_broadcast.compose_hybrid_broadcast(old,cameras=first)
