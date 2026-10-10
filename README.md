@@ -1,6 +1,17 @@
-# Gutter Saints Bowling Bot v2.8.5n — Game Completion Reliability
+# Gutter Saints Bowling Bot v2.8.5o — Left Hero Re-anchor & Victory Cheers
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5o — Left Hero Lane Re-anchor & Winner Cheer Sprites
+- Supports the user's updated **`assets/lane/gutter_saints_empty.png`**, which now depicts only the full-length bowling lane and front pinsetter. The left hero panel no longer draws the old top-down pin deck.
+- **Re-anchored LEFT lane:** forward-facing standing/fallen pins now sit in the new pinsetter opening (y ≈ 490–530 in the 941×1672 master), rather than in the old combined layout's lower pit. The animated ball releases near the camera and travels to y ≈ 525 at impact. The Dude/Jesus remain foreground, correctly proportioned and anchored close to the lane approach.
+- **RIGHT panels unchanged:** the overhead pin deck uses its original 941×1672 master coordinates and camera crop; the vertical pit still uses its original coordinates/crop. Both panels remain visually independent of the new LEFT artwork and use the same engine `before/down/after` values, including moving pin knockdown animations.
+- **One-time optional art install needed for the exact original two right backgrounds.** Extract the companion `Gutter_Saints_v2.8.5o_Camera_Backgrounds.zip` beside `bot.py`; it contains `assets/cameras/overhead_empty.png` and `assets/cameras/pit_empty.png`. The new `assets/lane/gutter_saints_empty.png` is *never overwritten*. Missing camera art yields a safe plain-colour fallback instead of a crash.
+- New five-frame bowler approach, rolling ball artwork, selectable bowling balls, and 5-stage falling-pin animation remain unchanged in the simulation; only cosmetic left-side positions are shifted.
+- **Winner celebration:** supports **`assets/sprites/the_dude/cheer.png`** and **`assets/sprites/jesus/cheer.png`** without renaming the existing `1.png`–`5.png` approach frames. When a match successfully finishes with a unique winner, the bot edits the live graphic with the winner's correct character cheering. For team matches, the highest-scoring member of the winning team represents the victory; a tied game has no artificial victor.
+- `cheer.png` is optional. If missing or invalid, the renderer falls back to the normal fifth approach pose and honours/progression still finish. The final visual update is best-effort and cannot cancel a recorded result.
+- Extensive new regression tests verify no overhead graphics in the left panel, hero pin deck and ball impact alignment, unchanged right camera positions when LEFT art changes, both character cheer loaders, winner identity, ties, and final Discord message editing.
+- No scoring, pinfall physics, tournament logic, rank, XP or career progression was changed. Restart the bot after pulling latest code; test a new two-player exhibition to completion.
 
 ## v2.8.5n — Game Completion Reliability
 - Fixed a real game-finishing crash (`NameError: cannot access free variable 'player_summary'`) caused by an unnecessary `from services.analytics import player_summary` nested inside `Games.finish()`'s friendly-match branch. Both normal and friendly games now use the shared top-level import.
