@@ -33,13 +33,20 @@ FRONT={
  4:(411,720),5:(465,720),6:(520,720),
  2:(438,727),3:(492,727),1:(465,735),
 }
-# New no-overhead left artwork: lane-3 pins sit at master y ~400-500.
+# New left image: move the rack down to the actual photographed lane floor.
 # The right camera positions remain the original FRONT and OVERHEAD values.
 HERO_FRONT={
- 7:(384,458),8:(438,458),9:(493,458),10:(547,458),
- 4:(411,474),5:(465,474),6:(520,474),
- 2:(438,487),3:(492,487),1:(465,500),
+ 7:(384,484),8:(438,484),9:(493,484),10:(547,484),
+ 4:(411,500),5:(465,500),6:(520,500),
+ 2:(438,513),3:(492,513),1:(465,526),
 }
+# Cosmetic-only adjustments. All phases share these proportions.
+HERO_BOWLER_SCALE=1.12
+HERO_PIN_SCALE=1.08
+HERO_FALLEN_SCALE=1.12
+OVERHEAD_PIN_SCALE=1.10
+PIT_PIN_SCALE=1.14
+PIT_FALLEN_SCALE=1.16
 # The previously supplied resized overhead sprite pack has filenames
 # out of order relative to the red numbers printed on the pin heads.
 # Keep the user's existing files; resolve TRUE pin numbers at load time.
@@ -93,13 +100,17 @@ def _camera_background(name):
     return fallback
 
 
-# Normalised anchors calibrated against the NEW square 1254x1254 photos.
-# Top camera: the pin deck forms a physically ordered 4-3-2-1 triangle.
-# Pit camera: front row near the approach-facing lower deck.
+# Positions measured on the provided 1254x1254 overhead plate.
+# Its large locator circles follow a decorative 5-3-2 arrangement, not a
+# regulation ten-pin rack. Keep engine pin IDs but align each sprite with a
+# unique black marker on THIS artwork. No bowling logic depends on these.
 CAMERA_OVERHEAD={
-  7:(.30,.30), 8:(.433,.30), 9:(.567,.30), 10:(.70,.30),
-  4:(.367,.46),5:(.50,.46),6:(.633,.46),
-  2:(.433,.625),3:(.567,.625),1:(.50,.79),
+  7:(281/1254,386/1254),8:(470/1254,386/1254),
+  6:(628/1254,386/1254),9:(805/1254,386/1254),
+  10:(974/1254,386/1254),
+  4:(418/1254,602/1254),5:(621/1254,599/1254),
+  3:(837/1254,601/1254),
+  2:(515/1254,833/1254),1:(735/1254,833/1254),
 }
 CAMERA_PIT={
   7:(.365,.718),8:(.455,.718),9:(.545,.718),10:(.635,.718),
@@ -119,15 +130,18 @@ def _camera_pin(base,name,p,progress=None):
     x,y=round(base.width*u),round(base.height*v)
     if overhead:
         upright=_pin(view,f'pin_{OVERHEAD_ASSET_NUMBER[p]}')
-        target=(round(base.width*.082),round(base.height*.112))
+        target=(round(base.width*.082*OVERHEAD_PIN_SCALE),
+                round(base.height*.112*OVERHEAD_PIN_SCALE))
     else:
         upright=_pin(view,'standing')
-        target=(round(base.width*.078),round(base.height*.154))
+        y+=round(base.height*(8/1254))
+        target=(round(base.width*.078*PIT_PIN_SCALE),
+                round(base.height*.154*PIT_PIN_SCALE))
     if upright is None:
         # All 10 real positions remain visible even if a sprite is missing.
         if progress is None or progress<.8:
             _fallback_pin(base,x,y-35 if not overhead else y,
-                          round(base.width*(.056 if overhead else .04)))
+                          round(base.width*(.056*OVERHEAD_PIN_SCALE if overhead else .04*PIT_PIN_SCALE)))
         return
     upright=_fit(upright,*target)
     if progress is None or progress<.15:
@@ -144,8 +158,9 @@ def _camera_pin(base,name,p,progress=None):
     fallen=_pin(view,FALLS[(p*7)%4])
     if fallen is None:
         return
-    fallen=_fit(fallen,round(base.width*(.13 if overhead else .15)),
-                round(base.height*(.12 if overhead else .13)))
+    fallen=_fit(fallen,
+                round(base.width*(.13*OVERHEAD_PIN_SCALE if overhead else .15*PIT_FALLEN_SCALE)),
+                round(base.height*(.12*OVERHEAD_PIN_SCALE if overhead else .13*PIT_FALLEN_SCALE)))
     _paste(base,fallen,x-fallen.width/2,
            y-fallen.height*.65 if not overhead else y-fallen.height/2)
 
@@ -206,6 +221,8 @@ def _upright(base,view,p,front_positions=None):
     if image:
         scale={1:1.08,2:1.02,3:1.02,4:.98,5:.98,6:.98,
                7:.93,8:.93,9:.93,10:.93}[p]
+        if front_positions is HERO_FRONT:
+            scale*=HERO_PIN_SCALE
         image=image.resize((round(image.width*scale),round(image.height*scale)),Image.Resampling.LANCZOS)
         if p%3==0:
             image=ImageEnhance.Brightness(image).enhance(.94)
@@ -219,11 +236,15 @@ def _fall(base,view,p,progress,front_positions=None):
     x,y=(OVERHEAD if view=='overhead' else (front_positions or FRONT))[p]
     direction=FALLS[(p*7)%4]
     fallen=_pin(view,direction)
-    standing=_pin(view,f'pin_{p}' if view=='overhead' else 'standing')
+    standing=_pin(view,f'pin_{OVERHEAD_ASSET_NUMBER[p]}' if view=='overhead' else 'standing')
     if progress<.15 and standing is not None:
         _upright(base,view,p,front_positions)
         return
     if progress<.80 and standing is not None:
+        if view=='vertical' and front_positions is HERO_FRONT:
+            standing=standing.resize((round(standing.width*HERO_PIN_SCALE),
+                                      round(standing.height*HERO_PIN_SCALE)),
+                                     Image.Resampling.LANCZOS)
         # Intermediate positions rather than an instant upright -> fallen
         # transition. Works for individual pin drops on spare deliveries too.
         tilt=min(1.0,max(0.0,(progress-.15)/.65))
@@ -238,7 +259,8 @@ def _fall(base,view,p,progress,front_positions=None):
         return
     # v2.8.5c: slightly enlarge settled fallen sprites only.
     # Upright pins and the intermediate lean retain their original sizing.
-    scale = 1.12 if view=='vertical' else 1.10
+    scale = (1.12*HERO_FALLEN_SCALE if front_positions is HERO_FRONT
+             else 1.12 if view=='vertical' else 1.10)
     fallen = fallen.resize((round(fallen.width*scale),round(fallen.height*scale)),Image.Resampling.LANCZOS)
     if view=='vertical':
         _paste(base,fallen,x-fallen.width/2,y-fallen.height*.65)
@@ -282,7 +304,7 @@ def _bowler(base,session,event,frame):
         return False
     # Hold a consistent body height through release. The original scale curve
     # made Jesus appear to shrink noticeably on his fifth frame.
-    heights=(760,760,760,760,760)
+    heights=(851,851,851,851,851)  # 12% larger, feet remain grounded
     bottoms=(1660,1655,1650,1645,1640)
     if key=='jesus' and frame==2:
         # Source frame 2 was rendered without a ball. Overlay one from the
@@ -298,7 +320,7 @@ def _bowler(base,session,event,frame):
     # The new lane image has an unobstructed approach. Keep feet at the
     # near edge but place the sprite slightly left of centre for the ball.
     size_index=4 if frame=='cheer' else frame-1
-    pose=_fit(source,650,heights[size_index])
+    pose=_fit(source,round(650*HERO_BOWLER_SCALE),heights[size_index])
     _paste(base,pose,(SIZE[0]-pose.width)/2-12,
            bottoms[size_index]-pose.height)
     return True
@@ -315,8 +337,8 @@ def _projected_ball(event,progress):
     x,y=ball_sprites.point_on_path(pts,progress)
     fraction=max(0.,min(1.,(640-y)/295))
     px=470+(x-340)*(1.3-.55*fraction)
-    # New head-on pit ends around y=500, not y=735 of the old combined art.
-    py=1515-1020*fraction
+    # Follow the lowered front pin deck; only the visual projection changes.
+    py=1515-994*fraction
     # Both five-pose characters carry on their right side. The original
     # centre-line projection was completely under their 760px follow-through
     # silhouette until nearly the pin deck, hiding the entire second shot.
