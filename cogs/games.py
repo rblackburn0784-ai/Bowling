@@ -332,8 +332,20 @@ class Games(commands.Cog):
    s.persisted=True
    SESSIONS.pop(key,None)
    return
-  gid=record_completed_session(s,key);totals=s.team_totals(); winner=max(totals,key=totals.get) if len(totals)>1 and len(set(totals.values()))>1 else None
-  await ch.send('🏁 **GAME COMPLETE!**',embed=scoreboard_embed(s));summaries=sorted(((p,player_summary(p)) for p in s.players),key=lambda x:x[1]['score'],reverse=True);high=summaries[0];awards=[f"👑 **High Game:** {high[0].bowler.name} — {high[1]['score']}"]
+  # Calculate all bowler summaries *before* recording the result so a
+  # formatting/analytics error cannot leave a half-finalised persisted game.
+  summaries=sorted(((p,player_summary(p)) for p in s.players),
+                   key=lambda pair:pair[1]['score'],reverse=True)
+  if not summaries:
+   raise ValueError('Cannot finalise a game without bowlers')
+  gid=record_completed_session(s,key)
+  if gid is None:
+   raise RuntimeError('Completed game id could not be resolved; refusing duplicate post-game awards')
+  totals=s.team_totals()
+  winner=max(totals,key=totals.get) if len(totals)>1 and len(set(totals.values()))>1 else None
+  high=summaries[0]
+  awards=[f"👑 **High Game:** {high[0].bowler.name} — {high[1]['score']}"]
+  await ch.send('🏁 **GAME COMPLETE!**',embed=scoreboard_embed(s))
   clean=[p.bowler.name for p,x in summaries if x['clean']]
   if clean:awards.append('✨ **Clean Game:** '+', '.join(clean))
   best_streak=max(summaries,key=lambda x:x[1]['longest_streak'])
@@ -347,23 +359,43 @@ class Games(commands.Cog):
    priority={'comeback':6,'lead_change':5,'clutch':4,'pb_watch':3,'perfect_watch':7,'rivalry':3,'lane_read':1}
    top=sorted(stories,key=lambda r:priority.get(r['kind'],0),reverse=True)[:4]
    await ch.send('📰 **MATCH STORY**\n'+'\n'.join(f"• **{r['headline']}** — {r['detail']}" for r in top))
+  # Commit game history/season stats before running career helpers.
+  # Those helpers open their own SQLite connections: invoking them within
+  # an uncommitted write transaction causes "database is locked".
   achievement_cards=[]
+  newly_recorded=[]
   with connect() as c:
-   season=c.execute("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").fetchone(); season_id=season['id'] if season else None
+   season=c.execute("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").fetchone()
+   season_id=season['id'] if season else None
    for p,sm in summaries:
-    team_name=getattr(p.bowler,'team_name',None);tr=c.execute('SELECT id FROM teams WHERE name=? COLLATE NOCASE',(team_name,)).fetchone() if team_name else None;tid=tr['id'] if tr else None
-    c.execute('INSERT INTO game_history(game_id,bowler_id,season_id,tournament_id,team_id,score,strikes,spares,splits,split_conversions,longest_streak,clean,form) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',(gid,p.bowler.id,season_id,s.tournament_id,tid,sm['score'],sm['strikes'],sm['spares'],sm['splits'],sm['split_conversions'],sm['longest_streak'],sm['clean'],getattr(p,'form',0)))
+    # If recovering after a partially completed postgame, do not write the
+    # same player's history or increment season totals twice.
+    existing=c.execute('SELECT 1 FROM game_history WHERE game_id=? AND bowler_id=? LIMIT 1',
+                       (gid,p.bowler.id)).fetchone()
+    if existing:
+     logging.warning('Skipping duplicate history for game=%s bowler=%s',gid,p.bowler.id)
+     continue
+    team_name=getattr(p.bowler,'team_name',None)
+    tr=c.execute('SELECT id FROM teams WHERE name=? COLLATE NOCASE',(team_name,)).fetchone() if team_name else None
+    tid=tr['id'] if tr else None
+    c.execute('INSERT INTO game_history(game_id,bowler_id,season_id,tournament_id,team_id,score,strikes,spares,splits,split_conversions,longest_streak,clean,form) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+              (gid,p.bowler.id,season_id,s.tournament_id,tid,sm['score'],sm['strikes'],sm['spares'],sm['splits'],sm['split_conversions'],sm['longest_streak'],sm['clean'],getattr(p,'form',0)))
     effective_season=getattr(s,'season_id',None) or season_id
     if effective_season:
      c.execute('INSERT OR IGNORE INTO season_bowler_stats(season_id,bowler_id) VALUES(?,?)',(effective_season,p.bowler.id))
-     c.execute('UPDATE season_bowler_stats SET games=games+1,total_pins=total_pins+?,high_game=MAX(high_game,?),strikes=strikes+?,spares=spares+?,split_conversions=split_conversions+? WHERE season_id=? AND bowler_id=?',(sm['score'],sm['score'],sm['strikes'],sm['spares'],sm['split_conversions'],effective_season,p.bowler.id))
-    award_progression(p.bowler.id,sm['score'],bool(s.tournament_id),winner==team_name)
-    if sm['clean']:add_tendency(p.bowler.id,'consistency',2.2,'Repeated clean-game execution','game')
-    if sm['longest_streak']>=6:add_tendency(p.bowler.id,'flair',1.8,'Produced a six-pack strike run','game')
-    if sm['score']<120 and sm.get('opens',0)>=5:add_tendency(p.bowler.id,'consistency',-2.0,'Repeated game collapse with open frames','game')
-    if sm['score']>=250:add_tendency(p.bowler.id,'nerves',1.5,'Delivered a 250+ pressure game','game')
-    seven_ten='7–10 Split' in getattr(p,'special_conversions',set())
-    for title,detail in unlock_achievements(p.bowler.id,sm,{'seven_ten':seven_ten}):achievement_cards.append((p.bowler.name,title,detail))
+     c.execute('UPDATE season_bowler_stats SET games=games+1,total_pins=total_pins+?,high_game=MAX(high_game,?),strikes=strikes+?,spares=spares+?,split_conversions=split_conversions+? WHERE season_id=? AND bowler_id=?',
+               (sm['score'],sm['score'],sm['strikes'],sm['spares'],sm['split_conversions'],effective_season,p.bowler.id))
+    newly_recorded.append((p,sm))
+  for p,sm in newly_recorded:
+   team_name=getattr(p.bowler,'team_name',None)
+   award_progression(p.bowler.id,sm['score'],bool(s.tournament_id),winner==team_name)
+   if sm['clean']:add_tendency(p.bowler.id,'consistency',2.2,'Repeated clean-game execution','game')
+   if sm['longest_streak']>=6:add_tendency(p.bowler.id,'flair',1.8,'Produced a six-pack strike run','game')
+   if sm['score']<120 and sm.get('opens',0)>=5:add_tendency(p.bowler.id,'consistency',-2.0,'Repeated game collapse with open frames','game')
+   if sm['score']>=250:add_tendency(p.bowler.id,'nerves',1.5,'Delivered a 250+ pressure game','game')
+   seven_ten='7–10 Split' in getattr(p,'special_conversions',set())
+   for title,detail in unlock_achievements(p.bowler.id,sm,{'seven_ten':seven_ten}):
+    achievement_cards.append((p.bowler.name,title,detail))
   for name,title,detail in achievement_cards:
    e=discord.Embed(title=f'🏅 ACHIEVEMENT UNLOCKED — {title}',description=f'**{name}**\n{detail}',colour=discord.Colour.gold());await ch.send(embed=e);await send_media(ch,'award')
   if s.tournament_id and s.match_id and len(totals)==2 and winner:
