@@ -1,6 +1,17 @@
-# Gutter Saints Bowling Bot v2.8.5l — Full-Width Broadcast Lane
+# Gutter Saints Bowling Bot v2.8.5m — Hybrid Broadcast Layout
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5m — Hybrid Broadcast Layout
+- **The full portrait lane is the main hero camera on the left**, using the original 941×1672 scene, from the neon sign and top-down deck down to the bowler standing at the foul line. The image is **letterboxed within the left panel**; we never stretch the character, distort the ball or crop away the overhead/pit in the main view.
+- **Right-side stack:** top-right = an enlarged view of the real top-down pin deck; bottom-right = the real front-facing pin pit. Both camera views are cropped from the **same composited frame** as the main lane, so pins cannot mysteriously appear or disappear between the views.
+- Updates both GIFs and final still images to a single cohesive **4:3 frame (1000×750)**, with smaller GIF fallbacks of **920×690** and **840×630** for upload limits. All outputs retain the same composition and aspect ratio.
+- Replaces the v2.8.5l arrangement where overhead/pit cameras appeared across the top and the bowler occupied a wide lower strip. The older `broadcast_layout.py` remains in the repository for reference, but is no longer used by the match renderer.
+- Retains the 21+ shot stages, the smooth one-upload GIF sequence, distinct second-ball attachment names, playback headroom, the bowler foreground, larger readable ball sprites and the existing five-stage knockdown animation.
+- No new art is required. Retains existing paths: `assets/lane/gutter_saints_empty.png`, `assets/pins/overhead/`, `assets/pins/vertical/`, `assets/balls/`, and `assets/sprites/{the_dude,jesus}/`.
+- **Visual-only release:** no edits to pin physics, RNG, gameplay statistics, career development, competition fixtures or scoreboard controls.
+- Regression tests cover unchanged lane aspect ratio, both right-hand pinfall views, a visible Plastic spare ball on the hero lane, output fallback geometry and ongoing GIF sequencing.
+- Pull the latest `main`, restart the bot, and run a two-bowler exhibition to verify Discord playback and actual displayed dimensions. A local hybrid preview was generated using the existing PNGs; no art changes were committed.
 
 ## v2.8.5l — Full-Width Discord Broadcast & Visible Ball / Pin Cameras
 - **Fixes the tiny portrait preview:** Discord scales long attachments to a limited inline height. Raising the original 565×1004 source resolution does not meaningfully increase its display width. The renderer now produces a compact **9:8** broadcast canvas instead of trying ever-larger portrait GIFs.
