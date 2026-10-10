@@ -74,8 +74,12 @@ class LiveMatchControls(discord.ui.View):
    return await i.response.send_message('A ball or automatic game is already running.',ephemeral=True)
   await i.response.defer(ephemeral=True)
   cog=i.client.get_cog('Games')
-  if cog and not await cog.play_one(i.channel,self.session):
-   await i.followup.send('Match already bowling or the controls are out of date.',ephemeral=True)
+  try:
+   if cog and not await cog.play_one(i.channel,self.session):
+    await i.followup.send('Match already bowling or the controls are out of date.',ephemeral=True)
+  except Exception:
+   logging.exception('Manual bowling failed in channel %s',i.channel_id)
+   await i.followup.send('⚠️ Match processing failed. The latest ball may already be saved. Ask an administrator to review the game before retrying.',ephemeral=True)
 
  @discord.ui.button(label='▶ Auto Play',style=discord.ButtonStyle.success,custom_id='gutter:auto-bowl')
  async def auto_play(self,i,b):
@@ -83,8 +87,12 @@ class LiveMatchControls(discord.ui.View):
    return await i.response.send_message('A ball or automatic game is already running.',ephemeral=True)
   await i.response.defer(ephemeral=True)
   cog=i.client.get_cog('Games')
-  if cog and not await cog.play_all(i.channel,self.session):
-   await i.followup.send('Match already bowling or the controls are out of date.',ephemeral=True)
+  try:
+   if cog and not await cog.play_all(i.channel,self.session):
+    await i.followup.send('Match already bowling or the controls are out of date.',ephemeral=True)
+  except Exception:
+   logging.exception('Auto Play failed in channel %s',i.channel_id)
+   await i.followup.send('⚠️ Auto Play stopped during game processing. The latest result may already be recorded. Do not restart or replay this match until an administrator checks its saved results.',ephemeral=True)
 
 async def post_match_controls(channel,session):
  """Post the one live scoreboard that future ball renders will edit in place."""
