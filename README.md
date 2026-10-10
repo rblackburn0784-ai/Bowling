@@ -1,6 +1,16 @@
-# Gutter Saints Bowling Bot v2.8.5m — Hybrid Broadcast Layout
+# Gutter Saints Bowling Bot v2.8.5n — Game Completion Reliability
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5n — Game Completion Reliability
+- Fixed a real game-finishing crash (`NameError: cannot access free variable 'player_summary'`) caused by an unnecessary `from services.analytics import player_summary` nested inside `Games.finish()`'s friendly-match branch. Both normal and friendly games now use the shared top-level import.
+- Fixed the follow-on SQLite locking risk: post-game history and seasonal statistics are committed before awarding rank/XP, calculating career tendencies and granting achievements. Previously those helpers opened a second writing connection while the first still held a SQLite write transaction.
+- Player summaries are computed before the first result is persisted, so errors in analytics do not cause an early partially recorded game.
+- On a replay/resume attempt, existing `game_history` entries for the same game ID and bowler will not be inserted twice or count toward season totals again; the game must still be reviewed if a previous release crashed mid-finalisation.
+- Manual and Auto Play buttons now report processing exceptions in Discord while logging the details. A visible warning tells administrators not to rerun potentially recorded results before checking.
+- Regression tests run against a real temporary SQLite database, verifying that normal games reach honours, create records/history, grant progression and that friendly challenges only grant capped XP. Additional tests verify Auto Play error feedback.
+- No changes to the hybrid lane, sprites, RNG, physics, scores or animation timing.
+- **Existing interrupted games:** The prior exception occurred AFTER `record_completed_session`, so `games`, `game_results` and `bowler_stats` may already contain the game, while `game_history`, achievements, progression and tournament advancement may be incomplete. Back up your DB and reconcile the result before replaying or manually awarding it.
 
 ## v2.8.5m — Hybrid Broadcast Layout
 - **The full portrait lane is the main hero camera on the left**, using the original 941×1672 scene, from the neon sign and top-down deck down to the bowler standing at the foul line. The image is **letterboxed within the left panel**; we never stretch the character, distort the ball or crop away the overhead/pit in the main view.
