@@ -16,24 +16,20 @@ def changed(a,b):
 
 
 class HybridBroadcastTests(unittest.TestCase):
-    def test_main_lane_is_full_height_and_never_stretched(self):
+    def test_main_lane_fills_hero_panel_without_crop_or_gaps(self):
         self.assertEqual(SOURCE_SIZE,(941,1672))
         self.assertEqual(scene.SIZE,SOURCE_SIZE)
-        self.assertEqual(scene.EXPORT_SIZE,(1000,750))
-        self.assertEqual(BASE_SIZE,(1000,750))
-        self.assertTrue(all(abs(w/h-4/3)<.005 for w,h in shot_animation.SIZES))
-        inner=(HERO_BOX[0]+8,HERO_BOX[1]+10,HERO_BOX[2]-8,HERO_BOX[3]-10)
-        x,y,w,h=fit_rectangle(SOURCE_SIZE,inner)
-        self.assertGreater(h,700)
-        self.assertLess(abs(w/h-941/1672),.002)
-        self.assertGreaterEqual(x,HERO_BOX[0])
-        self.assertLessEqual(x+w,HERO_BOX[2])
-        self.assertGreaterEqual(y,HERO_BOX[1])
-        self.assertLessEqual(y+h,HERO_BOX[3])
+        self.assertEqual(scene.EXPORT_SIZE,(850,750))
+        self.assertEqual(BASE_SIZE,(850,750))
+        self.assertTrue(all(abs(w/h-17/15)<.005 for w,h in shot_animation.SIZES))
+        left,top,right,bottom=HERO_BOX
+        self.assertEqual((left,top,bottom),(0,0,750))
+        self.assertLess(abs((right-left)/(bottom-top)-941/1672),.0005)
         art=Image.new('RGB',SOURCE_SIZE,(90,80,70))
         output=compose_hybrid_broadcast(art)
         self.assertEqual(output.size,BASE_SIZE)
-        self.assertEqual(output.getpixel((x+50,y+50)),(90,80,70))
+        for pt in ((0,0),(right-1,0),(0,bottom-1),(right-1,bottom-1),(right//2,bottom//2)):
+            self.assertEqual(output.getpixel(pt),(90,80,70),pt)
 
     def test_overhead_and_pit_panels_follow_same_spare_pinfall(self):
         bg=Image.new('RGBA',scene.SIZE,(30,35,44,255))
@@ -72,10 +68,8 @@ class HybridBroadcastTests(unittest.TestCase):
             approach=scene.render_scene_image(session,ev,'approach')
             travel=scene.render_scene_image(session,ev,'path',ball_progress=.30)
         px,py,size=scene._projected_ball(ev,.30)
-        hero_inner=(HERO_BOX[0]+8,HERO_BOX[1]+10,HERO_BOX[2]-8,HERO_BOX[3]-10)
-        hx,hy,w,h=fit_rectangle(SOURCE_SIZE,hero_inner)
-        x=round(hx+px*w/SOURCE_SIZE[0])
-        y=round(hy+py*h/SOURCE_SIZE[1])
+        x=round(HERO_BOX[0]+px*(HERO_BOX[2]-HERO_BOX[0])/SOURCE_SIZE[0])
+        y=round(HERO_BOX[1]+py*(HERO_BOX[3]-HERO_BOX[1])/SOURCE_SIZE[1])
         self.assertGreaterEqual(size,38)
         self.assertTrue(HERO_BOX[0]<=x<HERO_BOX[2])
         self.assertTrue(HERO_BOX[1]<=y<HERO_BOX[3])
@@ -85,8 +79,8 @@ class HybridBroadcastTests(unittest.TestCase):
 
     def test_camera_geometry_and_fallback_scale(self):
         art=Image.new('RGB',SOURCE_SIZE,(95,75,65))
-        small=compose_hybrid_broadcast(art,(840,630))
-        self.assertEqual(small.size,(840,630))
+        small=compose_hybrid_broadcast(art,(680,600))
+        self.assertEqual(small.size,(680,600))
         self.assertLess(HERO_BOX[2],OVERHEAD_BOX[0])
         self.assertEqual(OVERHEAD_BOX[2],PIT_BOX[2])
         self.assertLess(OVERHEAD_BOX[3],PIT_BOX[1])
