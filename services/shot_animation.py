@@ -10,9 +10,9 @@ from PIL import Image
 from services import scene_renderer
 
 MAX_GIF_BYTES=7_500_000
-# 4:3 hybrid broadcast, same lane proportions at every fallback size.
+# 17:15 hybrid with edge-to-edge portrait left lane at every size.
 # Smaller GIFs keep the same camera layout if the upload is too large.
-SIZES=((1000,750),(920,690),(840,630))
+SIZES=((850,750),(765,675),(680,600))
 # (stage, character frame, ball progress, impact-frame, milliseconds)
 # Each GIF gets a clearly visible full approach, ball flight, and *progressive*
 # pin knockdown. The final frames hold settled fallen pins long enough to see
