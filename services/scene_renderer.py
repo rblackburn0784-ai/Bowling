@@ -2,7 +2,7 @@
 
 A pin-free photographic lane with linked overhead/head-on pin states.
 The engine's before/down/after lists are the sole source of pin truth.
-Coordinates use a 941x1672 master background; Discord output is 753x1338.
+Coordinates use the new 941x1672 lane for the left hero panel. The two original right pin-camera backgrounds are independent.
 """
 from functools import lru_cache
 from pathlib import Path
@@ -15,6 +15,9 @@ from services.hybrid_broadcast import compose_hybrid_broadcast
 ROOT=Path(__file__).resolve().parent.parent
 BG=ROOT/'assets'/'lane'/'gutter_saints_empty.png'
 PINS=ROOT/'assets'/'pins'
+CAMERAS=ROOT/'assets'/'cameras'
+OVERHEAD_CROP=(250,28,680,400)
+PIT_CROP=(312,545,626,835)
 # Canonical folders: assets/lane/gutter_saints_empty.png and assets/pins/{overhead,vertical}.
 OUT=ROOT/'data'/'lane_cards'
 SIZE=(941,1672)
@@ -29,6 +32,13 @@ FRONT={
  7:(384,713),8:(438,713),9:(493,713),10:(547,713),
  4:(411,720),5:(465,720),6:(520,720),
  2:(438,727),3:(492,727),1:(465,735),
+}
+# New no-overhead left artwork: the lane-3 pit sits at master y ~485-550.
+# The right camera positions remain the original FRONT and OVERHEAD values.
+HERO_FRONT={
+ 7:(384,490),8:(438,490),9:(493,490),10:(547,490),
+ 4:(411,503),5:(465,503),6:(520,503),
+ 2:(438,516),3:(492,516),1:(465,530),
 }
 FALLS=('fall_left','fall_backward','fall_right','fall_forward')
 
@@ -59,6 +69,44 @@ def _pin(view,name):
         logging.getLogger(__name__).warning('Cannot load pin sprite %s',path)
         return None
 
+@lru_cache(maxsize=2)
+def _camera_background(name):
+    """Immutable old pin camera artwork, unrelated to the updated left lane."""
+    crop=OVERHEAD_CROP if name=='overhead' else PIT_CROP
+    path=CAMERAS/('overhead_empty.png' if name=='overhead' else 'pit_empty.png')
+    if path.is_file():
+        try:
+            with Image.open(path) as original:
+                return original.convert('RGBA')
+        except (OSError,ValueError):
+            logging.getLogger(__name__).warning('Invalid camera artwork %s',path)
+    # Graceful visual fallback with visible pins, not an exception.
+    width,height=crop[2]-crop[0],crop[3]-crop[1]
+    fallback=Image.new('RGBA',(width,height),(62,42,30,255) if name=='overhead' else (27,25,26,255))
+    logging.getLogger(__name__).warning('Missing %s camera art at %s; using fallback',name,path)
+    return fallback
+
+
+def right_cameras(event,stage='approach',impact_frame=0):
+    """Build original two pin cameras on their own backgrounds.
+
+    Uses the SAME real bowling event as the left lane, but retains
+    pre-v2.8.5o pin locations and right panel compositions.
+    """
+    overlay=Image.new('RGBA',SIZE,(0,0,0,0))
+    if event:
+        pin_layers(overlay,event,stage,impact_frame)
+    result={}
+    for name,crop in (('overhead',OVERHEAD_CROP),('pit',PIT_CROP)):
+        background=_camera_background(name).copy()
+        foreground=overlay.crop(crop)
+        if background.size!=foreground.size:
+            background=background.resize(foreground.size,Image.Resampling.LANCZOS)
+        background.alpha_composite(foreground)
+        result[name]=background.convert('RGB')
+    return result
+
+
 def available():
     return _background() is not None
 
@@ -74,7 +122,7 @@ def _fallback_pin(base,x,y,diameter):
     r=diameter//2
     ImageDraw.Draw(base).ellipse((x-r,y-r,x+r,y+r),fill='#f1e8d0',outline='#a83233',width=2)
 
-def _upright(base,view,p):
+def _upright(base,view,p,front_positions=None):
     if view=='overhead':
         x,y=OVERHEAD[p]
         image=_pin(view,f'pin_{p}')
@@ -83,7 +131,7 @@ def _upright(base,view,p):
         else:
             _fallback_pin(base,x,y,32)
         return
-    x,y=FRONT[p]
+    x,y=(front_positions or FRONT)[p]
     image=_pin(view,'standing')
     if image:
         scale={1:1.08,2:1.02,3:1.02,4:.98,5:.98,6:.98,
@@ -97,13 +145,13 @@ def _upright(base,view,p):
     else:
         _fallback_pin(base,x,y-25,22)
 
-def _fall(base,view,p,progress):
-    x,y=(OVERHEAD if view=='overhead' else FRONT)[p]
+def _fall(base,view,p,progress,front_positions=None):
+    x,y=(OVERHEAD if view=='overhead' else (front_positions or FRONT))[p]
     direction=FALLS[(p*7)%4]
     fallen=_pin(view,direction)
     standing=_pin(view,f'pin_{p}' if view=='overhead' else 'standing')
     if progress<.15 and standing is not None:
-        _upright(base,view,p)
+        _upright(base,view,p,front_positions)
         return
     if progress<.80 and standing is not None:
         # Intermediate positions rather than an instant upright -> fallen
@@ -127,23 +175,24 @@ def _fall(base,view,p,progress):
     else:
         _paste(base,fallen,x-fallen.width/2,y-fallen.height/2)
 
-def pin_layers(base,event,stage='approach',impact_frame=0):
+def pin_layers(base,event,stage='approach',impact_frame=0,
+               views=('overhead','vertical'),front_positions=None):
     if not event:
         return
     before=set(event.get('before',[]))
     down=set(event.get('down',[])) & before
     after=set(event.get('after',[]))
-    for view in ('overhead','vertical'):
+    for view in views:
         for p in sorted(before,reverse=True):
             if p not in OVERHEAD:
                 continue
-            if stage=='leave':
+            if stage in ('leave','victory'):
                 if p in after:
-                    _upright(base,view,p)
+                    _upright(base,view,p,front_positions)
             elif stage=='impact' and p in down:
-                _fall(base,view,p,max(0,min(1,(impact_frame-1)/4)))
+                _fall(base,view,p,max(0,min(1,(impact_frame-1)/4)),front_positions)
             else:
-                _upright(base,view,p)
+                _upright(base,view,p,front_positions)
 
 def _bowler(base,session,event,frame):
     if not event:
@@ -154,7 +203,11 @@ def _bowler(base,session,event,frame):
     key=bowler_sprites.sprite_key(player)
     if not bowler_sprites.has_sequence(key):
         return False
-    source=bowler_sprites._image(key,frame)
+    source=(bowler_sprites.celebration_image(key) if frame=='cheer'
+            else bowler_sprites._image(key,frame))
+    if source is None and frame=='cheer':
+        # Correctly complete the match if the user hasn't installed cheer.png.
+        source=bowler_sprites._image(key,5)
     if source is None:
         return False
     # Hold a consistent body height through release. The original scale curve
@@ -172,8 +225,12 @@ def _bowler(base,session,event,frame):
             held=_fit(ball,diameter,diameter)
             source.alpha_composite(held,(source.width-held.width-4,
                                          round(source.height*.59)-held.height//2))
-    pose=_fit(source,650,heights[frame-1])
-    _paste(base,pose,(SIZE[0]-pose.width)/2,bottoms[frame-1]-pose.height)
+    # The new lane image has an unobstructed approach. Keep feet at the
+    # near edge but place the sprite slightly left of centre for the ball.
+    size_index=4 if frame=='cheer' else frame-1
+    pose=_fit(source,650,heights[size_index])
+    _paste(base,pose,(SIZE[0]-pose.width)/2-12,
+           bottoms[size_index]-pose.height)
     return True
 
 def _projected_ball(event,progress):
@@ -188,7 +245,8 @@ def _projected_ball(event,progress):
     x,y=ball_sprites.point_on_path(pts,progress)
     fraction=max(0.,min(1.,(640-y)/295))
     px=470+(x-340)*(1.3-.55*fraction)
-    py=1535-795*fraction
+    # New head-on pit is around y=520, not y=735 of the old combined art.
+    py=1515-990*fraction
     # Both five-pose characters carry on their right side. The original
     # centre-line projection was completely under their 760px follow-through
     # silhouette until nearly the pin deck, hiding the entire second shot.
@@ -224,33 +282,41 @@ def _ball(base,event,progress):
         d.ellipse((px-r,py-r,px+r,py+r),fill='#251d35',outline='#faf1ff',width=2)
 
 def render_scene_image(session,event=None,stage='leave',sprite_frame=None,ball_frame=0,
-                       ball_progress=None,output_size=EXPORT_SIZE):
+                       ball_progress=None,output_size=EXPORT_SIZE,victor_id=None):
     """Compose a frame in memory for animated GIFs or still images."""
     background=_background()
     if background is None:
         return None
     im=background.copy()
     if event:
-        pin_layers(im,event,stage,ball_frame)
-        # The character belongs in the foreground: never paint a ball
-        # across a bowler's body. The projected ball begins alongside the
-        # release hand and returns to the normal lane path before impact.
+        # Left only shows head-on pins now. Overhead pins are limited to
+        # the top-right camera; no "double deck" in the hero graphic.
+        pin_layers(im,event,stage,ball_frame,views=('vertical',),
+                   front_positions=HERO_FRONT)
         if stage in ('path','breakpoint','impact'):
             progress=ball_progress if ball_progress is not None else {'path':.45,'breakpoint':.77,'impact':.98}[stage]
             _ball(im,event,progress)
-        _bowler(im,session,event,(sprite_frame or 1) if stage=='approach' else 5)
+        character_event=event
+        if stage=='victory' and victor_id is not None:
+            character_event=dict(event,bowler_id=victor_id)
+        pose=('cheer' if stage=='victory' else
+              (sprite_frame or 1) if stage=='approach' else 5)
+        _bowler(im,session,character_event,pose)
     im=im.convert('RGB')
     # Hybrid: a complete, undistorted full-height lane is the hero panel,
     # with overhead / front-pin close-ups stacked alongside it.
     # Still and GIF frames share precisely the same presentation.
     if output_size[0]/output_size[1]>=1.2:
-        return compose_hybrid_broadcast(im,output_size)
+        return compose_hybrid_broadcast(im,output_size,
+                                        cameras=right_cameras(event,stage,ball_frame))
     # Retain original portrait rendering for old callers/custom exports.
     return im.resize(output_size,Image.Resampling.LANCZOS)
 
 
-def render_scene(session,event=None,stage='leave',sprite_frame=None,ball_frame=0,ball_progress=None):
-    image=render_scene_image(session,event,stage,sprite_frame,ball_frame,ball_progress)
+def render_scene(session,event=None,stage='leave',sprite_frame=None,ball_frame=0,
+                 ball_progress=None,victor_id=None):
+    image=render_scene_image(session,event,stage,sprite_frame,ball_frame,
+                             ball_progress,victor_id=victor_id)
     if image is None:
         return None
     OUT.mkdir(parents=True,exist_ok=True)
