@@ -62,7 +62,10 @@ class NewArtworkCalibrationTests(unittest.TestCase):
             self.assertEqual(image.size,size)
             right=round(layout.HERO_BOX[2]*size[0]/layout.BASE_SIZE[0])
             for x,y in ((0,0),(0,size[1]-1),(right-2,0),(right-2,size[1]-1)):
-                self.assertEqual(image.getpixel((x,y)),(73,84,95))
+                # LANCZOS downsizing can blend a few edge pixels against the
+                # neighbouring divider; that is not an empty side gap.
+                rgb=image.getpixel((x,y))
+                self.assertLessEqual(max(abs(a-b) for a,b in zip(rgb,(73,84,95))),12)
     def test_camera_panels_keep_input_aspect(self):
         plate=self.plates['overhead']
         result=layout._camera_cover(plate,(0,0,410,330))
