@@ -1,27 +1,43 @@
-"""v2.8.5l wide multi-camera bowling presentation regressions."""
+"""v2.8.5m hybrid layout and shot/pin visual regressions."""
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
-from PIL import Image,ImageChops
+from PIL import Image, ImageChops
 from services import scene_renderer as scene
-from services.broadcast_layout import BASE_SIZE,compose_broadcast
+from services.hybrid_broadcast import (
+    BASE_SIZE,HERO_BOX,OVERHEAD_BOX,PIT_BOX,
+    SOURCE_SIZE, fit_rectangle, compose_hybrid_broadcast
+)
 from services import shot_animation
 
 
-class WideBroadcastTests(unittest.TestCase):
-    def test_broadcast_is_wider_without_distorting_master_lane_source(self):
-        self.assertEqual(scene.SIZE,(941,1672))
-        self.assertEqual(BASE_SIZE,(900,800))
-        self.assertEqual(scene.EXPORT_SIZE,BASE_SIZE)
-        self.assertTrue(all(abs(w/h-1.125)<.005 for w,h in shot_animation.SIZES))
-        source=Image.new('RGB',scene.SIZE,(90,80,70))
-        out=compose_broadcast(source)
-        self.assertEqual(out.size,BASE_SIZE)
-        self.assertEqual(out.getpixel((100,500)),(90,80,70))
+def changed(a,b):
+    return ImageChops.difference(a.convert('RGB'),b.convert('RGB')).getbbox() is not None
 
-    def test_both_pin_views_show_actual_second_delivery_fall(self):
+
+class HybridBroadcastTests(unittest.TestCase):
+    def test_main_lane_is_full_height_and_never_stretched(self):
+        self.assertEqual(SOURCE_SIZE,(941,1672))
+        self.assertEqual(scene.SIZE,SOURCE_SIZE)
+        self.assertEqual(scene.EXPORT_SIZE,(1000,750))
+        self.assertEqual(BASE_SIZE,(1000,750))
+        self.assertTrue(all(abs(w/h-4/3)<.005 for w,h in shot_animation.SIZES))
+        inner=(HERO_BOX[0]+8,HERO_BOX[1]+10,HERO_BOX[2]-8,HERO_BOX[3]-10)
+        x,y,w,h=fit_rectangle(SOURCE_SIZE,inner)
+        self.assertGreater(h,700)
+        self.assertLess(abs(w/h-941/1672),.002)
+        self.assertGreaterEqual(x,HERO_BOX[0])
+        self.assertLessEqual(x+w,HERO_BOX[2])
+        self.assertGreaterEqual(y,HERO_BOX[1])
+        self.assertLessEqual(y+h,HERO_BOX[3])
+        art=Image.new('RGB',SOURCE_SIZE,(90,80,70))
+        output=compose_hybrid_broadcast(art)
+        self.assertEqual(output.size,BASE_SIZE)
+        self.assertEqual(output.getpixel((x+50,y+50)),(90,80,70))
+
+    def test_overhead_and_pit_panels_follow_same_spare_pinfall(self):
         bg=Image.new('RGBA',scene.SIZE,(30,35,44,255))
-        upright=Image.new('RGBA',(40,70),(246,240,219,255))
+        upright=Image.new('RGBA',(40,70),(245,240,218,255))
         fallen=Image.new('RGBA',(70,40),(190,38,44,255))
         event={'before':[1,3,5],'down':[3],'after':[1,5],
                'bowler_id':1,'ball_key':'plastic','bowler':'Josh',
@@ -36,13 +52,13 @@ class WideBroadcastTests(unittest.TestCase):
             before=scene.render_scene_image(session,event,'impact',ball_frame=1)
             after=scene.render_scene_image(session,event,'impact',ball_frame=5)
         self.assertEqual(before.size,BASE_SIZE)
-        self.assertNotEqual(ImageChops.difference(before.crop((0,33,446,241)),
-                                              after.crop((0,33,446,241))).getbbox(),None)
-        self.assertNotEqual(ImageChops.difference(before.crop((454,33,900,241)),
-                                              after.crop((454,33,900,241))).getbbox(),None)
+        self.assertTrue(changed(before.crop(OVERHEAD_BOX),after.crop(OVERHEAD_BOX)),
+                        'Overhead camera did not show pin 3 falling')
+        self.assertTrue(changed(before.crop(PIT_BOX),after.crop(PIT_BOX)),
+                        'Pit camera did not show pin 3 falling')
         self.assertEqual(event['after'],[1,5])
 
-    def test_plastic_spare_ball_visible_in_action_camera(self):
+    def test_spare_ball_stays_visible_in_unstretched_hero_lane(self):
         bg=Image.new('RGBA',scene.SIZE,(130,100,65,255))
         cream=Image.new('RGBA',(90,90),(248,239,211,255))
         ev={'before':[1,3],'down':[3],'after':[1],
@@ -55,14 +71,30 @@ class WideBroadcastTests(unittest.TestCase):
              patch.object(scene.ball_sprites,'_load',return_value=cream):
             approach=scene.render_scene_image(session,ev,'approach')
             travel=scene.render_scene_image(session,ev,'path',ball_progress=.30)
-        x,y,radius=scene._projected_ball(ev,.30)
-        self.assertGreaterEqual(radius,38)
-        rx=round(x*900/941)
-        ry=250+round((y-825)*550/(1672-825))
-        self.assertTrue(250<=ry<800)
-        self.assertNotEqual(travel.getpixel((rx,ry)),approach.getpixel((rx,ry)))
-        self.assertGreater(travel.getpixel((rx,ry))[0],210)
-        self.assertEqual(travel.size,(900,800))
+        px,py,size=scene._projected_ball(ev,.30)
+        hero_inner=(HERO_BOX[0]+8,HERO_BOX[1]+10,HERO_BOX[2]-8,HERO_BOX[3]-10)
+        hx,hy,w,h=fit_rectangle(SOURCE_SIZE,hero_inner)
+        x=round(hx+px*w/SOURCE_SIZE[0])
+        y=round(hy+py*h/SOURCE_SIZE[1])
+        self.assertGreaterEqual(size,38)
+        self.assertTrue(HERO_BOX[0]<=x<HERO_BOX[2])
+        self.assertTrue(HERO_BOX[1]<=y<HERO_BOX[3])
+        self.assertNotEqual(approach.getpixel((x,y)),travel.getpixel((x,y)))
+        self.assertGreater(travel.getpixel((x,y))[0],210)
+        self.assertEqual(travel.size,BASE_SIZE)
+
+    def test_camera_geometry_and_fallback_scale(self):
+        art=Image.new('RGB',SOURCE_SIZE,(95,75,65))
+        small=compose_hybrid_broadcast(art,(840,630))
+        self.assertEqual(small.size,(840,630))
+        self.assertLess(HERO_BOX[2],OVERHEAD_BOX[0])
+        self.assertEqual(OVERHEAD_BOX[2],PIT_BOX[2])
+        self.assertLess(OVERHEAD_BOX[3],PIT_BOX[1])
+        with self.assertRaises(ValueError):
+            fit_rectangle((0,0),HERO_BOX)
+        with self.assertRaises(ValueError):
+            compose_hybrid_broadcast(art,(0,0))
+
 
 if __name__=='__main__':
     unittest.main()
