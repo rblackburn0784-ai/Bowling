@@ -1,6 +1,16 @@
-# Gutter Saints Bowling Bot v2.8.5o — Left Hero Re-anchor & Victory Cheers
+# Gutter Saints Bowling Bot v2.8.5p — Calibrated Three-Camera Artwork
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5p — New Three-Camera PNG Calibration
+- Updated for the **three user-supplied PNGs**: `assets/lane/gutter_saints_empty.png` (941×1672), `assets/cameras/overhead_empty.png` (1254×1254), and `assets/cameras/pit_empty.png` (1254×1254).
+- **No gaps around the left lane:** corrected the actual hybrid panel geometry from 610×750 to **422×750**, a close match for the new photographic lane's portrait aspect ratio. The whole image fills the panel *edge-to-edge* without losing the neon sign, lane or bowler; no stretching/cropping is used. The combined frame is **850×750** (17:15), with GIF fallbacks of **765×675** and **680×600**.
+- The overhead/pit panels remain on the right. Each new square camera plate now fills its viewport via **centred crop-to-fill**, retaining natural proportions instead of incorrectly stretching a 1254px plate into an old 430×372 crop.
+- Recalibrated the ten real overhead pins in a **4-3-2-1 triangle** on the new square pin-deck photo. Recalibrated ten perspective-scaled vertical pins into the foreground pit camera. Both show falling pins according to the same event's `before/down/after` lists.
+- Fixed previously mixed-up overhead sprite **filenames** without modifying the PNGs: `pin_2.png` actually depicts pin 4; similarly other filenames are mapped to the pin numbers printed in red. The map is kept in `scene_renderer.OVERHEAD_ASSET_NUMBER`.
+- Left-side bowler, travelling ball and pinsetter locations from v2.8.5o are preserved; the change is to the image fitting and to the two right camera pin positions. Winner `cheer.png` and existing GIF timings stay unchanged.
+- New regression tests verify square-camera dimensions and anchors, all ten pins, pinfall consistency, exact filename paths and full-bleed left corners at every GIF size. **No scoring, physics, ranking or career adjustments.**
+- **Important installation:** GitHub stores the Python changes, but the three user-provided photo files are supplied in the companion `Gutter_Saints_v2.8.5p_New_Camera_Assets.zip`; extract it beside `bot.py` after pulling the new code. It replaces only those three PNGs and leaves your existing ball, pin and bowler sprite folders untouched.
 
 ## v2.8.5o — Left Hero Lane Re-anchor & Winner Cheer Sprites
 - Supports the user's updated **`assets/lane/gutter_saints_empty.png`**, which now depicts only the full-length bowling lane and front pinsetter. The left hero panel no longer draws the old top-down pin deck.
