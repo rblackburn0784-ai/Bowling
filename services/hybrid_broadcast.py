@@ -1,8 +1,8 @@
 """Hybrid Gutter Saints broadcast: full portrait lane left, two pin cameras right.
 
-The original 941x1672 scene is rendered once (including all animated sprites).
-This is ONLY a camera/layout compositor. It uses one shared source image so all
-three views always reflect the same before/down/after state and animation step.
+The new 941x1672 left lane is rendered separately from the two pin cameras.
+This is ONLY a camera/layout compositor. All camera overlays use one shared
+before/down/after event, even when the left lane art changes.
 
 Crucially: the portrait lane is letterboxed, never stretched or cropped.
 That keeps The Dude, Jesus, their ball releases and the entire house visible.
@@ -48,10 +48,11 @@ def _header(canvas,box,text):
     d.line((x1+2,y1+27,x2-3,y1+27),fill=GOLD,width=2)
     d.text((x1+10,y1+7),text,fill=PALE,font=ImageFont.load_default())
 
-def compose_hybrid_broadcast(source,output_size=BASE_SIZE):
+def compose_hybrid_broadcast(source,output_size=BASE_SIZE,cameras=None):
     """Composites live lane, overhead and vertical pit into one wide image.
 
-    source is already the fully rendered RGBA/RGB 941x1672 game scene.
+    source is the NEW left-lane game scene. cameras optionally contains
+    separately composed overhead/pit images from their original backgrounds.
     No game state, sprites, ball paths, RNG or pin geometry are mutated.
     """
     if source.size!=SOURCE_SIZE:
@@ -81,8 +82,17 @@ def compose_hybrid_broadcast(source,output_size=BASE_SIZE):
         d.rectangle((x1,y1,x2-1,y2-1),fill=(12,13,18),outline=GOLD,width=2)
     oh=(OVERHEAD_BOX[0]+6,OVERHEAD_BOX[1]+35,OVERHEAD_BOX[2]-6,OVERHEAD_BOX[3]-8)
     pit=(PIT_BOX[0]+6,PIT_BOX[1]+35,PIT_BOX[2]-6,PIT_BOX[3]-8)
-    _draw_camera(canvas,source,OVERHEAD_CROP,oh)
-    _draw_camera(canvas,source,PIT_CROP,pit)
+    # Keep the two historical right-hand camera backgrounds independent
+    # from the NEW hero artwork. The old crop fallback exists only for callers
+    # that directly use this compositor without supplying pin camera frames.
+    if cameras is not None:
+        overhead=cameras['overhead'].convert('RGB')
+        frontal=cameras['pit'].convert('RGB')
+        _draw_camera(canvas,overhead,(0,0,*overhead.size),oh)
+        _draw_camera(canvas,frontal,(0,0,*frontal.size),pit)
+    else:
+        _draw_camera(canvas,source,OVERHEAD_CROP,oh)
+        _draw_camera(canvas,source,PIT_CROP,pit)
     _header(canvas,OVERHEAD_BOX,'PIN DECK  |  OVERHEAD')
     _header(canvas,PIT_BOX,'PIN PIT  |  FRONT')
     # One uniform resize of the *whole finished layout* for GIF fallback
