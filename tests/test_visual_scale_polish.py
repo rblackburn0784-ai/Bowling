@@ -113,7 +113,7 @@ class VisualPolishTests(unittest.TestCase):
                 cameras=scene.right_cameras(event,stage,frame)
                 self.assertEqual(set(cameras),{'overhead','pit'})
         self.assertEqual(event,initial)
-        self.assertEqual(len(shot_animation.ANIMATION_SEQUENCE),21)
+        self.assertEqual(len(shot_animation.ANIMATION_SEQUENCE),23)
         self.assertEqual(hybrid_broadcast.BASE_SIZE,(850,750))
 
 
