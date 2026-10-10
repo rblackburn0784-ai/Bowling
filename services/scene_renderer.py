@@ -370,7 +370,7 @@ def render_scene_image(session,event=None,stage='leave',sprite_frame=None,ball_f
     # Hybrid: a complete, undistorted full-height lane is the hero panel,
     # with overhead / front-pin close-ups stacked alongside it.
     # Still and GIF frames share precisely the same presentation.
-    if output_size[0]/output_size[1]>=1.2:
+    if output_size[0]/output_size[1]>=1.1:
         return compose_hybrid_broadcast(im,output_size,
                                         cameras=right_cameras(event,stage,ball_frame))
     # Retain original portrait rendering for old callers/custom exports.
