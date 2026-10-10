@@ -72,7 +72,7 @@ class EncodedSecondBallTests(unittest.TestCase):
        patch.object(scene.bowler_sprites,'has_sequence',return_value=True), \
        patch.object(scene.bowler_sprites,'_image',return_value=dummy_person), \
        patch.object(scene.ball_sprites,'_load',return_value=bowling_ball):
-   frames=shot_animation._frames(session,event,(840,630))
+   frames=shot_animation._frames(session,event,(680,600))
   self.assertEqual(len(frames),len(ANIMATION_SEQUENCE))
   diff=lambda a,b: ImageChops.difference(a,b).getbbox() is not None
   self.assertTrue(diff(frames[5],frames[12]),'GIF source lacks visible ball movement')
@@ -89,13 +89,13 @@ class EncodedSecondBallTests(unittest.TestCase):
   # camera, not drawn across the top of the LEFT lane. Compare its actual
   # encoded GIF pixels rather than looking at the obsolete left coordinate.
   from services.hybrid_broadcast import OVERHEAD_BOX
-  sx=840/1000;sy=630/750
+  sx=680/850;sy=600/750
   box=tuple(round(value*(sx if i%2==0 else sy))
             for i,value in enumerate(OVERHEAD_BOX))
   a=first.crop(box);z=last.crop(box)
   self.assertIsNotNone(ImageChops.difference(a,z).getbbox(),
                        'Final GIF has no pin motion in overhead camera')
-  self.assertEqual(first.size,(840,630))
+  self.assertEqual(first.size,(680,600))
 
 
 class SinglePlayDeliveryTests(unittest.IsolatedAsyncioTestCase):
