@@ -34,8 +34,8 @@ class HeroReanchorTests(unittest.TestCase):
         self.assertNotEqual(result.getpixel((x,y-20)),(110,82,56))
         x,y=scene.OVERHEAD[7]
         self.assertEqual(result.getpixel((x,y)),(110,82,56))
-        self.assertLess(max(y for x,y in scene.HERO_FRONT.values()),550)
-        self.assertTrue(all(y>480 for x,y in scene.HERO_FRONT.values()))
+        self.assertLessEqual(max(y for x,y in scene.HERO_FRONT.values()),500)
+        self.assertTrue(all(y>=450 for x,y in scene.HERO_FRONT.values()))
 
     def test_ball_reaches_new_lane_pit_at_impact(self):
         # The shot's physics-derived x-path is unchanged; only its screen y
@@ -43,14 +43,14 @@ class HeroReanchorTests(unittest.TestCase):
         x0,y0,size0=scene._projected_ball(self.event,0)
         x1,y1,size1=scene._projected_ball(self.event,1)
         self.assertGreater(y0,1450)
-        self.assertTrue(500<=y1<=550)
+        self.assertTrue(485<=y1<=505)
         self.assertGreater(y0-y1,900)
         self.assertGreater(size0,size1)
         self.assertLess(abs(x1-scene.HERO_FRONT[1][0]),150)
 
     def test_right_camera_positions_do_not_follow_hero_change(self):
         self.assertEqual(scene.FRONT[1],(465,735))
-        self.assertEqual(scene.HERO_FRONT[1],(465,530))
+        self.assertEqual(scene.HERO_FRONT[1],(465,500))
         self.assertEqual(scene.OVERHEAD[1],(462,352))
         blank=Image.new('RGBA',scene.SIZE,(0,0,0,0))
         with patch.object(scene,'_pin',return_value=self.vert):
