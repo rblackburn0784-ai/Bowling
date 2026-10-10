@@ -24,6 +24,27 @@ def _image(key, frame):
     except (OSError, ValueError):
         return None
 
+@lru_cache(maxsize=8)
+def celebration_image(key):
+    """Optional victory pose from assets/sprites/<character>/cheer.png.
+
+    Missing artwork must not crash or block game completion. Keeps the
+    numbered five-frame approach animations entirely unchanged.
+    """
+    if key not in SUPPORTED:
+        return None
+    path=SPRITE_DIR/key/'cheer.png'
+    if not path.is_file():
+        return None
+    try:
+        with Image.open(path) as source:
+            rgba=source.convert('RGBA')
+            bbox=rgba.getbbox()
+            return rgba.crop(bbox) if bbox else None
+    except (OSError, ValueError):
+        return None
+
+
 def sprite_key(bowler):
     # Explicit player assignment takes precedence. Names are convenience defaults.
     explicit = getattr(bowler, 'sprite_key', None)
