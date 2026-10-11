@@ -1,6 +1,16 @@
-# Gutter Saints Bowling Bot v2.8.5q — Visual Position & Scale Polish
+# Gutter Saints Bowling Bot v2.8.5r — Rules & Second-Ball Reliability Audit
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5r — Standard Tenpin Scoring & Second-Ball Reliability Audit
+- Audited standard 10-frame scoring and 10th bonus rules against IBF/BTBA rules. Conventional completed games are now validated; impossible pin counts, illegal frame structures and extra bonus rolls are rejected rather than credited.
+- Corrected **player turns and lane pairs**: bowlers now keep the same turn and lane for both throws in a frame; lanes alternate only after completing a frame. All permitted tenth bonus throws stay with that bowler on the same lane.
+- Fixed 10th-frame second-ball numbering and spare targeting after **zero-pin opening rolls**, including `-/` and `X-/`. Corrected the `0/` scoreboard to show `-/` instead of `-X`.
+- Fixed tenth-frame bonus strike streaks, overlapping turkeys and bonus spare conversion counts, with appropriate split conversions in career statistics.
+- Added real event-to-GIF integration tests that create an actual second-ball leave and verify travel, breakpoint, impact, standing-pin state, pinfall frames and encoded GIF. Existing tests for other features and Python compilation remain active.
+- Independent regression suite checks standard scores (0/90/150/180/190/278/287/300), 10th rules and 30 deterministic two-bowler physics games.
+- **Detailed report:** [docs/bowling_rules_second_ball_audit_2026-10-11.md](docs/bowling_rules_second_ball_audit_2026-10-11.md), including limitations (decorative overhead pin layout, client-specific GIF playback, sanctioned fouls/dead balls and database completion idempotency).
+- Back up the SQLite database and **start a fresh match after updating**: previously saved mid-frame sessions used the former per-ball lane rotation and should not be resumed across this update.
 
 ## v2.8.5q — Visual Position & Scale Polish
 - Increased The Dude / Jesus approach and winner-cheer poses by approximately **12%** (760 to 851 master pixels tall). Their feet still finish at the original approach-floor anchors, so characters do not float between frames.
