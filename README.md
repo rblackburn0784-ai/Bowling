@@ -1,3 +1,7 @@
+# v2.8.5t — Pre-Release Integration & Visual Hardening
+
+See [v2.8.5t release notes](docs/v2.8.5t_pre_release_hardening.md) for competition integrity, atomic finalisation, **regulation overhead 4–3–2–1 pin layout**, asset requirements, install/rollback and tests. Production PNG assets must be copied from your existing installation; this source archive does not include them.
+
 # Gutter Saints Bowling Bot v2.8.5s — Tournament Integrity, Recovery & Reliability
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.

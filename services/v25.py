@@ -1,4 +1,4 @@
-import csv, io, json, shutil, time, base64, pickle, hashlib
+import csv, io, json, sqlite3, time, base64, pickle, hashlib, copy
 from datetime import datetime
 from pathlib import Path
 from config import DB_PATH, ROOT
@@ -9,7 +9,17 @@ BACKUP_DIR=ROOT/'data'/'backups'; EXPORT_DIR=ROOT/'data'/'exports'
 def backup_database(reason='change'):
     BACKUP_DIR.mkdir(parents=True,exist_ok=True)
     if not DB_PATH.exists(): return None
-    stamp=datetime.now().strftime('%Y%m%d_%H%M%S_%f');dest=BACKUP_DIR/f'gutter_saints_{stamp}_{reason.replace(" ","_")[:24]}.db';shutil.copy2(DB_PATH,dest); return dest
+    stamp=datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+    safe_reason=''.join(x for x in reason[:24] if x.isalnum() or x in '-_') or 'backup'
+    dest=BACKUP_DIR/f'gutter_saints_{stamp}_{safe_reason}.db'
+    # Online backups include uncheckpointed WAL pages, unlike shutil.copy2.
+    with sqlite3.connect(DB_PATH) as source, sqlite3.connect(dest) as target:
+        source.backup(target)
+        integrity=target.execute('PRAGMA quick_check').fetchone()[0]
+        if integrity!='ok':
+            dest.unlink(missing_ok=True)
+            raise RuntimeError(f'Invalid backup: {integrity}')
+    return dest
 def audit(actor_id,action,target_type='',target_id=None,detail=''):
     with connect() as c:c.execute('INSERT INTO audit_log(actor_id,action,target_type,target_id,detail) VALUES(?,?,?,?,?)',(actor_id,action,target_type,target_id,detail))
 def archetype(b):
@@ -27,17 +37,17 @@ def legacy_session_uid(d):
 def session_from_dict(d):
     bowlers=[]
     for x in d['players']:
-        bd=x['bowler']; team=bd.pop('team_name',None); b=Bowler(**bd); b.team_name=team; bowlers.append(b)
+        bd=dict(x['bowler']); team=bd.pop('team_name',None); b=Bowler(**bd); b.team_name=team; bowlers.append(b)
     lp=d.get('lane_pair',{});start=lp.get('left',{}).get('number',3);s=GameSession(bowlers,d['seed'],d['lane'],d.get('tournament_id'),d.get('match_id'),start,d.get('layout','broadcast'),d.get('season_id'),d.get('competition_id'),d.get('fixture_id'));s.turn=d['turn'];
     if d.get('rng_state'):s.rng.setstate(pickle.loads(base64.b64decode(d['rng_state'])))
-    s.persisted=d.get('persisted',False);s.session_uid=d.get('session_uid') or legacy_session_uid(d);s.friendly_challenge=d.get('friendly_challenge',False);s.last_attribute_changes=d.get('last_attribute_changes',[]);s.last_attribute_bowler_id=d.get('last_attribute_bowler_id');s.ball_count=d.get('ball_count',0);s.branding=d.get('branding');s.story_leader=d.get('story_leader');s.story_low=d.get('story_low',{});s.story_seen=set(d.get('story_seen',[]))
+    s.persisted=d.get('persisted',False);s.session_uid=d.get('session_uid') or legacy_session_uid(d);s.friendly_challenge=d.get('friendly_challenge',False);s.last_attribute_changes=copy.deepcopy(d.get('last_attribute_changes',[]));s.last_attribute_bowler_id=d.get('last_attribute_bowler_id');s.ball_count=d.get('ball_count',0);s.branding=d.get('branding');s.story_leader=d.get('story_leader');s.story_low=copy.deepcopy(d.get('story_low',{}));s.story_seen=set(d.get('story_seen',[]))
     for side in ('left','right'):
         src=lp.get(side,{})
         lane=getattr(s.lane_pair,side)
         lane.traffic=src.get('traffic',0);lane.oil=src.get('oil',lane.oil);lane.track=src.get('track',0.0);lane.inside=src.get('inside',0.0);lane.middle=src.get('middle',0.0);lane.outside=src.get('outside',0.0);lane.carrydown=src.get('carrydown',0.0)
     s.lane_pair.next_side={int(k):v for k,v in lp.get('next_side',{}).items()}
     for p,x in zip(s.players,d['players']):
-        p.frames=x['frames'];p.standing=set(x['standing']);p.frame=x['frame'];p.ball=x['ball'];p.split_leave=x.get('split_leave',False);p.split_frames=set(x.get('split_frames',[]));p.split_conversions=set(x.get('split_conversions',[]));p.strike_streak=x.get('strike_streak',0);p.max_strike_streak=x.get('max_strike_streak',0);p.form=x.get('form',0.0);p.special_conversions=set(x.get('special_conversions',[]));p.ball_key=x.get('ball_key','hybrid');p.shot_intent=x.get('shot_intent','auto');p.next_intent=x.get('next_intent');p.line_boards=x.get('line_boards',0);p.active_ball=x.get('active_ball')
+        p.frames=copy.deepcopy(x['frames']);p.standing=set(x['standing']);p.frame=x['frame'];p.ball=x['ball'];p.split_leave=x.get('split_leave',False);p.split_frames=set(x.get('split_frames',[]));p.split_conversions=set(x.get('split_conversions',[]));p.strike_streak=x.get('strike_streak',0);p.max_strike_streak=x.get('max_strike_streak',0);p.form=x.get('form',0.0);p.special_conversions=set(x.get('special_conversions',[]));p.ball_key=x.get('ball_key','hybrid');p.shot_intent=x.get('shot_intent','auto');p.next_intent=x.get('next_intent');p.line_boards=x.get('line_boards',0);p.active_ball=x.get('active_ball')
     return s
 def _career_checkpoint(db, bowler_id):
     """Remember the career evidence before one delivery, so Undo reverses it."""

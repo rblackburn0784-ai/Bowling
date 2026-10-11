@@ -1,5 +1,5 @@
 import sqlite3
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from config import DB_PATH
 
 SCHEMA = '''
@@ -42,10 +42,10 @@ def ensure_v22_schema():
         CREATE TABLE IF NOT EXISTS tournament_bowler_stats(tournament_id INTEGER NOT NULL,bowler_id INTEGER NOT NULL,games INTEGER DEFAULT 0,total_pins INTEGER DEFAULT 0,high_game INTEGER DEFAULT 0,strikes INTEGER DEFAULT 0,spares INTEGER DEFAULT 0,splits INTEGER DEFAULT 0,split_conversions INTEGER DEFAULT 0,turkeys INTEGER DEFAULT 0,clean_games INTEGER DEFAULT 0,PRIMARY KEY(tournament_id,bowler_id));
         ''')
 
-def record_completed_session(session,session_key='discord'):
+def record_completed_session(session,session_key='discord',db=None):
     from services.analytics import player_summary
-    ensure_v22_schema()
-    with connect() as c:
+    if db is None:ensure_v22_schema()
+    with (nullcontext(db) if db is not None else connect()) as c:
         uid=session.session_uid
         existing=c.execute('SELECT id FROM games WHERE session_uid=?',(uid,)).fetchone()
         if existing:
@@ -130,6 +130,10 @@ def ensure_v25_schema():
         gcols={r['name'] for r in c.execute('PRAGMA table_info(games)')}
         if 'session_uid' not in gcols:c.execute('ALTER TABLE games ADD COLUMN session_uid TEXT')
         c.execute('CREATE UNIQUE INDEX IF NOT EXISTS ix_games_session_uid ON games(session_uid)')
+        c.execute('CREATE TABLE IF NOT EXISTS exhibition_rewards(bowler_id INTEGER PRIMARY KEY,cosmetic_xp INTEGER NOT NULL DEFAULT 0,FOREIGN KEY(bowler_id) REFERENCES bowlers(id) ON DELETE CASCADE)')
+        c.execute('CREATE UNIQUE INDEX IF NOT EXISTS ix_fixture_game_id ON fixture_games(game_id) WHERE game_id IS NOT NULL')
+        fgcols={r['name'] for r in c.execute('PRAGMA table_info(fixture_games)')}
+        if 'rolloff_json' not in fgcols:c.execute('ALTER TABLE fixture_games ADD COLUMN rolloff_json TEXT')
         snapcols={r['name'] for r in c.execute('PRAGMA table_info(match_snapshots)')}
         if 'career_json' not in snapcols:c.execute('ALTER TABLE match_snapshots ADD COLUMN career_json TEXT')
         mcols={r['name'] for r in c.execute('PRAGMA table_info(tournament_matches)')}

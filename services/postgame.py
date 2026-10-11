@@ -6,6 +6,7 @@ Discord announcements are deliberately outside the transaction.
 """
 import json
 import random
+from contextlib import nullcontext
 
 from services.pin_engine import ALL,roll_pins
 from services.scoring import score_game
@@ -43,7 +44,7 @@ def tournament_rolloff(session, summaries, totals):
     raise RuntimeError('Roll-off tied 512 rounds; ask an administrator to resolve it.')
 
 
-def commit_postgame(session, game_id, summaries, winner, totals):
+def commit_postgame(session, game_id, summaries, winner, totals, db=None):
     """Return (achievement_cards, winner, rolloff_log, newly_committed).
 
     A crash between base-game recording and this commit can be retried safely.
@@ -53,7 +54,7 @@ def commit_postgame(session, game_id, summaries, winner, totals):
     if is_tourney and winner is None:
         winner,rolloff=tournament_rolloff(session,summaries,totals)
     achievement_cards=[]
-    with connect() as c:
+    with (nullcontext(db) if db is not None else connect()) as c:
         if c.execute('SELECT 1 FROM game_finalizations WHERE game_id=?',(game_id,)).fetchone():
             if is_tourney:
                 m=c.execute('SELECT winner_id,rolloff_json FROM tournament_matches WHERE id=?',(session.match_id,)).fetchone()
@@ -61,6 +62,16 @@ def commit_postgame(session, game_id, summaries, winner, totals):
                     t=c.execute('SELECT name FROM teams WHERE id=?',(m['winner_id'],)).fetchone()
                     winner=t['name'] if t else winner
                     rolloff=json.loads(m['rolloff_json']) if m['rolloff_json'] else []
+            if getattr(session,'fixture_id',None):
+                fg=c.execute('''SELECT f.rolloff_json,f.winner_id,co.entrant_type FROM fixture_games f
+                     JOIN fixtures fx ON fx.id=f.fixture_id
+                     JOIN competitions co ON co.id=fx.competition_id
+                     WHERE f.game_id=? AND f.fixture_id=?''',(game_id,session.fixture_id)).fetchone()
+                if fg and fg['rolloff_json']:
+                    rolloff=json.loads(fg['rolloff_json'])
+                    table='teams' if fg['entrant_type']=='team' else 'bowlers'
+                    row=c.execute(f'SELECT name FROM {table} WHERE id=?',(fg['winner_id'],)).fetchone()
+                    if row:winner=row['name']
             return [],winner,rolloff,False
         season=c.execute("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").fetchone()
         season_id=session.season_id or (season['id'] if season else None)
@@ -114,6 +125,38 @@ def commit_postgame(session, game_id, summaries, winner, totals):
             c.execute('INSERT INTO tournament_stories(tournament_id,match_id,kind,headline,detail) VALUES(?,?,?,?,?)',
                       (session.tournament_id,session.match_id,'result','Match decided',detail))
             _advance_byes(c,session.tournament_id)
+        if getattr(session,'fixture_id',None):
+            from services.league_engine import record_fixture_game_in_transaction
+            fixture=record_fixture_game_in_transaction(c,session,game_id,totals,summaries)
+            if fixture['rolloff']:
+                winner=fixture['winner']
+                rolloff=fixture['rolloff']
+            # The result recorder owns fixture advancement in the same transaction.
         # LAST statement: if any effect fails, all writes above roll back.
         c.execute('INSERT INTO game_finalizations(game_id) VALUES(?)',(game_id,))
     return achievement_cards,winner,rolloff,True
+
+
+def finalize_completed_session(session, session_key, summaries, winner, totals):
+    """Atomic base game + career + fixture + tournament completion.
+
+    A crash or constraint violation rolls ALL result/standings/stat changes back.
+    The session UID permits safe retries, including a pre-s partially saved game.
+    """
+    from storage.database import record_completed_session
+    from services.analytics import player_summary
+    if not session.complete:
+        raise ValueError('Incomplete session cannot be finalised.')
+    # Never change an existing session's publication state on a failed commit.
+    was_persisted=session.persisted
+    try:
+        with connect() as c:
+            gid=record_completed_session(session,session_key,db=c)
+            if gid is None:raise RuntimeError('Cannot resolve completed game')
+            cards,winner,rounds,fresh=commit_postgame(
+                session,gid,summaries,winner,totals,db=c)
+        session.persisted=True
+        return gid,cards,winner,rounds,fresh
+    except Exception:
+        session.persisted=was_persisted
+        raise

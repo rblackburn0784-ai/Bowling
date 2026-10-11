@@ -75,7 +75,9 @@ class GameCompletionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(db.execute('SELECT COUNT(*) FROM game_results').fetchone()[0],0)
             self.assertEqual(db.execute('SELECT COUNT(*) FROM game_history').fetchone()[0],0)
             result=db.execute('SELECT COUNT(*),SUM(xp) FROM bowler_progression').fetchone()
-            self.assertEqual(tuple(result),(2,2))
+            self.assertEqual(tuple(result),(0,None))
+            cosmetic=db.execute('SELECT COUNT(*),SUM(cosmetic_xp) FROM exhibition_rewards').fetchone()
+            self.assertEqual(tuple(cosmetic),(2,2))
         self.assertIsNone(SESSIONS.get(1551))
 
 if __name__=='__main__':

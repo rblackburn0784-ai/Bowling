@@ -64,7 +64,7 @@ class League(commands.Cog):
   from services.state import SESSIONS
   from services.v271 import bowler_loadout
   bowlers=[]
-  hn='Home' if f['entrant_type']=='individual' else None;an='Away' if f['entrant_type']=='individual' else None
+  hn=home[0]['name'] if f['entrant_type']=='individual' else None;an=away[0]['name'] if f['entrant_type']=='individual' else None
   if f['entrant_type']=='team':
    with connect() as c2:
     hn=c2.execute('SELECT name FROM teams WHERE id=?',(f['home_id'],)).fetchone()['name'];an=c2.execute('SELECT name FROM teams WHERE id=?',(f['away_id'],)).fetchone()['name']

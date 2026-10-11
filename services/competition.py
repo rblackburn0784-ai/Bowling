@@ -22,6 +22,8 @@ def start_tournament(name):
     with connect() as c:
         t=c.execute('SELECT * FROM tournaments WHERE name=? COLLATE NOCASE',(name,)).fetchone()
         if not t:return None,'Tournament not found.'
+        if t['status']!='registration':return None,'Tournament already started or completed; its bracket is protected.'
+        if c.execute('SELECT 1 FROM tournament_matches WHERE tournament_id=? LIMIT 1',(t['id'],)).fetchone():return None,'Existing bracket detected; refusing to reset results.'
         entries=c.execute('SELECT e.*,tm.name FROM tournament_entries e JOIN teams tm ON tm.id=e.team_id WHERE tournament_id=? ORDER BY CASE WHEN seed IS NULL THEN 999999 ELSE seed END,tm.name',(t['id'],)).fetchall()
         if len(entries)<2:return None,'At least two teams are required.'
         n=1
@@ -31,7 +33,7 @@ def start_tournament(name):
         c.execute("UPDATE tournaments SET status='active' WHERE id=?",(t['id'],))
         for m,(a,b) in enumerate(pairs,1):
             winner=a if a and not b else b if b and not a else None; status='complete' if winner else 'pending'
-            c.execute('INSERT OR REPLACE INTO tournament_matches(tournament_id,round_no,match_no,team_a_id,team_b_id,winner_id,status) VALUES(?,?,?,?,?,?,?)',(t['id'],1,m,a,b,winner,status))
+            c.execute('INSERT INTO tournament_matches(tournament_id,round_no,match_no,team_a_id,team_b_id,winner_id,status) VALUES(?,?,?,?,?,?,?)',(t['id'],1,m,a,b,winner,status))
         _advance_byes(c,t['id'])
         return t['id'],None
 
@@ -48,14 +50,23 @@ def _advance_byes(c,tid):
             c.execute('INSERT OR IGNORE INTO tournament_matches(tournament_id,round_no,match_no,team_a_id,team_b_id,winner_id,status) VALUES(?,?,?,?,?,?,?)',(tid,r+1,i//2+1,a,b,w,st))
 
 def report_match(tname,round_no,match_no,score_a,score_b):
-    if score_a==score_b:return False,'Tournament matches cannot end tied.'
+    if type(score_a) is not int or type(score_b) is not int or min(score_a,score_b)<0:
+        return False,'Scores must be non-negative whole numbers.'
+    if score_a==score_b:return False,'Tournament matches require a winner; use a roll-off.'
     with connect() as c:
-        t=c.execute('SELECT id FROM tournaments WHERE name=? COLLATE NOCASE',(tname,)).fetchone()
+        t=c.execute('SELECT id,status FROM tournaments WHERE name=? COLLATE NOCASE',(tname,)).fetchone()
         if not t:return False,'Tournament not found.'
+        if t['status']!='active':return False,'Tournament is not active.'
         m=c.execute('SELECT * FROM tournament_matches WHERE tournament_id=? AND round_no=? AND match_no=?',(t['id'],round_no,match_no)).fetchone()
         if not m or not m['team_a_id'] or not m['team_b_id']:return False,'Playable match not found.'
+        if m['status']!='pending':return False,'Match has already been completed; use the audited correction process.'
+        for team_id,score in ((m['team_a_id'],score_a),(m['team_b_id'],score_b)):
+            roster=c.execute('SELECT COUNT(*) n FROM team_members WHERE team_id=?',(team_id,)).fetchone()['n']
+            if score>300*max(1,roster):return False,'Team score exceeds 300 per registered bowler.'
         w=m['team_a_id'] if score_a>score_b else m['team_b_id']
-        c.execute("UPDATE tournament_matches SET score_a=?,score_b=?,winner_id=?,status='complete' WHERE id=?",(score_a,score_b,w,m['id']));_advance_byes(c,t['id']);return True,None
+        c.execute("UPDATE tournament_matches SET score_a=?,score_b=?,winner_id=?,status='complete' WHERE id=?",(score_a,score_b,w,m['id']))
+        _advance_byes(c,t['id'])
+        return True,None
 
 def bracket(name):
     with connect() as c:

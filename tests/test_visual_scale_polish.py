@@ -68,15 +68,16 @@ class VisualPolishTests(unittest.TestCase):
         self.assertGreater(tip[1],self.pin_front.height)
         self.assertGreater(fallen[0],round(self.pin_fallen.width*1.12))
 
-    def test_overhead_markers_match_exact_photo_circle_centres(self):
-        # Measurements from the new 1254x1254 deck background. The photo's
-        # ten circles are decorative (5-3-2) rather than regulation 4-3-2-1.
-        circles={(281,386),(470,386),(628,386),(805,386),(974,386),
-                 (418,602),(621,599),(837,601),(515,833),(735,833)}
-        located={(round(x*1254),round(y*1254))
-                 for x,y in scene.CAMERA_OVERHEAD.values()}
-        self.assertEqual(located,circles)
-        self.assertEqual(set(scene.CAMERA_OVERHEAD),set(range(1,11)))
+    def test_overhead_regulation_four_three_two_one_rack(self):
+        # v2.8.5t: pin 1 closest to bowler; rows 2/3, 4/5/6 and 7/8/9/10.
+        rows={}
+        for pin,(u,v) in scene.CAMERA_OVERHEAD.items():
+            self.assertTrue(0 < u < 1 and 0 < v < 1)
+            rows.setdefault(v,[]).append(pin)
+        actual=[sorted(pins) for _,pins in sorted(rows.items())]
+        self.assertEqual(actual,[[7,8,9,10],[4,5,6],[2,3],[1]])
+        self.assertEqual(len(set(scene.CAMERA_OVERHEAD.values())),10)
+        self.assertAlmostEqual(scene.CAMERA_OVERHEAD[1][0],.5)
 
     def test_camera_scales_with_proper_anchor_and_larger_fallen_pin(self):
         def fake_pin(view,name):

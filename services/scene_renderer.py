@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 import logging
 
-from PIL import Image, ImageDraw, ImageEnhance
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
 from services import bowler_sprites, ball_sprites
 from services.hybrid_broadcast import compose_hybrid_broadcast
 
@@ -82,6 +82,61 @@ def _pin(view,name):
         logging.getLogger(__name__).warning('Cannot load pin sprite %s',path)
         return None
 
+# Circle centres baked into the older overhead_empty.png (5-3-2 artwork).
+# The art itself is unchanged; only the in-memory camera plate is corrected.
+LEGACY_OVERHEAD_CIRCLES=(
+    (281,386),(470,386),(628,386),(805,386),(974,386),
+    (418,602),(621,599),(837,601),(515,833),(735,833),
+)
+
+def _regulation_overhead_plate(original):
+    """Heal the older 5-3-2 *painted* pin marks and draw 4-3-2-1 spots.
+
+    Only activates if seven or more original positions are visibly dark relative
+    to surrounding wood, so genuine clean decks are passed through unchanged.
+    The replacement pixels are sampled from nearby timber, avoiding hard circles.
+    """
+    if not (original.width>=600 and original.height>=600):
+        return original
+    sx=original.width/1254;sy=original.height/1254
+    image=original.convert('RGBA')
+    rgb=image.convert('RGB')
+    def lum(x,y):
+        r,g,b=rgb.getpixel((max(0,min(image.width-1,round(x))),
+                            max(0,min(image.height-1,round(y)))))
+        return .2126*r+.7152*g+.0722*b
+    old=[]
+    for x,y in LEGACY_OVERHEAD_CIRCLES:
+        px,py=x*sx,y*sy
+        local=sum(lum(px+36*sx*dx,py+36*sy*dy)
+                  for dx,dy in ((1,0),(-1,0),(0,1),(0,-1)))/4
+        if local>25 and lum(px,py)<local*.72:
+            old.append((px,py))
+    if len(old)<7:
+        return original
+    healed=image.copy()
+    radius=max(14,round(28*min(sx,sy)))
+    for px,py in old:
+        x=round(px);y=round(py)
+        left=max(0,x-radius);top=max(0,y-radius)
+        right=min(image.width,x+radius+1);bottom=min(image.height,y+radius+1)
+        width=right-left;height=bottom-top
+        # Clone a neighbouring *unmarked* stretch of the same timber strip.
+        offset=round(55*sy)
+        donor_top=max(0,min(image.height-height,top+offset))
+        donor=image.crop((left,donor_top,left+width,donor_top+height))
+        mask=Image.new('L',(width,height));d=ImageDraw.Draw(mask)
+        d.ellipse((2,2,width-3,height-3),fill=255)
+        mask=mask.filter(ImageFilter.GaussianBlur(max(2,round(5*min(sx,sy)))))
+        healed.paste(donor,(left,top),mask)
+    d=ImageDraw.Draw(healed,'RGBA')
+    for u,v in CAMERA_OVERHEAD.values():
+        x=round(u*image.width);y=round(v*image.height)
+        r=max(6,round(13*min(sx,sy)))
+        d.ellipse((x-r-2,y-r+1,x+r+2,y+r+5),fill=(15,10,8,100))
+        d.ellipse((x-r,y-r,x+r,y+r),fill=(21,17,13,185))
+    return healed
+
 @lru_cache(maxsize=2)
 def _camera_background(name):
     """User-supplied square camera backgrounds, independent of left lane."""
@@ -90,7 +145,8 @@ def _camera_background(name):
     if path.is_file():
         try:
             with Image.open(path) as original:
-                return original.convert('RGBA')
+                plate=original.convert('RGBA')
+                return _regulation_overhead_plate(plate) if name=='overhead' else plate
         except (OSError,ValueError):
             logging.getLogger(__name__).warning('Invalid camera artwork %s',path)
     # Graceful visual fallback with visible pins, not an exception.
@@ -100,18 +156,17 @@ def _camera_background(name):
     return fallback
 
 
-# Positions measured on the provided 1254x1254 overhead plate.
-# Its large locator circles follow a decorative 5-3-2 arrangement, not a
-# regulation ten-pin rack. Keep engine pin IDs but align each sprite with a
-# unique black marker on THIS artwork. No bowling logic depends on these.
+# Regulation ten-pin rack as seen from ABOVE, looking toward the headpin.
+# Back row: 7, 8, 9, 10. Next: 4, 5, 6. Next: 2, 3. Near: 1.
+# Coordinates are independent of (and cannot repair) painted-in circles in
+# older 5-3-2 overhead_empty.png plates. Use the clean 4-3-2-1 camera plate.
 CAMERA_OVERHEAD={
-  7:(281/1254,386/1254),8:(470/1254,386/1254),
-  6:(628/1254,386/1254),9:(805/1254,386/1254),
-  10:(974/1254,386/1254),
-  4:(418/1254,602/1254),5:(621/1254,599/1254),
-  3:(837/1254,601/1254),
-  2:(515/1254,833/1254),1:(735/1254,833/1254),
+  7:(.290,.300), 8:(.430,.300), 9:(.570,.300), 10:(.710,.300),
+  4:(.360,.423), 5:(.500,.423), 6:(.640,.423),
+  2:(.430,.546), 3:(.570,.546),
+  1:(.500,.669),
 }
+
 CAMERA_PIT={
   7:(.365,.718),8:(.455,.718),9:(.545,.718),10:(.635,.718),
   4:(.410,.748),5:(.50,.748),6:(.590,.748),

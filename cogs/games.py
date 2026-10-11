@@ -19,7 +19,7 @@ from ui.embeds import scoreboard_embed
 from services.v271 import bowler_loadout,tournament_presentation
 from services.career import delivery_growth,add_timeline_event
 from services.broadcast_director import match_context,persist_story,story_call,match_story_summary
-from services.postgame import commit_postgame
+from services.postgame import commit_postgame,finalize_completed_session
 from services.victory_presentation import winning_bowler
 from services.scene_renderer import render_scene as render_victory_scene
 
@@ -408,8 +408,9 @@ class Games(commands.Cog):
     for p in s.players:
      granted=db.execute("INSERT OR IGNORE INTO friendly_xp_daily(bowler_id,day) VALUES(?,date('now'))",(p.bowler.id,)).rowcount
      if granted:
-      db.execute('INSERT OR IGNORE INTO bowler_progression(bowler_id) VALUES(?)',(p.bowler.id,))
-      db.execute('UPDATE bowler_progression SET xp=xp+1 WHERE bowler_id=?',(p.bowler.id,))
+      # Exhibition rewards are recorded separately and cannot trigger rank XP.
+      db.execute('INSERT OR IGNORE INTO exhibition_rewards(bowler_id) VALUES(?)',(p.bowler.id,))
+      db.execute('UPDATE exhibition_rewards SET cosmetic_xp=cosmetic_xp+1 WHERE bowler_id=?',(p.bowler.id,))
    await ch.send('🤝 **FRIENDLY EXHIBITION COMPLETE** — No league points, rank changes, career attribute growth or achievements. Each bowler can earn at most **1 non-ranking XP per UTC day** from friendly challenges.')
    await ch.send(embed=scoreboard_embed(s))
    s.persisted=True
@@ -424,16 +425,14 @@ class Games(commands.Cog):
                    key=lambda pair:pair[1]['score'],reverse=True)
   if not summaries:
    raise ValueError('Cannot finalise a game without bowlers')
-  gid=record_completed_session(s,key)
-  if gid is None:
-   raise RuntimeError('Completed game id could not be resolved')
   totals=s.team_totals()
   winner=max(totals,key=totals.get) if len(totals)>1 and len(set(totals.values()))>1 else None
-  if s.tournament_id and s.match_id:
-   backup_database('auto_tournament_result')
-  # Complete ALL career/history/tournament writes transactionally BEFORE
-  # sending anything to Discord. Retrying the same session_uid is safe.
-  achievement_cards,winner,rolloff,newly_committed=commit_postgame(s,gid,summaries,winner,totals)
+  if (s.tournament_id and s.match_id) or getattr(s,'fixture_id',None):
+   backup_database('auto_competition_result')
+  # Single SQLite transaction: game row, career XP, tournament bracket,
+  # league fixture, series, standings and finalisation idempotency marker.
+  gid,achievement_cards,winner,rolloff,newly_committed=finalize_completed_session(
+   s,key,summaries,winner,totals)
   high=summaries[0]
   awards=[f"👑 **High Game:** {high[0].bowler.name} — {high[1]['score']}"]
   clean=[p.bowler.name for p,x in summaries if x['clean']]
@@ -453,13 +452,18 @@ class Games(commands.Cog):
   for name,title,detail in achievement_cards:
    e=discord.Embed(title=f'🏅 ACHIEVEMENT UNLOCKED — {title}',description=f'**{name}**\n{detail}',colour=discord.Colour.gold())
    await ch.send(embed=e);await send_media(ch,'award')
-  if s.tournament_id and s.match_id and len(totals)==2:
+  if (s.tournament_id and s.match_id or getattr(s,'fixture_id',None)) and len(totals)==2:
    if rolloff:
     names=sorted(totals)
     display=' | '.join(f"R{x['round']}: {x['pins'][names[0]]}-{x['pins'][names[1]]}" for x in rolloff)
     await ch.send(f'🎳 **SUDDEN-DEATH ROLL-OFF:** {names[0]} vs {names[1]} — {display}\n🏆 **{winner}** takes the tied match.')
-   await ch.send(f'🏆 **TOURNAMENT UPDATE:** {winner} advances automatically.')
-   if newly_committed:
+   if s.tournament_id and s.match_id:
+    await ch.send(f'🏆 **TOURNAMENT UPDATE:** {winner} advances automatically.')
+   elif getattr(s,'fixture_id',None):
+    with connect() as db:
+     fx=db.execute('SELECT status FROM fixtures WHERE id=?',(s.fixture_id,)).fetchone()
+    if fx:await ch.send(f'📊 **COMPETITION FIXTURE #{s.fixture_id}:** {fx["status"].title()} — result safely recorded.')
+   if newly_committed and s.tournament_id and s.match_id:
     from services.gazette import build_gazette,format_gazette
     g=build_gazette(s.tournament_id)
     if g:await ch.send(format_gazette(g))

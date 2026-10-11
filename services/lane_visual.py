@@ -8,14 +8,23 @@ PIN_POS={7:(235,137),8:(305,137),9:(375,137),10:(445,137),4:(270,181),5:(340,181
 def _font(size=22,bold=False):
     try:return ImageFont.truetype('arialbd.ttf' if bold else 'arial.ttf',size)
     except Exception:return ImageFont.load_default()
-def _base(session,event,stage):
+def _base(session,event,stage,impact_frame=0):
     w,h=680,760;im=Image.new('RGB',(w,h),(12,14,24));d=ImageDraw.Draw(im)
     d.rounded_rectangle((28,25,w-28,h-25),24,fill=(24,27,39),outline=(211,168,64),width=4)
     brand=getattr(session,'branding',None) or 'THE GUTTER SAINTS';d.text((w//2,50),brand[:38],font=_font(29,True),anchor='ma',fill=(245,226,172))
     lane_no=event.get('lane_no','—') if event else '—';oil=int((event.get('oil',.54) if event else .54)*100)
     d.text((w//2,84),f"LANE {lane_no} • {session.lane.upper()} • OIL {oil}%",font=_font(17),anchor='ma',fill=(205,205,215))
     d.rounded_rectangle((185,120,495,310),20,fill=(238,226,194),outline=(120,90,55),width=3)
-    standing=set((event['before'] if stage in ('approach','path','breakpoint') else event['after']) if event else session.current().standing);before=set(event['before'] if event else standing)
+    before=set(event['before']) if event else set(session.current().standing)
+    if event and stage in ('approach','path','breakpoint'):
+        standing=set(before)
+    elif event and stage=='impact':
+        # impact_frame 1 holds the intact rack; frames 2-5 progressively fall.
+        down=sorted(set(event.get('down',[])) & before)
+        count=round(len(down)*max(0,min(1,(impact_frame-1)/4)))
+        standing=before-set(down[:count])
+    else:
+        standing=set(event['after']) if event else set(before)
     for p,(x,y) in PIN_POS.items():
         if p in standing:
             d.ellipse((x-16,y-16,x+16,y+16),fill=(250,250,247),outline=(145,30,35),width=3);d.text((x,y),str(p),font=_font(14,True),anchor='mm',fill=(25,25,25))
@@ -35,7 +44,7 @@ def lane_card(session,event=None,stage='leave',sprite_frame=None,ball_frame=0,ba
     # New cinematic art is optional: missing assets preserve the existing lane.
     if scene_renderer.available():
         return scene_renderer.render_scene(session,event,stage,sprite_frame,ball_frame,ball_progress)
-    im,d=_base(session,event,stage)
+    im,d=_base(session,event,stage,ball_frame)
     if event:
         active=next((p.bowler for p in session.players if p.bowler.id==event.get('bowler_id')),None)
         drawn=bool(stage=='approach' and active and sprite_frame and draw_approach(im,active,sprite_frame))

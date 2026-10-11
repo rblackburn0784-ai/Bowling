@@ -1,4 +1,4 @@
-import itertools, math
+import itertools, math, json
 from storage.database import connect
 
 STATES=('draft','registration','locked','active','completed','archived')
@@ -105,26 +105,125 @@ def generate_schedule(cid):
   for e in ids:c.execute('INSERT OR IGNORE INTO competition_standings(competition_id,entrant_id) VALUES(?,?)',(cid,e))
  return True,None
 
-def report_fixture(fid,home_score,away_score):
- with connect() as c:
-  f=c.execute('SELECT f.*,co.* FROM fixtures f JOIN competitions co ON co.id=f.competition_id WHERE f.id=?',(fid,)).fetchone()
-  if not f or f['state']!='active' or f['status']=='complete':return False,'Fixture is not playable.'
-  if f['away_id'] is None:return False,'Qualifying fixtures require game-result integration.'
-  if f['status'] not in ('scheduled','playing'):return False,'Fixture is not playable.'
-  winner=f['home_id'] if home_score>away_score else f['away_id'] if away_score>home_score else None
-  c.execute('UPDATE fixtures SET home_score=?,away_score=?,winner_id=?,status="complete",played_at=CURRENT_TIMESTAMP WHERE id=?',(home_score,away_score,winner,fid))
-  hp=f['points_win'] if winner==f['home_id'] else f['points_draw'] if winner is None else f['points_loss'];ap=f['points_win'] if winner==f['away_id'] else f['points_draw'] if winner is None else f['points_loss']
-  for eid,pf,pa,pts,w,d,l in ((f['home_id'],home_score,away_score,hp,int(winner==f['home_id']),int(winner is None),int(winner==f['away_id'])),(f['away_id'],away_score,home_score,ap,int(winner==f['away_id']),int(winner is None),int(winner==f['home_id']))):
-   c.execute('UPDATE competition_standings SET played=played+1,wins=wins+?,draws=draws+?,losses=losses+?,pins_for=pins_for+?,pins_against=pins_against+?,points=points+? WHERE competition_id=? AND entrant_id=?',(w,d,l,pf,pa,pts,f['competition_id'],eid))
- if f['series_best_of']<=1:progress_fixture(fid)
- return True,None
+def _entrant_score_limit(c, f, entrant_id):
+    if f['entrant_type']=='individual':return 300
+    # Locked team rosters use registered, non-substitute members.
+    n=c.execute('SELECT COUNT(*) n FROM competition_rosters WHERE competition_id=? AND team_id=? AND is_substitute=0',
+                (f['competition_id'],entrant_id)).fetchone()['n']
+    return 300*max(1,n)
 
-def standings(cid):
- with connect() as c:
-  x=c.execute('SELECT entrant_type FROM competitions WHERE id=?',(cid,)).fetchone()
-  if not x:return []
-  table='teams' if x['entrant_type']=='team' else 'bowlers'
-  return c.execute(f'''SELECT s.*,e.name,(s.pins_for-s.pins_against) differential FROM competition_standings s JOIN {table} e ON e.id=s.entrant_id WHERE s.competition_id=? ORDER BY points DESC,differential DESC,pins_for DESC,e.name''',(cid,)).fetchall()
+
+def _record_fixture_game(c, fid, home_score, away_score, game_id=None, winner_id=None, rolloff=None):
+    # Atomic fixture result/series/standings; caller owns the transaction.
+    f=c.execute('''SELECT f.*,co.state,co.format,co.entrant_type,co.points_win,co.points_draw,co.points_loss
+        FROM fixtures f JOIN competitions co ON co.id=f.competition_id WHERE f.id=?''',(fid,)).fetchone()
+    if not f or f['state']!='active' or f['status'] not in ('scheduled','playing'):
+        raise ValueError('Fixture is not playable or was already completed.')
+    if f['home_id'] is None or f['away_id'] is None:
+        raise ValueError('Fixture requires two valid entrants.')
+    for eid,score in ((f['home_id'],home_score),(f['away_id'],away_score)):
+        if type(score) is not int or not 0<=score<=_entrant_score_limit(c,f,eid):
+            raise ValueError('Invalid fixture score for registered roster.')
+    stage=c.execute('SELECT format FROM competition_stages WHERE id=?',(f['stage_id'],)).fetchone()
+    knockout=bool(stage and stage['format'] in ('single_elimination','stepladder','double_elimination'))
+    if winner_id is not None and winner_id not in (f['home_id'],f['away_id']):
+        raise ValueError('Fixture tiebreak winner must be a registered opponent.')
+    if home_score!=away_score:
+        natural=f['home_id'] if home_score>away_score else f['away_id']
+        if winner_id is not None and winner_id!=natural:
+            raise ValueError('Fixture winner contradicts tenpin totals.')
+        winner_id=natural
+    elif knockout and winner_id is None:
+        raise ValueError('Elimination fixture tied; a roll-off is required.')
+    elif home_score==away_score and not knockout:
+        winner_id=None  # Round-robin draws are allowed.
+    if game_id is not None and c.execute('SELECT 1 FROM fixture_games WHERE game_id=?',(game_id,)).fetchone():
+        raise ValueError('Game was already recorded against a fixture.')
+    n=c.execute('SELECT COUNT(*) n FROM fixture_games WHERE fixture_id=?',(fid,)).fetchone()['n']+1
+    c.execute('''INSERT INTO fixture_games(fixture_id,game_no,game_id,home_score,away_score,winner_id,status,rolloff_json)
+                 VALUES(?,?,?,?,?,?,'complete',?)''',(fid,n,game_id,home_score,away_score,winner_id,json.dumps(rolloff) if rolloff else None))
+    wins={r['winner_id']:r['n'] for r in c.execute('''SELECT winner_id,COUNT(*) n FROM fixture_games
+                    WHERE fixture_id=? AND winner_id IS NOT NULL GROUP BY winner_id''',(fid,))}
+    required=f['series_best_of']//2+1
+    series_winner=next((eid for eid,w in wins.items() if w>=required),None)
+    if required>1 and series_winner is None:
+        # Best-of remains playing until one participant reaches the majority.
+        c.execute("UPDATE fixtures SET status='scheduled' WHERE id=?",(fid,))
+        return False,None
+    final_winner=series_winner if required>1 else winner_id
+    aggregate=c.execute('SELECT SUM(home_score) h,SUM(away_score) a FROM fixture_games WHERE fixture_id=?',(fid,)).fetchone()
+    c.execute('''UPDATE fixtures SET home_score=?,away_score=?,winner_id=?,status='complete',played_at=CURRENT_TIMESTAMP
+                 WHERE id=?''',(aggregate['h'],aggregate['a'],final_winner,fid))
+    hp=f['points_win'] if final_winner==f['home_id'] else f['points_draw'] if final_winner is None else f['points_loss']
+    ap=f['points_win'] if final_winner==f['away_id'] else f['points_draw'] if final_winner is None else f['points_loss']
+    for eid,pf,pa,pts,w,d,l in (
+        (f['home_id'],aggregate['h'],aggregate['a'],hp,int(final_winner==f['home_id']),int(final_winner is None),int(final_winner==f['away_id'])),
+        (f['away_id'],aggregate['a'],aggregate['h'],ap,int(final_winner==f['away_id']),int(final_winner is None),int(final_winner==f['home_id']))):
+        c.execute('INSERT OR IGNORE INTO competition_standings(competition_id,entrant_id) VALUES(?,?)',(f['competition_id'],eid))
+        c.execute('''UPDATE competition_standings SET played=played+1,wins=wins+?,draws=draws+?,losses=losses+?,
+                     pins_for=pins_for+?,pins_against=pins_against+?,points=points+?
+                     WHERE competition_id=? AND entrant_id=?''',(w,d,l,pf,pa,pts,f['competition_id'],eid))
+    _progress_fixture(c,fid)
+    return True,final_winner
+
+
+def record_fixture_game_in_transaction(c,session,game_id,totals,summaries):
+    # Bind the actual session and both entrants to its competition fixture.
+    f=c.execute('''SELECT f.*,co.entrant_type,co.state FROM fixtures f
+         JOIN competitions co ON co.id=f.competition_id WHERE f.id=?''',(session.fixture_id,)).fetchone()
+    if not f or f['competition_id']!=session.competition_id:
+        raise ValueError('Session does not belong to this fixture.')
+    table='teams' if f['entrant_type']=='team' else 'bowlers'
+    expected={}
+    for side in ('home','away'):
+        eid=f[f'{side}_id']
+        r=c.execute(f'SELECT name FROM {table} WHERE id=?',(eid,)).fetchone()
+        if not r:raise ValueError('Registered fixture entrant is missing.')
+        expected[r['name']]=eid
+    if set(totals)!=set(expected):
+        raise ValueError('Played team identities do not match scheduled fixture.')
+    for player,_ in summaries:
+        name=player.bowler.team_name
+        if name not in expected:raise ValueError('Unregistered bowler team in fixture.')
+        if f['entrant_type']=='individual' and player.bowler.id!=expected[name]:
+            raise ValueError('Individual competitor is not the scheduled bowler.')
+        if f['entrant_type']=='team' and not c.execute('''SELECT 1 FROM competition_rosters
+                      WHERE competition_id=? AND team_id=? AND bowler_id=?''',
+                      (f['competition_id'],expected[name],player.bowler.id)).fetchone():
+            raise ValueError('Bowler is not on the locked competition roster.')
+    hname=next(name for name,eid in expected.items() if eid==f['home_id'])
+    aname=next(name for name,eid in expected.items() if eid==f['away_id'])
+    hs,as_=totals[hname],totals[aname]
+    winner=None
+    chosen=None
+    rounds=[]
+    stage=c.execute('SELECT format FROM competition_stages WHERE id=?',(f['stage_id'],)).fetchone()
+    if hs==as_ and stage and stage['format'] in ('single_elimination','stepladder','double_elimination'):
+        from services.postgame import tournament_rolloff
+        chosen,rounds=tournament_rolloff(session,summaries,totals)
+        winner=expected[chosen]
+    completed,_=_record_fixture_game(c,session.fixture_id,hs,as_,game_id,winner,rounds)
+    return {'completed':completed,'rolloff':rounds,'winner':chosen}
+
+
+def report_fixture(fid,home_score,away_score):
+    try:
+        with connect() as c:
+            _record_fixture_game(c,fid,home_score,away_score)
+        return True,None
+    except ValueError as e:
+        return False,str(e)
+
+
+def standings(cid,db=None):
+    from contextlib import nullcontext
+    with nullcontext(db) if db is not None else connect() as c:
+        x=c.execute('SELECT entrant_type FROM competitions WHERE id=?',(cid,)).fetchone()
+        if not x:return []
+        table='teams' if x['entrant_type']=='team' else 'bowlers'
+        return c.execute(f'''SELECT s.*,e.name,(s.pins_for-s.pins_against) differential FROM competition_standings s
+            JOIN {table} e ON e.id=s.entrant_id WHERE s.competition_id=?
+            ORDER BY points DESC,differential DESC,pins_for DESC,e.name''',(cid,)).fetchall()
 
 def season_leaders(season_id):
  with connect() as c:return c.execute('''SELECT b.name,s.*,s.total_pins*1.0/NULLIF(s.games,0) average FROM season_bowler_stats s JOIN bowlers b ON b.id=s.bowler_id WHERE s.season_id=? ORDER BY average DESC''',(season_id,)).fetchall()
@@ -158,6 +257,7 @@ def _round(c,co,sid,ids,r,best=1):
   _fixture(c,co['id'],sid,r,n//2+1,a,b,best,'complete' if w else 'scheduled',w)
 
 def _finish(c,co,winner=None):
+ if co['state']=='completed':return
  c.execute("UPDATE competitions SET state='completed',completed_at=CURRENT_TIMESTAMP WHERE id=?",(co['id'],))
  if winner and co['entrant_type']=='individual' and co['season_id']:
   c.execute('INSERT OR IGNORE INTO season_bowler_stats(season_id,bowler_id) VALUES(?,?)',(co['season_id'],winner));c.execute('UPDATE season_bowler_stats SET championships=championships+1 WHERE season_id=? AND bowler_id=?',(co['season_id'],winner))
@@ -175,7 +275,7 @@ def _groups(c,co,stage):
  erows=c.execute('SELECT entrant_id,COALESCE(group_name,"A") g FROM competition_entries WHERE competition_id=?',(co['id'],)).fetchall();groups={}
  for x in erows:groups.setdefault(x['g'],[]).append(x['entrant_id'])
  qualified=[]
- allstand=standings(co['id'])
+ allstand=standings(co['id'],db=c)
  for g in sorted(groups):
   ranked=[x for x in allstand if x['entrant_id'] in groups[g]];qualified+= [x['entrant_id'] for x in ranked[:2]]
  sid=_stage(c,co['id'],2,'Knockout Stage','single_elimination')
@@ -201,39 +301,42 @@ def _double(c,co,stage,last):
   bracket='grand_final' if len(active)==2 and {x['losses'] for x in active}=={0,1} else ('winners' if a in zero and b in zero else 'losers')
   _fixture(c,co['id'],stage['id'],r,n,a,b,bracket=bracket)
 
+def _progress_fixture(c,fid):
+    f=c.execute('SELECT * FROM fixtures WHERE id=?',(fid,)).fetchone()
+    if not f or f['status']!='complete':return
+    co=c.execute('SELECT * FROM competitions WHERE id=?',(f['competition_id'],)).fetchone()
+    st=c.execute('SELECT * FROM competition_stages WHERE id=?',(f['stage_id'],)).fetchone()
+    if not st:return
+    if st['format']=='single_elimination':_knockout(c,co,st)
+    elif co['format']=='groups_knockout':_groups(c,co,st) if st['stage_no']==1 else _knockout(c,co,st)
+    elif co['format']=='stepladder':_stepladder(c,co,st,f)
+    elif co['format']=='double_elimination':_double(c,co,st,f)
+    elif co['format']=='qualifying':
+        if st['stage_no']==1:
+            if not c.execute("SELECT 1 FROM fixtures WHERE stage_id=? AND status!='complete' LIMIT 1",(st['id'],)).fetchone():
+                ids=[x['entrant_id'] for x in standings(co['id'],db=c)[:st['qualify_count']]]
+                sid=_stage(c,co['id'],2,'Qualifying Finals','single_elimination')
+                _round(c,co,sid,ids,1)
+        else:_knockout(c,co,st)
+    elif co['format']=='round_robin' and not c.execute("SELECT 1 FROM fixtures WHERE competition_id=? AND status!='complete' LIMIT 1",(co['id'],)).fetchone():
+        ids=[x['entrant_id'] for x in standings(co['id'],db=c)]
+        if co['playoff_size']>=2:
+            sid=_stage(c,co['id'],2,'Playoffs','single_elimination')
+            _round(c,co,sid,ids[:co['playoff_size']],1)
+        elif ids:_finish(c,co,ids[0])
+
+
 def progress_fixture(fid):
- with connect() as c:
-  f=c.execute('SELECT * FROM fixtures WHERE id=?',(fid,)).fetchone()
-  if not f or f['status']!='complete':return
-  co=c.execute('SELECT * FROM competitions WHERE id=?',(f['competition_id'],)).fetchone();st=c.execute('SELECT * FROM competition_stages WHERE id=?',(f['stage_id'],)).fetchone()
-  if st['format']=='single_elimination':_knockout(c,co,st)
-  elif co['format']=='groups_knockout':_groups(c,co,st) if st['stage_no']==1 else _knockout(c,co,st)
-  elif co['format']=='stepladder':_stepladder(c,co,st,f)
-  elif co['format']=='double_elimination':_double(c,co,st,f)
-  elif co['format']=='qualifying':
-   if st['stage_no']==1:
-    if not c.execute("SELECT 1 FROM fixtures WHERE stage_id=? AND status!='complete' LIMIT 1",(st['id'],)).fetchone():
-     ids=[x['entrant_id'] for x in standings(co['id'])[:st['qualify_count']]];sid=_stage(c,co['id'],2,'Qualifying Finals','single_elimination');_round(c,co,sid,ids,1)
-   else:_knockout(c,co,st)
-  elif st['format']=='round_robin' and co['format']=='qualifying':
-   if not c.execute("SELECT 1 FROM fixtures WHERE stage_id=? AND status!='complete' LIMIT 1",(st['id'],)).fetchone():
-    ids=[x['entrant_id'] for x in standings(co['id'])[:st['qualify_count']]];sid=_stage(c,co['id'],2,'Qualifying Finals','single_elimination');_round(c,co,sid,ids,1)
-  elif co['format']=='round_robin' and not c.execute("SELECT 1 FROM fixtures WHERE competition_id=? AND status!='complete' LIMIT 1",(co['id'],)).fetchone():
-   ids=[x['entrant_id'] for x in standings(co['id'])]
-   if co['playoff_size']>=2:sid=_stage(c,co['id'],2,'Playoffs','single_elimination');_round(c,co,sid,ids[:co['playoff_size']],1)
-   elif ids:_finish(c,co,ids[0])
+    with connect() as c:_progress_fixture(c,fid)
+
 
 def record_series_game(fid,home_score,away_score,game_id=None):
- with connect() as c:
-  f=c.execute('SELECT * FROM fixtures WHERE id=?',(fid,)).fetchone()
-  if not f or f['status']=='complete':return False,'Fixture is complete.'
-  n=c.execute('SELECT COUNT(*) n FROM fixture_games WHERE fixture_id=?',(fid,)).fetchone()['n']+1;w=f['home_id'] if home_score>away_score else f['away_id'] if away_score>home_score else None
-  c.execute('INSERT INTO fixture_games(fixture_id,game_no,game_id,home_score,away_score,winner_id,status) VALUES(?,?,?,?,?,?,"complete")',(fid,n,game_id,home_score,away_score,w))
-  wins={x['winner_id']:x['n'] for x in c.execute('SELECT winner_id,COUNT(*) n FROM fixture_games WHERE fixture_id=? AND winner_id IS NOT NULL GROUP BY winner_id',(fid,)).fetchall()};need=f['series_best_of']//2+1;champ=next((e for e,nw in wins.items() if nw>=need),None)
-  if champ:
-   totals=c.execute('SELECT SUM(home_score) h,SUM(away_score) a FROM fixture_games WHERE fixture_id=?',(fid,)).fetchone();c.execute('UPDATE fixtures SET home_score=?,away_score=?,winner_id=?,status="complete",played_at=CURRENT_TIMESTAMP WHERE id=?',(totals['h'],totals['a'],champ,fid))
- if champ:progress_fixture(fid)
- return True,None
+    try:
+        with connect() as c:
+            _record_fixture_game(c,fid,home_score,away_score,game_id)
+        return True,None
+    except ValueError as e:
+        return False,str(e)
 
 def execute_movements(cid):
  with connect() as c:

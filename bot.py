@@ -8,6 +8,13 @@ class GutterSaints(commands.Bot):
  def __init__(self):super().__init__(command_prefix='!',intents=discord.Intents(guilds=True,members=True))
  async def setup_hook(self):
   init_db()
+  from services.asset_validation import validate_broadcast_assets
+  from services.lane_cache import purge_old_lane_cards
+  assets=validate_broadcast_assets(strict=os.getenv('REQUIRE_PRODUCTION_ART','0')=='1')
+  if not assets['ok']:
+   logging.warning('Production broadcast art incomplete: %d missing, %d wrong-size, %d corrupt files. Install assets before v2.9.0 release.',
+                   len(assets['missing']),len(assets['wrong_dimensions']),len(assets['invalid']))
+  purge_old_lane_cards()
   self.add_view(__import__('cogs.menu',fromlist=['PublicMenu']).PublicMenu())
   for e in EXTENSIONS:await self.load_extension(e)
   guild=os.getenv('GUILD_ID')
