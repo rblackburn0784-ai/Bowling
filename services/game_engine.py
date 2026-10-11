@@ -100,7 +100,11 @@ class GameSession:
         else:
             if f[0]==10 and f[1]<10 and f[1]+f[2]==10:
                 ev['spare']=True
-                if 10 in p.split_frames:ev['split_conversion']=True;ev['split_name']=named_leave(before) or 'Split';p.special_conversions.add(ev['split_name'])
+                if 10 in p.split_frames:
+                    p.split_conversions.add(10)
+                    ev['split_conversion']=True
+                    ev['split_name']=named_leave(before) or 'Split'
+                    p.special_conversions.add(ev['split_name'])
             self._advance(p)
     def _rivalry(self,ev,p):
         team=getattr(p.bowler,'team_name',None)
