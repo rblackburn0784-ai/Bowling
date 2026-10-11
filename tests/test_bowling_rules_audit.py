@@ -114,6 +114,22 @@ class SecondDeliveryGameRules(unittest.TestCase):
             self.assertEqual(four['frame'],2)
             self.assertEqual(four['lane_no'],4)
             self.assertEqual(four['before'],sorted(ALL))
+    def test_first_nine_gutter_followed_by_ten_is_spare_not_strike(self):
+        session=GameSession([bowler(1)],seed=42)
+        with patch('services.game_engine.roll_pins',
+                   side_effect=controlled_rolls([0,10])):
+            first=session.bowl()
+            second=session.bowl()
+        self.assertEqual(first['after'],sorted(ALL))
+        self.assertEqual(second['before'],sorted(ALL))
+        self.assertEqual(second['ball'],2)
+        self.assertEqual(second['ball_key'],'plastic')
+        self.assertEqual(second['shot_intent'],'spare')
+        self.assertTrue(second['spare'])
+        self.assertFalse(second.get('strike_streak'))
+        self.assertEqual(frame_notation(session.players[0].frames[0]),'-/')
+        self.assertEqual((first['lane_no'],second['lane_no']),(3,3))
+
     def test_snapshot_restores_mid_frame_with_same_lane(self):
         session=GameSession([bowler(1),bowler(2)],seed=41)
         with patch('services.game_engine.roll_pins',side_effect=controlled_rolls([7])):
