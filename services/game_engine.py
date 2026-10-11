@@ -67,12 +67,19 @@ class GameSession:
                 if ev['spare'] and frame_no in p.split_frames:p.split_conversions.add(frame_no);ev['split_conversion']=True;ev['split_name']=named_leave(before) or 'Split';p.special_conversions.add(ev['split_name'])
                 self._advance(p)
         else:self._tenth(p,f,pins,ev,before)
-        self._rivalry(ev,p);self._next_active();return ev
+        self._rivalry(ev,p)
+        # Two deliveries of an ordinary frame (and all 10th-frame bonus
+        # deliveries) belong to the SAME bowler and the SAME lane.
+        if p.frame!=frame_no:
+            self.lane_pair.advance_frame(p.bowler.id)
+            self._next_active()
+        return ev
     def _advance(self,p):p.frame+=1;p.ball=1;p.standing=set(ALL);p.split_leave=False
     def _tenth(self,p,f,pins,ev,before):
         if pins==10:p.strike_streak+=1;p.max_strike_streak=max(p.max_strike_streak,p.strike_streak);ev['strike_streak']=p.strike_streak
         elif len(f)==1:p.strike_streak=0
         if len(f)==1:
+            p.ball=2  # The first 10th-frame strike still earns ball two.
             if pins==10:p.standing=set(ALL)
             else:
                 p.split_leave=is_split(p.standing);ev['split']=p.split_leave
