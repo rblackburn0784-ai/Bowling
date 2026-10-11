@@ -44,6 +44,11 @@ def frame_flags(frames):
     # 12-strike streak, not ten. Count overlapping triples across the bonus
     # deliveries without counting a spare/open frame as a strike streak.
     if len(frames)>=10 and frames[9] and frames[9][0]==10:
+        # Tenth-frame X7/ and X-/ include a real spare conversion on
+        # the bonus rack, even though the frame itself already earned X.
+        fill=frames[9]
+        if len(fill)==3 and fill[1]<10 and fill[1]+fill[2]==10:
+            spares+=1
         for position,pins in enumerate(frames[9][1:],start=1):
             # On X-/, the third delivery knocks down ten but completes a
             # spare on the SECOND rack: it is not another strike.
