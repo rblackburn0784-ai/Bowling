@@ -36,17 +36,17 @@ FRONT={
 # New left image: move the rack down to the actual photographed lane floor.
 # The right camera positions remain the original FRONT and OVERHEAD values.
 HERO_FRONT={
- 7:(384,484),8:(438,484),9:(493,484),10:(547,484),
- 4:(411,500),5:(465,500),6:(520,500),
- 2:(438,513),3:(492,513),1:(465,526),
+ 7:(384,510),8:(438,510),9:(493,510),10:(547,510),
+ 4:(411,526),5:(465,526),6:(520,526),
+ 2:(438,539),3:(492,539),1:(465,552),
 }
 # Cosmetic-only adjustments. All phases share these proportions.
-HERO_BOWLER_SCALE=1.12
+HERO_BOWLER_SCALE=1.25
 HERO_PIN_SCALE=1.08
 HERO_FALLEN_SCALE=1.12
-OVERHEAD_PIN_SCALE=1.10
-PIT_PIN_SCALE=1.14
-PIT_FALLEN_SCALE=1.16
+OVERHEAD_PIN_SCALE=1.21
+PIT_PIN_SCALE=1.30
+PIT_FALLEN_SCALE=1.30
 # The previously supplied resized overhead sprite pack has filenames
 # out of order relative to the red numbers printed on the pin heads.
 # Keep the user's existing files; resolve TRUE pin numbers at load time.
