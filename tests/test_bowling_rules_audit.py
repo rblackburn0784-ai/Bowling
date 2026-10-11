@@ -158,6 +158,32 @@ class SecondDeliveryGameRules(unittest.TestCase):
         self.assertTrue(session.complete)
         self.assertEqual(session.scores()['Player1'],20)
         self.assertEqual(frame_notation(session.players[0].frames[9]),'9/X')
+    def test_tenth_gutter_spare_and_bonus_strike_are_not_three_strikes(self):
+        session=self._prepare_tenth()
+        with patch('services.game_engine.roll_pins',
+                   side_effect=controlled_rolls([0,10,10])):
+            events=[session.bowl() for _ in range(3)]
+        self.assertEqual(frame_notation(session.players[0].frames[9]),'-/X')
+        self.assertFalse(events[1].get('strike_streak'))
+        self.assertTrue(events[1]['spare'])
+        self.assertEqual(events[2].get('strike_streak'),1)
+        self.assertEqual(frame_flags(session.players[0].frames)['strikes'],1)
+        self.assertEqual(session.scores()['Player1'],20)
+
+    def test_tenth_strike_gutter_then_spare_uses_plastic_third(self):
+        session=self._prepare_tenth()
+        with patch('services.game_engine.roll_pins',
+                   side_effect=controlled_rolls([10,0,10])):
+            events=[session.bowl() for _ in range(3)]
+        self.assertEqual(frame_notation(session.players[0].frames[9]),'X-/')
+        self.assertEqual(events[2]['before'],sorted(ALL))
+        self.assertEqual(events[2]['ball_key'],'plastic')
+        self.assertEqual(events[2]['shot_intent'],'spare')
+        self.assertTrue(events[2]['spare'])
+        self.assertFalse(events[2].get('strike_streak'))
+        self.assertEqual(session.scores()['Player1'],20)
+        self.assertEqual(frame_flags(session.players[0].frames)['strikes'],1)
+
     def test_tenth_open_ends_after_two(self):
         session=self._prepare_tenth()
         with patch('services.game_engine.roll_pins',side_effect=controlled_rolls([7,2])):
