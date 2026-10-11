@@ -41,7 +41,14 @@ class GameSession:
         tenth_fill_spare=(frame_no==10 and ball_no==3 and
                           len(p.frames)>=10 and len(p.frames[9])==2 and
                           p.frames[9][0]==10 and p.frames[9][1]<10)
-        spare=(before!=ALL or tenth_fill_spare)
+        # Ball two after a gutter is STILL a spare attempt despite all
+        # ten pins standing. The exception is a fresh rack following a
+        # tenth-frame strike. Bonus ball after a tenth-frame spare is fresh.
+        second_is_spare=(ball_no==2 and
+                         (frame_no<10 or
+                          (frame_no==10 and len(p.frames)>=10 and
+                           p.frames[9][0]!=10)))
+        spare=(before!=ALL or second_is_spare or tenth_fill_spare)
         intent=p.next_intent or p.shot_intent
         if intent=='auto':intent=auto_intent(p.bowler,before,lane_state,pressure)
         if spare:intent='spare'
