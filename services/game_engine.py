@@ -35,7 +35,13 @@ class GameSession:
         p=self.current();before=set(p.standing);frame_no=p.frame;ball_no=p.ball
         pressure=max(0,(p.frame-7)/3) if p.frame<=10 else 1
         lane_state=self.lane_pair.lane_for(p.bowler.id)
-        spare=before!=ALL
+        # A zero-pin second delivery after a tenth-frame strike leaves
+        # all ten standing, but the THIRD is still a spare attempt on that
+        # same rack. Choosing by standing-count alone misclassifies it.
+        tenth_fill_spare=(frame_no==10 and ball_no==3 and
+                          len(p.frames)>=10 and len(p.frames[9])==2 and
+                          p.frames[9][0]==10 and p.frames[9][1]<10)
+        spare=(before!=ALL or tenth_fill_spare)
         intent=p.next_intent or p.shot_intent
         if intent=='auto':intent=auto_intent(p.bowler,before,lane_state,pressure)
         if spare:intent='spare'
@@ -76,8 +82,20 @@ class GameSession:
         return ev
     def _advance(self,p):p.frame+=1;p.ball=1;p.standing=set(ALL);p.split_leave=False
     def _tenth(self,p,f,pins,ev,before):
-        if pins==10:p.strike_streak+=1;p.max_strike_streak=max(p.max_strike_streak,p.strike_streak);ev['strike_streak']=p.strike_streak
-        elif len(f)==1:p.strike_streak=0
+        # Only a strike on a FRESH rack counts as a consecutive strike.
+        # The tenth-frame second ball of a 0/ spare is not a strike, even
+        # though it knocks down ten pins. X-/ is similarly a bonus spare.
+        strike=(pins==10 and (
+            len(f)==1 or
+            (len(f)==2 and f[0]==10) or
+            (len(f)==3 and (f[0]!=10 and sum(f[:2])==10 or
+                            f[0]==10 and f[1]==10))))
+        if strike:
+            p.strike_streak+=1
+            p.max_strike_streak=max(p.max_strike_streak,p.strike_streak)
+            ev['strike_streak']=p.strike_streak
+        else:
+            p.strike_streak=0
         if len(f)==1:
             p.ball=2  # The first 10th-frame strike still earns ball two.
             if pins==10:p.standing=set(ALL)
