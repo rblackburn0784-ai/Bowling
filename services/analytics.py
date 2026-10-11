@@ -44,8 +44,12 @@ def frame_flags(frames):
     # 12-strike streak, not ten. Count overlapping triples across the bonus
     # deliveries without counting a spare/open frame as a strike streak.
     if len(frames)>=10 and frames[9] and frames[9][0]==10:
-        for pins in frames[9][1:]:
-            if pins==10:
+        for position,pins in enumerate(frames[9][1:],start=1):
+            # On X-/, the third delivery knocks down ten but completes a
+            # spare on the SECOND rack: it is not another strike.
+            fresh_rack_strike=(pins==10 and
+                               (position==1 or frames[9][1]==10))
+            if fresh_rack_strike:
                 strikes+=1
                 streak+=1
                 longest=max(longest,streak)
