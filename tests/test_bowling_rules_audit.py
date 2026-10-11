@@ -199,6 +199,7 @@ class SecondDeliveryGameRules(unittest.TestCase):
         self.assertFalse(events[2].get('strike_streak'))
         self.assertEqual(session.scores()['Player1'],20)
         self.assertEqual(frame_flags(session.players[0].frames)['strikes'],1)
+        self.assertEqual(frame_flags(session.players[0].frames)['spares'],1)
 
     def test_tenth_open_ends_after_two(self):
         session=self._prepare_tenth()
