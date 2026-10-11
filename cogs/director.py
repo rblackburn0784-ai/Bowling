@@ -5,9 +5,14 @@ from services.v25 import tournament_dashboard,backup_database,undo_snapshot,rest
 from services.state import SESSIONS
 from services.v271 import set_tournament_presentation,tournament_presentation
 from services.lane_physics import PATTERNS
-from services.career import rollback_delivery_changes
 class DirectorView(discord.ui.View):
  def __init__(self,name):super().__init__(timeout=600);self.name=name
+ async def interaction_check(self,i):
+  from cogs.menu import admin_ok
+  if not admin_ok(i):
+   await i.response.send_message('Manage Server permission required for Tournament Director controls.',ephemeral=True)
+   return False
+  return True
  @discord.ui.button(label='Main Menu',emoji='🏠',style=discord.ButtonStyle.secondary,row=4)
  async def home(self,i,b):
   from cogs.menu import PublicMenu
@@ -20,15 +25,25 @@ class DirectorView(discord.ui.View):
  async def presentation(self,i,b):await i.response.send_modal(PresentationModal(self.name))
  @discord.ui.button(label='Undo Last Ball',style=discord.ButtonStyle.danger)
  async def undo(self,i,b):
-  current=SESSIONS.get(i.channel_id);changes=getattr(current,'last_attribute_changes',[]) if current else [];bid=getattr(current,'last_attribute_bowler_id',None) if current else None
+  from cogs.games import MATCH_BUSY
+  if i.channel_id in MATCH_BUSY:return await i.response.send_message('Cannot undo while a ball is running.',ephemeral=True)
   s=undo_snapshot(i.channel_id)
   if not s:return await i.response.send_message('No earlier snapshot.',ephemeral=True)
-  rollback_delivery_changes(bid,changes);SESSIONS[i.channel_id]=s;await i.response.send_message('↩️ Last ball restored.',ephemeral=True)
+  SESSIONS[i.channel_id]=s;await i.response.send_message('↩️ Last ball restored.',ephemeral=True)
+  from cogs.games import post_match_controls
+  await post_match_controls(i.channel,s)
  @discord.ui.button(label='Restore Match',style=discord.ButtonStyle.primary)
  async def restore(self,i,b):
+  from cogs.games import MATCH_BUSY
+  if i.channel_id in MATCH_BUSY:return await i.response.send_message('Cannot restore while a ball is running.',ephemeral=True)
   s=restore_session(i.channel_id)
   if not s:return await i.response.send_message('No saved active match.',ephemeral=True)
+  if s.complete:
+   from cogs.games import recover_completed_match
+   return await recover_completed_match(i,s)
   SESSIONS[i.channel_id]=s;await i.response.send_message('♻️ Match restored.',ephemeral=True)
+  from cogs.games import post_match_controls
+  await post_match_controls(i.channel,s)
  @discord.ui.button(label='Publish Gazette',emoji='📰',style=discord.ButtonStyle.primary)
  async def gazette(self,i,b):
   from services.gazette import build_gazette,format_gazette
@@ -59,6 +74,8 @@ class PresentationModal(discord.ui.Modal,title='Tournament Presentation'):
  brand=discord.ui.TextInput(label='Broadcast title',required=False,max_length=38)
  def __init__(self,name):super().__init__();self.name=name
  async def on_submit(self,i):
+  from cogs.menu import admin_ok
+  if not admin_ok(i):return await i.response.send_message('Admin permission required.',ephemeral=True)
   try:lane=int(self.lane.value) if self.lane.value else None
   except ValueError:return await i.response.send_message('Lane must be a number.',ephemeral=True)
   ok,err=set_tournament_presentation(self.name,self.pattern.value.lower() or None,self.layout.value.lower() or None,lane,self.brand.value or None)
@@ -69,6 +86,8 @@ class Director(commands.Cog):
  @app_commands.command(name='director',description='Open Tournament Director')
  @app_commands.default_permissions(manage_guild=True)
  async def director(self,i:discord.Interaction,tournament:str|None=None):
+  from cogs.menu import admin_ok
+  if not admin_ok(i):return await i.response.send_message('Admin permission required.',ephemeral=True)
   d=tournament_dashboard(tournament)
   if not d:return await i.response.send_message('No active tournament.',ephemeral=True)
   t,matches,nxt,leaders=d;done=sum(x['status']=='complete' for x in matches);p=tournament_presentation(t['id']);desc=f"Status **{t['status']}** • Completed **{done}/{len(matches)}**\n🎥 **{p['layout'].title()}** • Lanes **{p['lane_start']}/{p['lane_start']+1}** • Pattern **{t['lane_condition'].title()}**\n"

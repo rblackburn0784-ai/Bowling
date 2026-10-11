@@ -6,7 +6,6 @@ from services.state import SESSIONS
 from services.lane_visual import lane_card
 from services.audio import join_user_voice
 from services.v25 import tournament_dashboard,undo_snapshot,restore_session
-from services.career import rollback_delivery_changes
 from ui.embeds import bracket_embed
 
 def rows(sql,args=()):
@@ -169,7 +168,8 @@ class MatchSetupView(Nav):
  async def start(self,i,b):
   if not self.bowler_a or not self.bowler_b:return await i.response.send_message('Choose Bowler A and Bowler B.',ephemeral=True)
   if self.bowler_a==self.bowler_b:return await i.response.send_message('Choose two different bowlers.',ephemeral=True)
-  if i.channel_id in SESSIONS and not SESSIONS[i.channel_id].complete:return await i.response.send_message('A match is already active in this channel.',ephemeral=True)
+  from cogs.games import channel_has_active_match
+  if channel_has_active_match(i.channel_id):return await i.response.send_message('A match is already active or recoverable in this channel.',ephemeral=True)
   selected=rows('SELECT * FROM bowlers WHERE id IN (?,?)',(self.bowler_a,self.bowler_b))
   by_id={x['id']:x for x in selected}
   if len(by_id)!=2:return await i.response.send_message('One of the bowlers no longer exists.',ephemeral=True)
@@ -179,9 +179,13 @@ class MatchSetupView(Nav):
   players=[rb(by_id[bid]) for bid in (self.bowler_a,self.bowler_b)]
   s=GameSession(players,lane=self.lane)
   from cogs.games import LANE_MESSAGES
+  from services.v25 import prepare_new_session
+  prepare_new_session(i.channel_id)
   LANE_MESSAGES.pop(i.channel_id,None)
   SESSIONS[i.channel_id]=s
   for p in s.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
+  from services.v25 import save_snapshot
+  save_snapshot(i.channel_id,s,'start')
   await i.response.send_message(f"🎳 **EXHIBITION — HEAD TO HEAD**\n**{players[0].name}** vs **{players[1].name}**\nLane: **{self.lane.title()}**\nUse the **Bowl Next Ball** or **Auto Play** buttons on the live scoreboard below.")
   from cogs.games import post_match_controls
   await post_match_controls(i.channel,s)
@@ -189,14 +193,23 @@ class MatchSetupView(Nav):
 class RecoveryView(Nav):
  @discord.ui.button(label='Undo Last Ball',style=discord.ButtonStyle.danger)
  async def undo(self,i,b):
-  cur=SESSIONS.get(i.channel_id);changes=getattr(cur,'last_attribute_changes',[]) if cur else [];bid=getattr(cur,'last_attribute_bowler_id',None) if cur else None;s=undo_snapshot(i.channel_id)
+  from cogs.games import MATCH_BUSY,post_match_controls
+  if i.channel_id in MATCH_BUSY:return await i.response.send_message('Cannot undo while a ball is running.',ephemeral=True)
+  s=undo_snapshot(i.channel_id)
   if not s:return await i.response.send_message('No earlier snapshot.',ephemeral=True)
-  rollback_delivery_changes(bid,changes);SESSIONS[i.channel_id]=s;await i.response.send_message('↩️ Last ball restored.',ephemeral=True)
+  SESSIONS[i.channel_id]=s;await i.response.send_message('↩️ Last ball restored.',ephemeral=True)
+  await post_match_controls(i.channel,s)
  @discord.ui.button(label='Restore Match',style=discord.ButtonStyle.primary)
  async def restore(self,i,b):
+  from cogs.games import MATCH_BUSY,post_match_controls
+  if i.channel_id in MATCH_BUSY:return await i.response.send_message('Cannot restore while a ball is running.',ephemeral=True)
   s=restore_session(i.channel_id)
   if not s:return await i.response.send_message('No saved active match.',ephemeral=True)
+  if s.complete:
+   from cogs.games import recover_completed_match
+   return await recover_completed_match(i,s)
   SESSIONS[i.channel_id]=s;await i.response.send_message('♻️ Match restored.',ephemeral=True)
+  await post_match_controls(i.channel,s)
 
 class MatchDashboard(Nav):
  @discord.ui.button(label='🎳 Start Match',style=discord.ButtonStyle.success)

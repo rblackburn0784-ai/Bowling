@@ -53,6 +53,8 @@ class League(commands.Cog):
  @app_commands.default_permissions(manage_guild=True)
  @app_commands.command(name='fixture_start',description='Launch a scheduled competition fixture as a live bowling match')
  async def fixture_start(self,i:discord.Interaction,fixture_id:int):
+  from cogs.games import channel_has_active_match
+  if channel_has_active_match(i.channel_id):return await i.response.send_message('An active or recoverable match already occupies this channel.',ephemeral=True)
   with connect() as c:f=c.execute('SELECT f.*,co.season_id,co.entrant_type,co.lane_condition,co.state FROM fixtures f JOIN competitions co ON co.id=f.competition_id WHERE f.id=?',(fixture_id,)).fetchone()
   if not f or f['state']!='active' or f['status']!='scheduled':return await i.response.send_message('Fixture is not currently playable.',ephemeral=True)
   home=fixture_roster(fixture_id,f['home_id']);away=fixture_roster(fixture_id,f['away_id'])
@@ -69,8 +71,12 @@ class League(commands.Cog):
   for n in range(max(len(home),len(away))):
    if n<len(home):bowlers.append(rb(home[n],hn))
    if n<len(away):bowlers.append(rb(away[n],an))
-  s=GameSession(bowlers,lane=f['lane_condition'],season_id=f['season_id'],competition_id=f['competition_id'],fixture_id=fixture_id);SESSIONS[i.channel_id]=s
+  s=GameSession(bowlers,lane=f['lane_condition'],season_id=f['season_id'],competition_id=f['competition_id'],fixture_id=fixture_id)
+  from services.v25 import prepare_new_session
+  prepare_new_session(i.channel_id);SESSIONS[i.channel_id]=s
   for p in s.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
+  from services.v25 import save_snapshot
+  save_snapshot(i.channel_id,s,'start')
   with connect() as c:c.execute("UPDATE fixtures SET status='playing' WHERE id=?",(fixture_id,))
   await i.response.send_message(f'🎳 Fixture **#{fixture_id}** is live — **{hn} vs {an}**.')
 

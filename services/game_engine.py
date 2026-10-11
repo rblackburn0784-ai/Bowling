@@ -1,4 +1,5 @@
 import random
+import uuid
 from dataclasses import dataclass,field
 from services.pin_engine import ALL,roll_pins,is_split
 from services.scoring import score_game,frame_notation
@@ -28,7 +29,7 @@ class GameSession:
         # individual exhibitions, friend challenges and competition fixtures).
         from services.bowler_sprites import assign_match_sprites
         assign_match_sprites([p.bowler for p in self.players])
-        self.tournament_id=tournament_id;self.match_id=match_id;self.season_id=season_id;self.competition_id=competition_id;self.fixture_id=fixture_id;self.persisted=False;self.ball_count=0
+        self.tournament_id=tournament_id;self.match_id=match_id;self.season_id=season_id;self.competition_id=competition_id;self.fixture_id=fixture_id;self.persisted=False;self.session_uid=uuid.uuid4().hex;self.ball_count=0
         self.lane_pair=LanePair.create(lane_start,lane);self.layout=layout;self.branding=None;self.story_leader=None;self.story_low={};self.story_seen=set()
     def current(self):return self.players[self.turn]
     def bowl(self):

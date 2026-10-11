@@ -25,7 +25,8 @@ class ChallengeComposer(discord.ui.View):
   if not a or not z or z['owner_id']==i.user.id:return await i.response.send_message('Both players must own different linked bowlers.',ephemeral=True)
   key=(i.guild_id,i.user.id,z['owner_id'])
   if key in PENDING:return await i.response.send_message('A challenge is already pending.',ephemeral=True)
-  if i.channel_id in SESSIONS and not SESSIONS[i.channel_id].complete:return await i.response.send_message('Channel already has an active match.',ephemeral=True)
+  from cogs.games import channel_has_active_match
+  if channel_has_active_match(i.channel_id):return await i.response.send_message('Channel already has an active or recoverable match.',ephemeral=True)
   PENDING.add(key)
   try:
    notice=(f"🎳 **FRIENDLY CHALLENGE**" + chr(10) +
@@ -46,7 +47,8 @@ class ChallengeResponse(discord.ui.View):
  @discord.ui.button(label='Accept',style=discord.ButtonStyle.success)
  async def accept(self,i,b):
   if self.key not in PENDING:return await i.response.send_message('Challenge expired.',ephemeral=True)
-  if i.channel_id in SESSIONS and not SESSIONS[i.channel_id].complete:return await i.response.send_message('Channel already has a match.',ephemeral=True)
+  from cogs.games import channel_has_active_match
+  if channel_has_active_match(i.channel_id):return await i.response.send_message('Channel already has an active or recoverable match.',ephemeral=True)
   with connect() as db:rs=db.execute('SELECT * FROM bowlers WHERE id IN (?,?)',(self.a,self.b)).fetchall()
   by={r['id']:r for r in rs}
   if len(by)!=2 or by[self.a]['owner_id']!=self.challenger or by[self.b]['owner_id']!=self.target:return await i.response.send_message('Bowler ownership changed.',ephemeral=True)
@@ -58,8 +60,12 @@ class ChallengeResponse(discord.ui.View):
   session=GameSession(players,lane='house');session.friendly_challenge=True
   for p in session.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
   from cogs.games import LANE_MESSAGES
+  from services.v25 import prepare_new_session
+  prepare_new_session(i.channel_id)
   LANE_MESSAGES.pop(i.channel_id,None)
   SESSIONS[i.channel_id]=session;PENDING.discard(self.key)
+  from services.v25 import save_snapshot
+  save_snapshot(i.channel_id,session,'start')
   for x in self.children:x.disabled=True
   await i.response.edit_message(content=f"✅ **Challenge accepted!** 🎳 **{players[0].name}** vs **{players[1].name}**. Use the Bowl Next Ball / Auto Play buttons on the live scoreboard.",view=self)
   from cogs.games import post_match_controls

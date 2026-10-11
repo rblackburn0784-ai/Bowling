@@ -14,11 +14,12 @@ from services.presentation import classify,AUDIO_MAP,GIF_MAP,layout_policy
 from services.commentary import line,streak_call,rivalry_call,contact_call,lane_call
 from services.analytics import player_summary
 from storage.database import record_completed_session,connect
-from services.v25 import save_snapshot,clear_session,unlock_achievements,award_progression,backup_database,audit
+from services.v25 import save_snapshot,clear_session,prepare_new_session,backup_database,audit
 from ui.embeds import scoreboard_embed
 from services.v271 import bowler_loadout,tournament_presentation
-from services.career import delivery_growth,add_tendency,add_timeline_event
+from services.career import delivery_growth,add_timeline_event
 from services.broadcast_director import match_context,persist_story,story_call,match_story_summary
+from services.postgame import commit_postgame
 from services.victory_presentation import winning_bowler
 from services.scene_renderer import render_scene as render_victory_scene
 
@@ -53,6 +54,40 @@ def can_operate_match(member,session):
   getattr(player.bowler,'owner_id',None) for player in session.players
   if getattr(player.bowler,'owner_id',None) not in (None,0)
  }
+
+def channel_has_active_match(channel_id):
+ """Protect both legacy commands and dashboards, even after bot restart."""
+ if channel_id in MATCH_BUSY:return True
+ current=SESSIONS.get(channel_id)
+ if current is not None:return True
+ from services.v25 import restore_session
+ stored=restore_session(channel_id)
+ return stored is not None
+
+async def recover_completed_match(i, session):
+ """Complete an interrupted finish, or safely clear an already committed one."""
+ await i.response.defer(ephemeral=True)
+ try:
+  if not getattr(session,'friendly_challenge',False):
+   with connect() as db:
+    old=db.execute("SELECT g.id FROM games g JOIN game_finalizations f ON f.game_id=g.id WHERE g.session_uid=?",(session.session_uid,)).fetchone()
+   if old:
+    clear_session(i.channel_id)
+    SESSIONS.pop(i.channel_id,None)
+    await i.followup.send('✅ This game and its career/tournament effects were already committed. Stale recovery state was cleared; no awards were duplicated.',ephemeral=True)
+    return True
+  cog=i.client.get_cog('Games')
+  if cog is None:
+   await i.followup.send('Game service is not available to finalise this match.',ephemeral=True)
+   return False
+  SESSIONS[i.channel_id]=session
+  await cog.finish(i.channel,session,i.channel_id)
+  await i.followup.send('✅ Interrupted game finalisation safely completed.',ephemeral=True)
+  return True
+ except Exception:
+  logging.exception('Interrupted game finalisation failed in channel %s',i.channel_id)
+  await i.followup.send('⚠️ Finalisation failed again. The saved result remains recoverable; do not start a replacement match in this channel.',ephemeral=True)
+  return False
 
 class LiveMatchControls(discord.ui.View):
  """Buttons belong to the current channel's active match, not a stale view."""
@@ -224,6 +259,8 @@ class Games(commands.Cog):
  @app_commands.command(name='game_start',description='Start a team or team-v-team bowling game')
  @app_commands.choices(lane=[app_commands.Choice(name=x.title(),value=x) for x in ['house','fresh','dry','oily','transition']])
  async def start(self,i:discord.Interaction,team:str,opponent:str|None=None,lane:app_commands.Choice[str]|None=None,seed:int|None=None):
+  if channel_has_active_match(i.channel_id):
+   return await i.response.send_message("A match is already active or recoverable in this channel. Finish or restore it first.",ephemeral=True)
   ra=team_roster(team);rr=team_roster(opponent) if opponent else []
   if not ra:return await i.response.send_message('No roster found for the first team.',ephemeral=True)
   if opponent and not rr:return await i.response.send_message('No roster found for the opponent.',ephemeral=True)
@@ -233,8 +270,9 @@ class Games(commands.Cog):
     if n<len(ra):bowlers.append(rb(ra[n],team))
     if n<len(rr):bowlers.append(rb(rr[n],opponent))
   else:bowlers=[rb(x,team) for x in ra]
-  s=GameSession(bowlers,seed,lane.value if lane else 'house');SESSIONS[i.channel_id]=s
+  s=GameSession(bowlers,seed,lane.value if lane else 'house');prepare_new_session(i.channel_id);SESSIONS[i.channel_id]=s
   for p in s.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
+  save_snapshot(i.channel_id,s,'start')
   await i.response.send_message(f"🎤 **WELCOME TO THE GUTTER SAINTS LANES!**\n**{team}**"+(f' vs **{opponent}**' if opponent else ''))
   for b in bowlers:await i.channel.send(line('entrance',name=b.name));await send_media(i.channel,'entrance')
   await post_match_controls(i.channel,s)
@@ -256,6 +294,7 @@ class Games(commands.Cog):
  async def shot(self,i:discord.Interaction,intent:app_commands.Choice[str]):
   s=SESSIONS.get(i.channel_id)
   if not s or s.complete:return await i.response.send_message('No active playable game.',ephemeral=True)
+  if not can_operate_match(i.user,s):return await i.response.send_message('Only a competing bowler or server administrator may change this shot.',ephemeral=True)
   p=s.current()
   if p.standing!=set(__import__('services.pin_engine',fromlist=['ALL']).ALL) and intent.value!='spare':return await i.response.send_message('A leave is standing — Spare intent is automatic.',ephemeral=True)
   p.next_intent=intent.value
@@ -377,6 +416,7 @@ class Games(commands.Cog):
    await publish_victory(ch,s,last_event)
    LANE_MESSAGES.pop(key,None)
    SESSIONS.pop(key,None)
+   clear_session(key)
    return
   # Calculate all bowler summaries *before* recording the result so a
   # formatting/analytics error cannot leave a half-finalised persisted game.
@@ -386,79 +426,45 @@ class Games(commands.Cog):
    raise ValueError('Cannot finalise a game without bowlers')
   gid=record_completed_session(s,key)
   if gid is None:
-   raise RuntimeError('Completed game id could not be resolved; refusing duplicate post-game awards')
+   raise RuntimeError('Completed game id could not be resolved')
   totals=s.team_totals()
   winner=max(totals,key=totals.get) if len(totals)>1 and len(set(totals.values()))>1 else None
+  if s.tournament_id and s.match_id:
+   backup_database('auto_tournament_result')
+  # Complete ALL career/history/tournament writes transactionally BEFORE
+  # sending anything to Discord. Retrying the same session_uid is safe.
+  achievement_cards,winner,rolloff,newly_committed=commit_postgame(s,gid,summaries,winner,totals)
   high=summaries[0]
   awards=[f"👑 **High Game:** {high[0].bowler.name} — {high[1]['score']}"]
-  await ch.send('🏁 **GAME COMPLETE!**',embed=scoreboard_embed(s))
   clean=[p.bowler.name for p,x in summaries if x['clean']]
   if clean:awards.append('✨ **Clean Game:** '+', '.join(clean))
   best_streak=max(summaries,key=lambda x:x[1]['longest_streak'])
   if best_streak[1]['longest_streak']>=3:awards.append(f"🔥 **Strike Run:** {best_streak[0].bowler.name} — {best_streak[1]['longest_streak']} straight")
   split=max(summaries,key=lambda x:x[1]['split_conversions'])
   if split[1]['split_conversions']:awards.append(f"🪓 **Split Slayer:** {split[0].bowler.name} — {split[1]['split_conversions']} converted")
-  if winner:awards.insert(0,f'🏆 **Team Winner: {winner}** — {totals[winner]}')
+  if winner:awards.insert(0,f'🏆 **Team Winner: {winner}** — {totals[winner]}'+(' (sudden-death roll-off)' if rolloff else ''))
+  await ch.send('🏁 **GAME COMPLETE!**',embed=scoreboard_embed(s))
   await ch.send('🎖️ **POST-GAME HONOURS**\n'+'\n'.join(awards))
   stories=match_story_summary(s)
   if stories:
    priority={'comeback':6,'lead_change':5,'clutch':4,'pb_watch':3,'perfect_watch':7,'rivalry':3,'lane_read':1}
    top=sorted(stories,key=lambda r:priority.get(r['kind'],0),reverse=True)[:4]
    await ch.send('📰 **MATCH STORY**\n'+'\n'.join(f"• **{r['headline']}** — {r['detail']}" for r in top))
-  # Commit game history/season stats before running career helpers.
-  # Those helpers open their own SQLite connections: invoking them within
-  # an uncommitted write transaction causes "database is locked".
-  achievement_cards=[]
-  newly_recorded=[]
-  with connect() as c:
-   season=c.execute("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").fetchone()
-   season_id=season['id'] if season else None
-   for p,sm in summaries:
-    # If recovering after a partially completed postgame, do not write the
-    # same player's history or increment season totals twice.
-    existing=c.execute('SELECT 1 FROM game_history WHERE game_id=? AND bowler_id=? LIMIT 1',
-                       (gid,p.bowler.id)).fetchone()
-    if existing:
-     logging.warning('Skipping duplicate history for game=%s bowler=%s',gid,p.bowler.id)
-     continue
-    team_name=getattr(p.bowler,'team_name',None)
-    tr=c.execute('SELECT id FROM teams WHERE name=? COLLATE NOCASE',(team_name,)).fetchone() if team_name else None
-    tid=tr['id'] if tr else None
-    c.execute('INSERT INTO game_history(game_id,bowler_id,season_id,tournament_id,team_id,score,strikes,spares,splits,split_conversions,longest_streak,clean,form) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
-              (gid,p.bowler.id,season_id,s.tournament_id,tid,sm['score'],sm['strikes'],sm['spares'],sm['splits'],sm['split_conversions'],sm['longest_streak'],sm['clean'],getattr(p,'form',0)))
-    effective_season=getattr(s,'season_id',None) or season_id
-    if effective_season:
-     c.execute('INSERT OR IGNORE INTO season_bowler_stats(season_id,bowler_id) VALUES(?,?)',(effective_season,p.bowler.id))
-     c.execute('UPDATE season_bowler_stats SET games=games+1,total_pins=total_pins+?,high_game=MAX(high_game,?),strikes=strikes+?,spares=spares+?,split_conversions=split_conversions+? WHERE season_id=? AND bowler_id=?',
-               (sm['score'],sm['score'],sm['strikes'],sm['spares'],sm['split_conversions'],effective_season,p.bowler.id))
-    newly_recorded.append((p,sm))
-  for p,sm in newly_recorded:
-   team_name=getattr(p.bowler,'team_name',None)
-   award_progression(p.bowler.id,sm['score'],bool(s.tournament_id),winner==team_name)
-   if sm['clean']:add_tendency(p.bowler.id,'consistency',2.2,'Repeated clean-game execution','game')
-   if sm['longest_streak']>=6:add_tendency(p.bowler.id,'flair',1.8,'Produced a six-pack strike run','game')
-   if sm['score']<120 and sm.get('opens',0)>=5:add_tendency(p.bowler.id,'consistency',-2.0,'Repeated game collapse with open frames','game')
-   if sm['score']>=250:add_tendency(p.bowler.id,'nerves',1.5,'Delivered a 250+ pressure game','game')
-   seven_ten='7–10 Split' in getattr(p,'special_conversions',set())
-   for title,detail in unlock_achievements(p.bowler.id,sm,{'seven_ten':seven_ten}):
-    achievement_cards.append((p.bowler.name,title,detail))
   for name,title,detail in achievement_cards:
-   e=discord.Embed(title=f'🏅 ACHIEVEMENT UNLOCKED — {title}',description=f'**{name}**\n{detail}',colour=discord.Colour.gold());await ch.send(embed=e);await send_media(ch,'award')
-  if s.tournament_id and s.match_id and len(totals)==2 and winner:
-   backup_database('auto_tournament_result')
-   with connect() as c:
-    m=c.execute('SELECT * FROM tournament_matches WHERE id=?',(s.match_id,)).fetchone();ta=c.execute('SELECT name FROM teams WHERE id=?',(m['team_a_id'],)).fetchone()['name'];tb=c.execute('SELECT name FROM teams WHERE id=?',(m['team_b_id'],)).fetchone()['name'];sa=totals.get(ta,0);sb=totals.get(tb,0);wid=m['team_a_id'] if sa>sb else m['team_b_id']
-    c.execute('UPDATE tournament_matches SET score_a=?,score_b=?,winner_id=?,status="complete" WHERE id=?',(sa,sb,wid,m['id']));c.execute('INSERT INTO head_to_head(team_a_id,team_b_id,winner_id,score_a,score_b,tournament_id,match_id) VALUES(?,?,?,?,?,?,?)',(m['team_a_id'],m['team_b_id'],wid,sa,sb,s.tournament_id,m['id']))
-    for team_id,won,score in [(m['team_a_id'],wid==m['team_a_id'],sa),(m['team_b_id'],wid==m['team_b_id'],sb)]:c.execute('INSERT OR IGNORE INTO team_history(team_id) VALUES(?)',(team_id,));c.execute('UPDATE team_history SET wins=wins+?,losses=losses+?,high_game=MAX(high_game,?) WHERE team_id=?',(int(won),int(not won),score,team_id))
-    c.execute('INSERT INTO tournament_stories(tournament_id,match_id,kind,headline,detail) VALUES(?,?,?,?,?)',(s.tournament_id,s.match_id,'result','Match decided',f'{winner} defeated its opponent {max(totals.values())}-{min(totals.values())}.'))
-   from services.competition import _advance_byes
-   with connect() as c:_advance_byes(c,s.tournament_id)
+   e=discord.Embed(title=f'🏅 ACHIEVEMENT UNLOCKED — {title}',description=f'**{name}**\n{detail}',colour=discord.Colour.gold())
+   await ch.send(embed=e);await send_media(ch,'award')
+  if s.tournament_id and s.match_id and len(totals)==2:
+   if rolloff:
+    names=sorted(totals)
+    display=' | '.join(f"R{x['round']}: {x['pins'][names[0]]}-{x['pins'][names[1]]}" for x in rolloff)
+    await ch.send(f'🎳 **SUDDEN-DEATH ROLL-OFF:** {names[0]} vs {names[1]} — {display}\n🏆 **{winner}** takes the tied match.')
    await ch.send(f'🏆 **TOURNAMENT UPDATE:** {winner} advances automatically.')
-   # Publish a fresh issue after tournament matches; the Gazette becomes the persistent session recap.
-   from services.gazette import build_gazette,format_gazette
-   g=build_gazette(s.tournament_id)
-   if g:await ch.send(format_gazette(g))
+   if newly_committed:
+    from services.gazette import build_gazette,format_gazette
+    g=build_gazette(s.tournament_id)
+    if g:await ch.send(format_gazette(g))
   await publish_victory(ch,s,last_event)
   LANE_MESSAGES.pop(key,None)
   clear_session(key)
+  SESSIONS.pop(key,None)
 async def setup(bot):await bot.add_cog(Games(bot))

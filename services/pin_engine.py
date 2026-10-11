@@ -7,14 +7,14 @@ def is_split(standing):
  s=set(standing)
  if 1 in s or len(s)<2:return False
  xs=sorted(PINS[p][0] for p in s);return any(b-a>=2 for a,b in zip(xs,xs[1:]))
-def _special_carry(rng,standing,down,quality,miss,bowler):
+def _special_carry(rng,standing,down,quality,miss,bowler,spare=False):
  tags=[];style=max(1,min(50,bowler.style));flair=max(1,min(50,bowler.flair))
- if standing==ALL and len(down)==10:
+ if standing==ALL and len(down)==10 and not spare:
   if abs(miss)>.72:tags.append('brooklyn')
   elif rng.random()<.055+style*.0011:tags.append('messenger')
   elif rng.random()<.04+flair*.0010:tags.append('trip_4')
   return down,tags
- if standing==ALL and quality>.50:
+ if standing==ALL and quality>.50 and not spare:
   left=standing-down
   if 10 in left and rng.random()<.20:tags.append('ringing_10')
   if 8 in left and rng.random()<.13:tags.append('stone_8')
@@ -42,14 +42,14 @@ def roll_pins(rng,bowler,standing,lane='house',pressure=0.0,form=0.0,transition=
  style_recovery=max(0,sty-25)/25*.025 if abs(miss)>.45 else 0
  flair_form=form*(.75+fl/100)
  quality=max(0,min(1,.30+.48*base+.11*oil_fit+pressure_mod+style_recovery+flair_form+prestige+intent.quality-abs(miss)*.15+rng.gauss(0,.045+(50-c)/1200)))
- if standing==ALL:
+ if standing==ALL and not spare:
   strike_p=max(.005,min(.82,.015+.69*(quality**2.38)+intent.carry*(.55+sty/160+fl/180)))
   if rng.random()<strike_p:
-   down=set(standing);down,tags=_special_carry(rng,standing,down,quality,miss,bowler);return down,quality,{'miss':miss,'ball':ball.key,'target':'pocket','metrics':m,'tags':tags,'intent':intent.key}
+   down=set(standing);down,tags=_special_carry(rng,standing,down,quality,miss,bowler,spare);return down,quality,{'miss':miss,'ball':ball.key,'target':'pocket','metrics':m,'tags':tags,'intent':intent.key}
  target=min(standing,key=lambda p:(abs(PINS[p][0]),PINS[p][1])) if spare else 1;down=set()
  for p in standing:
   dx=abs(PINS[p][0]-(PINS[target][0]+miss));depth=PINS[p][1]
   chance=max(.015,min(.97,quality*1.08-dx*(.18 if spare else .16)+(3-depth)*.022))
   if rng.random()<chance:down.add(p)
  if not down and rng.random()<quality:down.add(target)
- down,tags=_special_carry(rng,standing,down,quality,miss,bowler);return down,quality,{'miss':miss,'ball':ball.key,'target':target,'metrics':m,'tags':tags,'intent':intent.key}
+ down,tags=_special_carry(rng,standing,down,quality,miss,bowler,spare);return down,quality,{'miss':miss,'ball':ball.key,'target':target,'metrics':m,'tags':tags,'intent':intent.key}

@@ -1,4 +1,4 @@
-import csv, io, json, shutil, time, base64, pickle
+import csv, io, json, shutil, time, base64, pickle, hashlib
 from datetime import datetime
 from pathlib import Path
 from config import DB_PATH, ROOT
@@ -15,14 +15,22 @@ def audit(actor_id,action,target_type='',target_id=None,detail=''):
 def archetype(b):
     vals={'Power Player':b.spin+b.accuracy*.25,'Shot Maker':b.accuracy+b.consistency*.35,'Spinner':b.spin+b.style*.25,'Clutch Bowler':b.nerves+b.consistency*.25,'Showman':b.style+b.flair*.8,'Steady Hand':b.consistency+b.accuracy*.3};return max(vals,key=vals.get)
 def session_dict(s):
-    return {'seed':s.seed,'rng_state':base64.b64encode(pickle.dumps(s.rng.getstate())).decode('ascii'),'lane':s.lane,'turn':s.turn,'tournament_id':s.tournament_id,'match_id':s.match_id,'season_id':getattr(s,'season_id',None),'competition_id':getattr(s,'competition_id',None),'fixture_id':getattr(s,'fixture_id',None),'persisted':s.persisted,'ball_count':getattr(s,'ball_count',0),'layout':getattr(s,'layout','broadcast'),'branding':getattr(s,'branding',None),'story_leader':getattr(s,'story_leader',None),'story_low':getattr(s,'story_low',{}),'story_seen':list(getattr(s,'story_seen',set())),'lane_pair':{'left':{'number':s.lane_pair.left.number,'traffic':s.lane_pair.left.traffic,'oil':s.lane_pair.left.oil,'track':s.lane_pair.left.track,'inside':s.lane_pair.left.inside,'middle':s.lane_pair.left.middle,'outside':s.lane_pair.left.outside,'carrydown':s.lane_pair.left.carrydown},'right':{'number':s.lane_pair.right.number,'traffic':s.lane_pair.right.traffic,'oil':s.lane_pair.right.oil,'track':s.lane_pair.right.track,'inside':s.lane_pair.right.inside,'middle':s.lane_pair.right.middle,'outside':s.lane_pair.right.outside,'carrydown':s.lane_pair.right.carrydown},'next_side':s.lane_pair.next_side},'players':[{'bowler':{k:getattr(p.bowler,k) for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves','team_name','sprite_key','affiliation']},'frames':p.frames,'standing':sorted(p.standing),'frame':p.frame,'ball':p.ball,'split_leave':p.split_leave,'split_frames':sorted(p.split_frames),'split_conversions':sorted(p.split_conversions),'strike_streak':p.strike_streak,'max_strike_streak':p.max_strike_streak,'form':getattr(p,'form',0.0),'special_conversions':sorted(getattr(p,'special_conversions',set())),'ball_key':getattr(p,'ball_key','hybrid'),'shot_intent':getattr(p,'shot_intent','auto'),'next_intent':getattr(p,'next_intent',None),'line_boards':getattr(p,'line_boards',0),'active_ball':getattr(p,'active_ball',None)} for p in s.players]}
+    return {'seed':s.seed,'rng_state':base64.b64encode(pickle.dumps(s.rng.getstate())).decode('ascii'),'lane':s.lane,'turn':s.turn,'tournament_id':s.tournament_id,'match_id':s.match_id,'season_id':getattr(s,'season_id',None),'competition_id':getattr(s,'competition_id',None),'fixture_id':getattr(s,'fixture_id',None),'persisted':s.persisted,'session_uid':s.session_uid,'friendly_challenge':getattr(s,'friendly_challenge',False),'last_attribute_changes':getattr(s,'last_attribute_changes',[]),'last_attribute_bowler_id':getattr(s,'last_attribute_bowler_id',None),'ball_count':getattr(s,'ball_count',0),'layout':getattr(s,'layout','broadcast'),'branding':getattr(s,'branding',None),'story_leader':getattr(s,'story_leader',None),'story_low':getattr(s,'story_low',{}),'story_seen':list(getattr(s,'story_seen',set())),'lane_pair':{'left':{'number':s.lane_pair.left.number,'traffic':s.lane_pair.left.traffic,'oil':s.lane_pair.left.oil,'track':s.lane_pair.left.track,'inside':s.lane_pair.left.inside,'middle':s.lane_pair.left.middle,'outside':s.lane_pair.left.outside,'carrydown':s.lane_pair.left.carrydown},'right':{'number':s.lane_pair.right.number,'traffic':s.lane_pair.right.traffic,'oil':s.lane_pair.right.oil,'track':s.lane_pair.right.track,'inside':s.lane_pair.right.inside,'middle':s.lane_pair.right.middle,'outside':s.lane_pair.right.outside,'carrydown':s.lane_pair.right.carrydown},'next_side':s.lane_pair.next_side},'players':[{'bowler':{k:getattr(p.bowler,k) for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves','team_name','sprite_key','affiliation']},'frames':p.frames,'standing':sorted(p.standing),'frame':p.frame,'ball':p.ball,'split_leave':p.split_leave,'split_frames':sorted(p.split_frames),'split_conversions':sorted(p.split_conversions),'strike_streak':p.strike_streak,'max_strike_streak':p.max_strike_streak,'form':getattr(p,'form',0.0),'special_conversions':sorted(getattr(p,'special_conversions',set())),'ball_key':getattr(p,'ball_key','hybrid'),'shot_intent':getattr(p,'shot_intent','auto'),'next_intent':getattr(p,'next_intent',None),'line_boards':getattr(p,'line_boards',0),'active_ball':getattr(p,'active_ball',None)} for p in s.players]}
+def legacy_session_uid(d):
+    """Stable recovery ID for pre-v2.8.5s snapshots without a session UID."""
+    immutable={'seed':d['seed'],'lane':d['lane'],
+               'bowlers':[x['bowler']['id'] for x in d['players']],
+               'tournament_id':d.get('tournament_id'),'match_id':d.get('match_id'),
+               'fixture_id':d.get('fixture_id'),'competition_id':d.get('competition_id')}
+    return 'legacy-'+hashlib.sha256(json.dumps(immutable,sort_keys=True).encode()).hexdigest()
+
 def session_from_dict(d):
     bowlers=[]
     for x in d['players']:
         bd=x['bowler']; team=bd.pop('team_name',None); b=Bowler(**bd); b.team_name=team; bowlers.append(b)
     lp=d.get('lane_pair',{});start=lp.get('left',{}).get('number',3);s=GameSession(bowlers,d['seed'],d['lane'],d.get('tournament_id'),d.get('match_id'),start,d.get('layout','broadcast'),d.get('season_id'),d.get('competition_id'),d.get('fixture_id'));s.turn=d['turn'];
     if d.get('rng_state'):s.rng.setstate(pickle.loads(base64.b64decode(d['rng_state'])))
-    s.persisted=d.get('persisted',False);s.ball_count=d.get('ball_count',0);s.branding=d.get('branding');s.story_leader=d.get('story_leader');s.story_low=d.get('story_low',{});s.story_seen=set(d.get('story_seen',[]))
+    s.persisted=d.get('persisted',False);s.session_uid=d.get('session_uid') or legacy_session_uid(d);s.friendly_challenge=d.get('friendly_challenge',False);s.last_attribute_changes=d.get('last_attribute_changes',[]);s.last_attribute_bowler_id=d.get('last_attribute_bowler_id');s.ball_count=d.get('ball_count',0);s.branding=d.get('branding');s.story_leader=d.get('story_leader');s.story_low=d.get('story_low',{});s.story_seen=set(d.get('story_seen',[]))
     for side in ('left','right'):
         src=lp.get(side,{})
         lane=getattr(s.lane_pair,side)
@@ -31,21 +39,84 @@ def session_from_dict(d):
     for p,x in zip(s.players,d['players']):
         p.frames=x['frames'];p.standing=set(x['standing']);p.frame=x['frame'];p.ball=x['ball'];p.split_leave=x.get('split_leave',False);p.split_frames=set(x.get('split_frames',[]));p.split_conversions=set(x.get('split_conversions',[]));p.strike_streak=x.get('strike_streak',0);p.max_strike_streak=x.get('max_strike_streak',0);p.form=x.get('form',0.0);p.special_conversions=set(x.get('special_conversions',[]));p.ball_key=x.get('ball_key','hybrid');p.shot_intent=x.get('shot_intent','auto');p.next_intent=x.get('next_intent');p.line_boards=x.get('line_boards',0);p.active_ball=x.get('active_ball')
     return s
+def _career_checkpoint(db, bowler_id):
+    """Remember the career evidence before one delivery, so Undo reverses it."""
+    from services.career import ATTRS
+    player=db.execute('SELECT '+','.join(ATTRS)+' FROM bowlers WHERE id=?',(bowler_id,)).fetchone()
+    if not player:return None
+    tendency=db.execute('SELECT stat,score,evidence FROM career_tendencies WHERE bowler_id=?',(bowler_id,)).fetchall()
+    max_history=db.execute('SELECT COALESCE(MAX(id),0) FROM attribute_history WHERE bowler_id=?',(bowler_id,)).fetchone()[0]
+    max_timeline=db.execute("SELECT COALESCE(MAX(id),0) FROM career_timeline WHERE bowler_id=? AND source='delivery'",(bowler_id,)).fetchone()[0]
+    return json.dumps({'bowler_id':bowler_id,'attrs':{k:player[k] for k in ATTRS},
+                       'tendencies':[dict(x) for x in tendency],
+                       'history_id':max_history,'timeline_id':max_timeline})
+
+def _restore_career_checkpoint(db, checkpoint):
+    if not checkpoint:return
+    from services.career import ATTRS
+    d=json.loads(checkpoint);bid=d['bowler_id']
+    for stat in ATTRS:
+        db.execute(f'UPDATE bowlers SET {stat}=? WHERE id=?',(d['attrs'][stat],bid))
+    db.execute('DELETE FROM career_tendencies WHERE bowler_id=?',(bid,))
+    for t in d['tendencies']:
+        db.execute('INSERT INTO career_tendencies(bowler_id,stat,score,evidence) VALUES(?,?,?,?)',
+                   (bid,t['stat'],t['score'],t['evidence']))
+    db.execute("DELETE FROM attribute_history WHERE bowler_id=? AND id>?",(bid,d['history_id']))
+    db.execute("DELETE FROM career_timeline WHERE bowler_id=? AND source='delivery' AND id>?",(bid,d['timeline_id']))
+
 def save_snapshot(channel_id,s,label='ball'):
     payload=json.dumps(session_dict(s),separators=(',',':'))
-    with connect() as c:c.execute('INSERT INTO match_snapshots(channel_id,match_id,label,state_json) VALUES(?,?,?,?)',(channel_id,s.match_id,label,payload));c.execute('INSERT INTO active_sessions(channel_id,state_json,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(channel_id) DO UPDATE SET state_json=excluded.state_json,updated_at=CURRENT_TIMESTAMP',(channel_id,payload))
-def undo_snapshot(channel_id):
     with connect() as c:
-        rows=c.execute('SELECT id,state_json FROM match_snapshots WHERE channel_id=? ORDER BY id DESC LIMIT 2',(channel_id,)).fetchall()
-        if len(rows)<2:return None
-        c.execute('DELETE FROM match_snapshots WHERE id=?',(rows[0]['id'],)); payload=rows[1]['state_json'];c.execute('UPDATE active_sessions SET state_json=?,updated_at=CURRENT_TIMESTAMP WHERE channel_id=?',(payload,channel_id))
+        career=None
+        if not getattr(s,'friendly_challenge',False):
+            if label=='pre_ball':
+                career=_career_checkpoint(c,s.current().bowler.id)
+            elif label=='post_ball':
+                prior=c.execute("SELECT career_json FROM match_snapshots WHERE channel_id=? AND label='pre_ball' ORDER BY id DESC LIMIT 1",(channel_id,)).fetchone()
+                if prior and prior['career_json']:
+                    career=_career_checkpoint(c,json.loads(prior['career_json'])['bowler_id'])
+        c.execute('INSERT INTO match_snapshots(channel_id,match_id,label,state_json,career_json) VALUES(?,?,?,?,?)',
+                  (channel_id,s.match_id,label,payload,career))
+        c.execute('INSERT INTO active_sessions(channel_id,state_json,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(channel_id) DO UPDATE SET state_json=excluded.state_json,updated_at=CURRENT_TIMESTAMP',(channel_id,payload))
+
+def undo_snapshot(channel_id):
+    """Undo exactly ONE finished or in-flight delivery, not one arbitrary snapshot."""
+    with connect() as c:
+        active=c.execute('SELECT state_json FROM active_sessions WHERE channel_id=?',(channel_id,)).fetchone()
+        if not active:return None
+        state=json.loads(active['state_json'])
+        uid=state.get('session_uid')
+        if uid and c.execute('SELECT id FROM games WHERE session_uid=?',(uid,)).fetchone():
+            return None  # A committed game's career totals must never be rewound.
+        # Snapshots from a prior match in the same channel must never be revisited.
+        rows=c.execute('SELECT id,label,state_json,career_json FROM match_snapshots WHERE channel_id=? ORDER BY id DESC',(channel_id,)).fetchall()
+        latest=next((x for x in rows if x['label']=='pre_ball' and
+                     (json.loads(x['state_json']).get('session_uid') or legacy_session_uid(json.loads(x['state_json'])))==(uid or legacy_session_uid(state))),None)
+        if latest is None:return None
+        payload=latest['state_json']
+        # Refuse to clobber newer career activity from a DIFFERENT match.
+        # Post-delivery checkpoints tell us the precise career state expected.
+        after=next((x for x in rows if x['id']>latest['id'] and x['label']=='post_ball'),None)
+        if after and after['career_json']:
+            expected=json.loads(after['career_json'])
+            current=_career_checkpoint(c,expected['bowler_id'])
+            if not current or json.loads(current)!=expected:return None
+        _restore_career_checkpoint(c,latest['career_json'])
+        c.execute('DELETE FROM match_snapshots WHERE channel_id=? AND id>=?',(channel_id,latest['id']))
+        c.execute('UPDATE active_sessions SET state_json=?,updated_at=CURRENT_TIMESTAMP WHERE channel_id=?',(payload,channel_id))
     return session_from_dict(json.loads(payload))
 def restore_session(channel_id):
     with connect() as c:r=c.execute('SELECT state_json FROM active_sessions WHERE channel_id=?',(channel_id,)).fetchone()
     return session_from_dict(json.loads(r['state_json'])) if r else None
 def clear_session(channel_id):
-    with connect() as c:c.execute('DELETE FROM active_sessions WHERE channel_id=?',(channel_id,))
-def unlock_achievements(bowler_id,summary,extra=None):
+    with connect() as c:
+        c.execute('DELETE FROM active_sessions WHERE channel_id=?',(channel_id,))
+        c.execute('DELETE FROM match_snapshots WHERE channel_id=?',(channel_id,))
+
+def prepare_new_session(channel_id):
+    """Discard stale snapshots when an entirely new match starts."""
+    clear_session(channel_id)
+def unlock_achievements(bowler_id,summary,extra=None,db=None):
     extra=extra or {}; defs=[]
     if summary['strikes']>=1:defs.append(('first_strike','First Strike','Recorded a first career strike.'))
     if summary['longest_streak']>=3:defs.append(('turkey','Turkey','Three consecutive strikes.'))
@@ -59,16 +130,20 @@ def unlock_achievements(bowler_id,summary,extra=None):
     if extra.get('comeback'):defs.append(('comeback_kid','Comeback Kid','Won after trailing late.'))
     if extra.get('champion'):defs.append(('champion','Tournament Champion','Won a Gutter Saints tournament.'))
     new=[]
-    with connect() as c:
+    from contextlib import nullcontext
+    with nullcontext(db) if db is not None else connect() as c:
         for code,title,detail in defs:
             cur=c.execute('INSERT OR IGNORE INTO achievements(bowler_id,code,title,detail) VALUES(?,?,?,?)',(bowler_id,code,title,detail))
             if cur.rowcount:new.append((title,detail))
     return new
-def award_progression(bowler_id,score,tournament=False,won=False):
+def award_progression(bowler_id,score,tournament=False,won=False,db=None):
     xp=10+score//25+(10 if tournament else 0)+(10 if won else 0); credits=1+(1 if score>=200 else 0)+(1 if won else 0)
-    with connect() as c:c.execute('INSERT OR IGNORE INTO bowler_progression(bowler_id) VALUES(?)',(bowler_id,));c.execute('UPDATE bowler_progression SET xp=xp+?,credits=MIN(20,credits+?) WHERE bowler_id=?',(xp,credits,bowler_id))
-    from services.career import sync_rank
-    sync_rank(bowler_id)
+    from contextlib import nullcontext
+    with nullcontext(db) if db is not None else connect() as c:
+        c.execute('INSERT OR IGNORE INTO bowler_progression(bowler_id) VALUES(?)',(bowler_id,))
+        c.execute('UPDATE bowler_progression SET xp=xp+?,credits=MIN(20,credits+?) WHERE bowler_id=?',(xp,credits,bowler_id))
+        from services.career import sync_rank
+        sync_rank(bowler_id,db=c)
     return xp,credits
 def tournament_dashboard(name=None):
     with connect() as c:

@@ -1,4 +1,5 @@
 import random
+from contextlib import nullcontext
 from storage.database import connect
 
 ATTRS=('accuracy','consistency','spin','nerves','style','flair')
@@ -14,8 +15,8 @@ def rank_from_xp(xp):
  # Slow prestige curve; rank has only a tiny simulation effect.
  return max(1,min(100,1+int((max(0,xp)/120)**0.72)))
 
-def sync_rank(bowler_id):
- with connect() as c:
+def sync_rank(bowler_id,db=None):
+ with nullcontext(db) if db is not None else connect() as c:
   p=c.execute('SELECT xp FROM bowler_progression WHERE bowler_id=?',(bowler_id,)).fetchone();xp=p['xp'] if p else 0
   oldrow=c.execute('SELECT rank FROM bowlers WHERE id=?',(bowler_id,)).fetchone();old=oldrow['rank'] if oldrow else 1
   rank=rank_from_xp(xp);c.execute('UPDATE bowlers SET rank=? WHERE id=?',(rank,bowler_id))
@@ -37,9 +38,9 @@ def _change(bowler_id,stat,delta,reason):
 def _timeline(c,bowler_id,kind,icon,headline,detail='',source='career'):
  c.execute('INSERT INTO career_timeline(bowler_id,kind,icon,headline,detail,source) VALUES(?,?,?,?,?,?)',(bowler_id,kind,icon,headline,detail,source))
 
-def add_tendency(bowler_id,stat,amount,reason,source='delivery'):
+def add_tendency(bowler_id,stat,amount,reason,source='delivery',db=None):
  if stat not in ATTRS or not amount:return None
- with connect() as c:
+ with nullcontext(db) if db is not None else connect() as c:
   c.execute('INSERT OR IGNORE INTO career_tendencies(bowler_id,stat) VALUES(?,?)',(bowler_id,stat))
   row=c.execute('SELECT score,evidence FROM career_tendencies WHERE bowler_id=? AND stat=?',(bowler_id,stat)).fetchone()
   score=max(-24.0,min(24.0,row['score']+amount));evidence=row['evidence']+1

@@ -1,6 +1,14 @@
-# Gutter Saints Bowling Bot v2.8.5r — Rules & Second-Ball Reliability Audit
+# Gutter Saints Bowling Bot v2.8.5s — Tournament Integrity, Recovery & Reliability
 
 A Discord bowling game and tournament platform with persistent SQLite careers, teams, tournaments, achievements, progression, graphical lane presentation, contextual commentary, GIF hooks and optional voice-channel audio.
+
+## v2.8.5s — Tournament Integrity, Recovery & Reliability
+- Fixed **all seven** findings from the v2.8.5r audit: friendly-match restoration; tournament tied games; Director button permissions; active session overwrite; exact one-ball Undo; idempotent completed-game/career/tournament commits; and spare-target logic after a gutter.
+- Tournament ties resolve using a reproducible **one-ball-per-team, sudden-death roll-off**. Regulation frame scores remain tied; the separate roll-off produces the bracket winner and is stored with the match.
+- Added `session_uid` and a transaction-scoped `game_finalizations` ledger, initial match checkpoints, career-safe Undo, and a completed-session recovery path.
+- Added 13 focused regression checks (11 SQLite/engine, 2 Discord-specific) without modifying graphics, animations, camera placements, proportions or timing.
+- **Full release notes and upgrade cautions:** [docs/v2.8.5s_tournament_integrity_release.md](docs/v2.8.5s_tournament_integrity_release.md).
+- **Installation:** back up `data/gutter_saints.db` before updating. Existing artwork stays in place; missing PNGs are not included in this source ZIP. Start fresh matches after migration when possible.
 
 ## v2.8.5r — Standard Tenpin Scoring & Second-Ball Reliability Audit
 - Audited standard 10-frame scoring and 10th bonus rules against IBF/BTBA rules. Conventional completed games are now validated; impossible pin counts, illegal frame structures and extra bonus rolls are rejected rather than credited.

@@ -49,6 +49,8 @@ def playoff_embed(cid):
  return discord.Embed(title=f"🔥 {co['name']} — Playoff Picture",description='\n'.join(lines) or 'No standings.',footer='Green = currently inside playoff cut' if cut else 'No playoff cut configured.')
 
 async def launch_fixture(i,cid):
+ from cogs.games import channel_has_active_match
+ if channel_has_active_match(i.channel_id):return await i.response.send_message('An active or recoverable match already occupies this channel.',ephemeral=True)
  from cogs.menu import admin_ok
  if not admin_ok(i):return await i.response.send_message('Admin permission required.',ephemeral=True)
  f=next_fixture(cid)
@@ -64,8 +66,12 @@ async def launch_fixture(i,cid):
  for n in range(max(len(home),len(away))):
   if n<len(home):bowlers.append(rb(home[n],names[f['home_id']]))
   if n<len(away):bowlers.append(rb(away[n],names[f['away_id']]))
- s=GameSession(bowlers,lane=co['lane_condition'],season_id=co['season_id'],competition_id=cid,fixture_id=f['id']);SESSIONS[i.channel_id]=s
+ s=GameSession(bowlers,lane=co['lane_condition'],season_id=co['season_id'],competition_id=cid,fixture_id=f['id']);
+ from services.v25 import prepare_new_session
+ prepare_new_session(i.channel_id);SESSIONS[i.channel_id]=s
  for p in s.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
+ from services.v25 import save_snapshot
+ save_snapshot(i.channel_id,s,'start')
  with connect() as c:c.execute("UPDATE fixtures SET status='playing' WHERE id=?",(f['id'],))
  await i.response.send_message(f"🎳 **{co['name']}**\nFixture #{f['id']} is live — **{names[f['home_id']]} vs {names[f['away_id']]}**.")
 

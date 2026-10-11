@@ -7,7 +7,7 @@ PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS bowlers(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL COLLATE NOCASE UNIQUE,owner_id INTEGER NOT NULL,handedness TEXT NOT NULL DEFAULT 'R',rank INTEGER NOT NULL,accuracy INTEGER NOT NULL,style INTEGER NOT NULL,flair INTEGER NOT NULL,consistency INTEGER NOT NULL,spin INTEGER NOT NULL,nerves INTEGER NOT NULL,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS teams(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL COLLATE NOCASE UNIQUE,captain_id INTEGER NOT NULL,flair INTEGER NOT NULL DEFAULT 0,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS team_members(team_id INTEGER NOT NULL,bowler_id INTEGER NOT NULL,slot INTEGER NOT NULL,PRIMARY KEY(team_id,bowler_id),FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,FOREIGN KEY(bowler_id) REFERENCES bowlers(id) ON DELETE CASCADE);
-CREATE TABLE IF NOT EXISTS games(id INTEGER PRIMARY KEY AUTOINCREMENT,session_key TEXT NOT NULL,team_a_id INTEGER,team_b_id INTEGER,status TEXT NOT NULL,lane_condition TEXT NOT NULL,seed INTEGER NOT NULL,created_at TEXT DEFAULT CURRENT_TIMESTAMP,finished_at TEXT);
+CREATE TABLE IF NOT EXISTS games(id INTEGER PRIMARY KEY AUTOINCREMENT,session_uid TEXT UNIQUE,session_key TEXT NOT NULL,team_a_id INTEGER,team_b_id INTEGER,status TEXT NOT NULL,lane_condition TEXT NOT NULL,seed INTEGER NOT NULL,created_at TEXT DEFAULT CURRENT_TIMESTAMP,finished_at TEXT);
 CREATE TABLE IF NOT EXISTS game_bowlers(game_id INTEGER NOT NULL,bowler_id INTEGER NOT NULL,team_id INTEGER,position INTEGER NOT NULL,score INTEGER DEFAULT 0,PRIMARY KEY(game_id,bowler_id));
 CREATE TABLE IF NOT EXISTS deliveries(id INTEGER PRIMARY KEY AUTOINCREMENT,game_id INTEGER NOT NULL,bowler_id INTEGER NOT NULL,frame INTEGER NOT NULL,ball INTEGER NOT NULL,standing_before TEXT NOT NULL,pins_down TEXT NOT NULL,standing_after TEXT NOT NULL,notation TEXT,quality REAL,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS bowler_stats(bowler_id INTEGER PRIMARY KEY,games INTEGER DEFAULT 0,total_pins INTEGER DEFAULT 0,high_game INTEGER DEFAULT 0,strikes INTEGER DEFAULT 0,spares INTEGER DEFAULT 0,splits INTEGER DEFAULT 0,split_conversions INTEGER DEFAULT 0,turkeys INTEGER DEFAULT 0,clean_games INTEGER DEFAULT 0,games_200 INTEGER DEFAULT 0,games_250 INTEGER DEFAULT 0,perfect_games INTEGER DEFAULT 0,awards INTEGER DEFAULT 0,FOREIGN KEY(bowler_id) REFERENCES bowlers(id) ON DELETE CASCADE);
@@ -44,10 +44,14 @@ def ensure_v22_schema():
 
 def record_completed_session(session,session_key='discord'):
     from services.analytics import player_summary
-    if session.persisted:return None
     ensure_v22_schema()
     with connect() as c:
-        gid=c.execute("INSERT INTO games(session_key,status,lane_condition,seed,finished_at) VALUES(?,?,?,?,CURRENT_TIMESTAMP)",(str(session_key),'complete',session.lane,session.seed)).lastrowid
+        uid=session.session_uid
+        existing=c.execute('SELECT id FROM games WHERE session_uid=?',(uid,)).fetchone()
+        if existing:
+            session.persisted=True
+            return existing['id']
+        gid=c.execute("INSERT INTO games(session_uid,session_key,status,lane_condition,seed,finished_at) VALUES(?,?,?,?,?,CURRENT_TIMESTAMP)",(uid,str(session_key),'complete',session.lane,session.seed)).lastrowid
         for pos,p in enumerate(session.players,1):
             s=player_summary(p); team_name=getattr(p.bowler,'team_name',None)
             team_id=None
@@ -82,7 +86,8 @@ CREATE TABLE IF NOT EXISTS team_history(team_id INTEGER PRIMARY KEY,wins INTEGER
 CREATE TABLE IF NOT EXISTS roster_history(id INTEGER PRIMARY KEY AUTOINCREMENT,team_id INTEGER,bowler_id INTEGER,action TEXT,slot INTEGER,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS head_to_head(id INTEGER PRIMARY KEY AUTOINCREMENT,team_a_id INTEGER,team_b_id INTEGER,winner_id INTEGER,score_a INTEGER,score_b INTEGER,tournament_id INTEGER,match_id INTEGER,played_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS audit_log(id INTEGER PRIMARY KEY AUTOINCREMENT,actor_id INTEGER NOT NULL,action TEXT NOT NULL,target_type TEXT,target_id INTEGER,detail TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
-CREATE TABLE IF NOT EXISTS match_snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,channel_id INTEGER NOT NULL,match_id INTEGER,label TEXT,state_json TEXT NOT NULL,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS match_snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,channel_id INTEGER NOT NULL,match_id INTEGER,label TEXT,state_json TEXT NOT NULL,career_json TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS game_finalizations(game_id INTEGER PRIMARY KEY,committed_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS active_sessions(channel_id INTEGER PRIMARY KEY,state_json TEXT NOT NULL,updated_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS predictions(id INTEGER PRIMARY KEY AUTOINCREMENT,tournament_id INTEGER,match_id INTEGER,user_id INTEGER NOT NULL,team_id INTEGER NOT NULL,points INTEGER DEFAULT 0,created_at TEXT DEFAULT CURRENT_TIMESTAMP,UNIQUE(match_id,user_id));
 CREATE TABLE IF NOT EXISTS tournament_stories(id INTEGER PRIMARY KEY AUTOINCREMENT,tournament_id INTEGER,match_id INTEGER,kind TEXT,headline TEXT,detail TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
@@ -122,3 +127,10 @@ def ensure_v25_schema():
         if 'archived_at' not in scols:c.execute('ALTER TABLE seasons ADD COLUMN archived_at TEXT')
         fcols={r['name'] for r in c.execute('PRAGMA table_info(fixtures)')}
         if 'bracket' not in fcols:c.execute("ALTER TABLE fixtures ADD COLUMN bracket TEXT NOT NULL DEFAULT 'main'")
+        gcols={r['name'] for r in c.execute('PRAGMA table_info(games)')}
+        if 'session_uid' not in gcols:c.execute('ALTER TABLE games ADD COLUMN session_uid TEXT')
+        c.execute('CREATE UNIQUE INDEX IF NOT EXISTS ix_games_session_uid ON games(session_uid)')
+        snapcols={r['name'] for r in c.execute('PRAGMA table_info(match_snapshots)')}
+        if 'career_json' not in snapcols:c.execute('ALTER TABLE match_snapshots ADD COLUMN career_json TEXT')
+        mcols={r['name'] for r in c.execute('PRAGMA table_info(tournament_matches)')}
+        if 'rolloff_json' not in mcols:c.execute('ALTER TABLE tournament_matches ADD COLUMN rolloff_json TEXT')
