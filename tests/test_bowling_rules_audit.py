@@ -50,6 +50,7 @@ class ConventionalScoreRules(unittest.TestCase):
         for rolls,notation in [
             ([10,10,10],'XXX'),([10,7,3],'X7/'),([10,10,8],'XX8'),
             ([9,1,10],'9/X'),([9,0],'9-'),([0,10,8],'-/8'),
+            ([10,0,10],'X-/'),([0,10],'-/'),
             ([7,2],'72'),([10],'X')
         ]:
             with self.subTest(rolls=rolls):
