@@ -67,12 +67,22 @@ def score_game(frames):
 
 
 def frame_notation(frame):
+    """Render X, / and - accurately, including 10th-frame fill balls."""
     if not frame:return ''
-    if len(frame)==1 and frame[0]==10:return 'X'
     out=[]
     for index,pins in enumerate(frame):
-        if pins==10:out.append('X')
-        elif index>0 and frame[index-1]+pins==10:out.append('/')
-        elif pins==0:out.append('-')
-        else:out.append(str(pins))
+        previous=frame[index-1] if index else None
+        # First/second delivery spare, unless the first was already X.
+        normal_spare=(index==1 and frame[0]!=10 and frame[0]+pins==10)
+        # In the 10th, an X followed by 7,3 (or 0,10) is X7/ (or X-/).
+        bonus_spare=(index==2 and frame[0]==10 and previous<10
+                     and previous+pins==10)
+        if normal_spare or bonus_spare:
+            out.append('/')
+        elif pins==10:
+            out.append('X')
+        elif pins==0:
+            out.append('-')
+        else:
+            out.append(str(pins))
     return ''.join(out)
