@@ -12,7 +12,7 @@ def run():
  checks=[]
  for rel in CORE:
   ast.parse((ROOT/rel).read_text(encoding='utf-8'));checks.append(('syntax '+rel,True))
- assert score_game([[10]]*12)==300;checks.append(('perfect 300 scoring',True))
+ assert score_game([[10]]*9+[[10,10,10]])==300;checks.append(('perfect 300 scoring',True))
  assert score_game([[9,1]]*9+[[9,1,9]])==190;checks.append(('all-spare scoring',True))
  b=Bowler(-1,'Audit',0,'R',1,15,15,15,15,15,15);s=GameSession([b],7279)
  for _ in range(8):s.bowl()
