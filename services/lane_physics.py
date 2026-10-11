@@ -48,10 +48,12 @@ class LanePair:
     def create(cls, start_lane=3, pattern="house"):
         return cls(LaneState(start_lane,pattern),LaneState(start_lane+1,pattern))
     def lane_for(self,bowler_id):
+        """Current lane remains fixed for ALL deliveries in one frame."""
         side=self.next_side.get(bowler_id,0)
-        lane=self.left if side==0 else self.right
-        self.next_side[bowler_id]=1-side
-        return lane
+        return self.left if side==0 else self.right
+    def advance_frame(self,bowler_id):
+        """Alternate lanes only after a bowler completes their frame."""
+        self.next_side[bowler_id]=1-self.next_side.get(bowler_id,0)
 
 def release_metrics(bowler, ball, lane, pressure=0.0,intent=None):
     from services.shot_strategy import get_intent
