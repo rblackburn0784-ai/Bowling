@@ -40,8 +40,23 @@ def frame_flags(frames):
             streak=0
             if len(f)>=2 and sum(f[:2])==10:spares+=1
             else:opens+=1
-    if len(frames)>=10 and frames[9]:
-        strikes += sum(1 for x in frames[9][1:] if x==10)
+    # The tenth may contain TWO bonus strikes, so a perfect game is a
+    # 12-strike streak, not ten. Count overlapping triples across the bonus
+    # deliveries without counting a spare/open frame as a strike streak.
+    if len(frames)>=10 and frames[9] and frames[9][0]==10:
+        for pins in frames[9][1:]:
+            if pins==10:
+                strikes+=1
+                streak+=1
+                longest=max(longest,streak)
+                if streak>=3:turkeys+=1
+            else:
+                streak=0
+    elif len(frames)>=10 and len(frames[9])==3 and frames[9][2]==10:
+        # Spare in the 10th followed by a strike bonus: not a consecutive
+        # extension of earlier strikes, but still a genuine strike delivered.
+        strikes+=1
+        longest=max(longest,1)
     return dict(strikes=strikes,spares=spares,turkeys=turkeys,longest_streak=longest,clean=int(opens==0),opens=opens)
 
 def player_summary(player):
