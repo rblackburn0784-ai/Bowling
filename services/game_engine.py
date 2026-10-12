@@ -29,7 +29,7 @@ class GameSession:
         # individual exhibitions, friend challenges and competition fixtures).
         from services.bowler_sprites import assign_match_sprites
         assign_match_sprites([p.bowler for p in self.players])
-        self.tournament_id=tournament_id;self.match_id=match_id;self.season_id=season_id;self.competition_id=competition_id;self.fixture_id=fixture_id;self.persisted=False;self.session_uid=uuid.uuid4().hex;self.ball_count=0
+        self.physics_version='2.9.0';self.tournament_id=tournament_id;self.match_id=match_id;self.season_id=season_id;self.competition_id=competition_id;self.fixture_id=fixture_id;self.persisted=False;self.session_uid=uuid.uuid4().hex;self.ball_count=0
         self.lane_pair=LanePair.create(lane_start,lane);self.layout=layout;self.branding=None;self.story_leader=None;self.story_low={};self.story_seen=set()
     def current(self):return self.players[self.turn]
     def bowl(self):
@@ -59,7 +59,12 @@ class GameSession:
         ball_key='plastic' if spare else adaptation['ball'];p.active_ball=ball_key if not spare else p.active_ball;p.line_boards=adaptation['boards'] if not spare else p.line_boards
         adapt_event=None
         if not spare and (ball_key!=old_ball or p.line_boards!=old_line):adapt_event={'from_ball':old_ball,'to_ball':ball_key,'from_boards':old_line,'to_boards':p.line_boards,'reason':adaptation['reason']}
-        down,q,physics=roll_pins(self.rng,p.bowler,before,self.lane,pressure,p.form,lane_state.transition,lane_state,ball_key,'spare' if spare else 'strike',intent)
+        if getattr(self,'physics_version','2.8.5t') == '2.8.5t':
+            from services.legacy_v285t_pin_engine import roll_pins as legacy_roll_pins
+            pinfall_engine=legacy_roll_pins
+        else:
+            pinfall_engine=roll_pins
+        down,q,physics=pinfall_engine(self.rng,p.bowler,before,self.lane,pressure,p.form,lane_state.transition,lane_state,ball_key,'spare' if spare else 'strike',intent,line_boards=p.line_boards)
         zone=lane_state.apply_shot(getattr(__import__('services.equipment',fromlist=['get_ball']).get_ball(ball_key),'hook',.8),physics['miss']+p.line_boards/4,p.bowler.handedness,p.bowler.style,p.bowler.spin)
         self.ball_count+=1;p.standing-=down;pins=len(down)
         delta=0.006 if pins==10 else (-0.004 if pins<=6 else 0.001);p.form=max(-0.025,min(0.025,p.form*.82+delta))

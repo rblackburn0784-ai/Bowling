@@ -55,7 +55,7 @@ class LanePair:
         """Alternate lanes only after a bowler completes their frame."""
         self.next_side[bowler_id]=1-self.next_side.get(bowler_id,0)
 
-def release_metrics(bowler, ball, lane, pressure=0.0,intent=None):
+def release_metrics(bowler, ball, lane, pressure=0.0,intent=None,line_boards=0):
     from services.shot_strategy import get_intent
     intent=get_intent(intent);accuracy=max(0,min(50,bowler.accuracy)); spin=max(0,min(50,bowler.spin))
     consistency=max(0,min(50,bowler.consistency)); nerves=max(0,min(50,bowler.nerves))
@@ -64,7 +64,17 @@ def release_metrics(bowler, ball, lane, pressure=0.0,intent=None):
     revs=(205 + spin*7.2 + bowler.style*1.25)*intent.hook
     breakpoint=PATTERNS.get(lane.pattern_key,PATTERNS["house"])["length"] + (ball.length-.5)*3.8
     breakpoint-= lane.transition*2.1
-    entry=3.0 + (spin/50)*3.1*ball.hook - lane.oil*.65 + lane.transition*.75
+    # Carrydown and the selected trajectory affect when the hook develops.
+    # Keep changes bounded: lane transition should add challenge rather
+    # than overpowering the bowler's six player-assigned attributes.
+    carrydown=max(0.,min(1.,getattr(lane,'carrydown',0.)))
+    hand=-1 if str(bowler.handedness).upper().startswith('L') else 1
+    breakpoint+=carrydown*.8+hand*line_boards*.08
+    zone=(getattr(lane,'outside',0.) if abs(line_boards)>=2
+          else getattr(lane,'middle',0.))
+    entry=(3.0 + (spin/50)*3.1*ball.hook - lane.oil*.65
+           + lane.transition*.75 + zone*.45*ball.hook
+           - carrydown*.85*ball.hook - hand*line_boards*.035)
     control=.50 + accuracy/100 + consistency/180 + (nerves-25)/250*pressure + intent.control
     return {"speed":round(speed,1),"revs":int(revs),"entry_angle":round(entry,1),
             "breakpoint":round(breakpoint,1),"control":max(.15,min(.98,control))}

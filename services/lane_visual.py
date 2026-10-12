@@ -20,9 +20,9 @@ def _base(session,event,stage,impact_frame=0):
         standing=set(before)
     elif event and stage=='impact':
         # impact_frame 1 holds the intact rack; frames 2-5 progressively fall.
-        down=sorted(set(event.get('down',[])) & before)
-        count=round(len(down)*max(0,min(1,(impact_frame-1)/4)))
-        standing=before-set(down[:count])
+        down=set(event.get('down',[])) & before
+        standing=before-{pin for pin in down if
+                         scene_renderer.pin_impact_progress(event,pin,impact_frame)>=.8}
     else:
         standing=set(event['after']) if event else set(before)
     for p,(x,y) in PIN_POS.items():
@@ -36,8 +36,8 @@ def _base(session,event,stage,impact_frame=0):
 def _path(d,event,progress=1.0):
     phys=event.get('physics',{});m=phys.get('metrics',{});hand=-1 if str(event.get('handedness','R')).upper().startswith('L') else 1
     miss=float(phys.get('miss',0));hook=(float(m.get('entry_angle',4))-3)*hand
-    start=(340,640);breakx=340+int(hand*70+miss*26);impact=340+int(hook*18+miss*18)
-    pts=[start,(start[0]+int((breakx-start[0])*.55),500),(breakx,405),(impact,345)]
+    from services.ball_sprites import path_points
+    pts=list(path_points(event))
     seg=max(2,int(len(pts)*progress));d.line(pts[:seg],fill=(28,28,35),width=8,joint='curve')
     x,y=pts[min(seg-1,len(pts)-1)];d.ellipse((x-11,y-11,x+11,y+11),fill=(35,35,42),outline=(245,245,250))
 def lane_card(session,event=None,stage='leave',sprite_frame=None,ball_frame=0,ball_progress=None):

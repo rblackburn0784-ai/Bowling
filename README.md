@@ -1,3 +1,11 @@
+# Gutter Saints Bowling v2.9.0 — Living Lanes 2.0 & Final Broadcast
+
+New deliveries now use a deterministic, physics-informed point-of-impact model: lane oil and wear, speed, revs, entry angle, board moves and ball choice influence pin carry and spare leaves. All three camera panels use one shared contact-order timeline, and the ball's visual endpoint follows the calculated contact. Older saved matches resume on frozen v2.8.5t physics for unchanged recovery outcomes.
+
+**[v2.9.0 release notes, upgrade safety and staging checklist](docs/v2.9.0_living_lanes_final_broadcast.md)**. Run `python -m services.v290_audit` for a 4,000-game offline physics audit and `python -m unittest discover -s tests -p 'test_v290_living_lanes.py' -v` for focused regressions. Keep your existing production PNGs and database: they are not bundled in the source archive.
+
+---
+
 # v2.8.5t — Pre-Release Integration & Visual Hardening
 
 See [v2.8.5t release notes](docs/v2.8.5t_pre_release_hardening.md) for competition integrity, atomic finalisation, **regulation overhead 4–3–2–1 pin layout**, asset requirements, install/rollback and tests. Production PNG assets must be copied from your existing installation; this source archive does not include them.

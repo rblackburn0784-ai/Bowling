@@ -219,6 +219,27 @@ def _camera_pin(base,name,p,progress=None):
     _paste(base,fallen,x-fallen.width/2,
            y-fallen.height*.65 if not overhead else y-fallen.height/2)
 
+def pin_impact_progress(event, pin, impact_frame):
+    """Single truth for falling-pin timing in hero, overhead and pit cameras.
+
+    Renderer never samples RNG; all views consume the same contact_order
+    (or a depth-ordered fallback for older stored match events).
+    """
+    down=set(event.get('down',()))
+    if pin not in down:return None
+    order=(event.get('physics') or {}).get('contact_order') or []
+    ordered=[p for p in order if p in down]
+    if set(ordered)!=down:
+        ordered=sorted(down,key=lambda p:(PIN_ROWS.get(p,3),p))
+    index=ordered.index(pin)
+    delay=.44*index/max(1,len(ordered)-1)
+    phase=max(0.,min(1.,(int(impact_frame)-1)/4.))
+    return max(0.,min(1.,(phase-delay)/(1.-delay)))
+
+
+PIN_ROWS={1:0,2:1,3:1,4:2,5:2,6:2,7:3,8:3,9:3,10:3}
+
+
 def right_cameras(event,stage='approach',impact_frame=0):
     """Paint both new 1254px square camera backgrounds at native scale.
 
@@ -240,7 +261,7 @@ def right_cameras(event,stage='approach',impact_frame=0):
                         _camera_pin(background,name,p)
                 elif stage=='impact' and p in down:
                     _camera_pin(background,name,p,
-                                max(0,min(1,(impact_frame-1)/4)))
+                                pin_impact_progress(event,p,impact_frame))
                 else:
                     _camera_pin(background,name,p)
         result[name]=background.convert('RGB')

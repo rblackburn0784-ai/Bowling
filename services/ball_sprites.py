@@ -55,7 +55,13 @@ def path_points(event):
     hook=(float(metrics.get('entry_angle',4))-3)*hand
     start=(340,640)
     breakx=340+int(hand*70+miss*26)
-    impact=340+int(hook*18+miss*18)
+    if 'impact_x' in phys:
+        # v2.9: pin-contact and sprite contact share a lateral endpoint.
+        # One normalized pin-spacing unit projects to roughly 24px at
+        # the photographed pin deck (hero camera applies perspective).
+        impact=340+round(float(phys['impact_x'])*32)
+    else:
+        impact=340+int(hook*18+miss*18)
     return (start,(start[0]+int((breakx-start[0])*.55),500),(breakx,405),(impact,345))
 
 def point_on_path(points,progress):
