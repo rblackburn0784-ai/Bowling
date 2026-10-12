@@ -188,7 +188,7 @@ class MatchSetupView(Nav):
   save_snapshot(i.channel_id,s,'start')
   await i.response.send_message(f"🎳 **EXHIBITION — HEAD TO HEAD**\n**{players[0].name}** vs **{players[1].name}**\nLane: **{self.lane.title()}**\nUse the **Bowl Next Ball** or **Auto Play** buttons on the live scoreboard below.")
   from cogs.games import post_match_controls
-  await post_match_controls(i.channel,s)
+  await post_match_controls(i.channel,s,introduce=True)
 
 class RecoveryView(Nav):
  @discord.ui.button(label='Undo Last Ball',style=discord.ButtonStyle.danger)

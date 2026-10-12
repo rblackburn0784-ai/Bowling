@@ -1,3 +1,7 @@
+# v2.9.1 — The Show Must Go On
+
+Final commentary, optional celebrations, match intros, finals atmosphere and broadcast phase ribbons. [Release notes](docs/v2.9.1_the_show_must_go_on.md).
+
 # Gutter Saints Bowling v2.9.0 — Living Lanes 2.0 & Final Broadcast
 
 New deliveries now use a deterministic, physics-informed point-of-impact model: lane oil and wear, speed, revs, entry angle, board moves and ball choice influence pin carry and spare leaves. All three camera panels use one shared contact-order timeline, and the ball's visual endpoint follows the calculated contact. Older saved matches resume on frozen v2.8.5t physics for unchanged recovery outcomes.

@@ -22,6 +22,8 @@ from services.broadcast_director import match_context,persist_story,story_call,m
 from services.postgame import commit_postgame,finalize_completed_session
 from services.victory_presentation import winning_bowler
 from services.scene_renderer import render_scene as render_victory_scene
+from services.showtime import crowd_cue,group_rosters,is_finals
+from services.showtime_graphics import intro_card,final_card
 
 def rb(r,team=None):
  b=Bowler(**{k:r[k] for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves']})
@@ -131,8 +133,40 @@ class LiveMatchControls(discord.ui.View):
    logging.exception('Auto Play failed in channel %s',i.channel_id)
    await i.followup.send('⚠️ Auto Play stopped during game processing. The latest result may already be recorded. Do not restart or replay this match until an administrator checks its saved results.',ephemeral=True)
 
-async def post_match_controls(channel,session):
- """Post the one live scoreboard that future ball renders will edit in place."""
+async def publish_match_intro(channel,session):
+ """One pre-match intro per explicitly new session, never on Undo/Restore."""
+ if getattr(session,'_showtime_intro_sent',False):return False
+ session._showtime_intro_sent=True
+ groups=group_rosters(session)
+ lineup=' vs '.join(groups) if len(groups)>1 else ', '.join(p.bowler.name for p in session.players[:6])
+ kind='🏆 CHAMPIONSHIP NIGHT' if is_finals(session) else '🎙️ TONIGHT ON GUTTER SAINTS'
+ try:
+  safe=discord.utils.escape_mentions(discord.utils.escape_markdown(lineup[:250]))
+  await channel.send(f'{kind} — **{safe}**',
+                     file=discord.File(intro_card(session),filename=f'gs_intro_{session.seed}.png'))
+  if is_finals(session):await play_sound(channel,'entrance')
+  return True
+ except Exception:
+  logging.exception('Match introduction presentation unavailable; match still playable')
+  return False
+
+async def publish_match_final(channel,session,winner):
+ """A final results card only for tournament/competition/finals; no gameplay writes."""
+ if not (is_finals(session) or getattr(session,'tournament_id',None) or getattr(session,'fixture_id',None)):
+  return False
+ try:
+  label='🏆 CHAMPIONSHIP RESULT' if is_finals(session) else '🏁 OFFICIAL MATCH RESULT'
+  await channel.send(label,file=discord.File(final_card(session,winner),
+                     filename=f'gs_final_{session.seed}.png'))
+  if is_finals(session):await play_sound(channel,'champion')
+  return True
+ except Exception:
+  logging.exception('Final presentation card unavailable; committed results remain valid')
+  return False
+
+async def post_match_controls(channel,session,introduce=False):
+ """Live controls. Intro runs for new starts only; Undo/Restore never re-announces."""
+ if introduce:await publish_match_intro(channel,session)
  LANE_MESSAGES.pop(channel.id,None)
  msg=await channel.send(embed=scoreboard_embed(session),
                         view=LiveMatchControls(channel.id,session))
@@ -257,8 +291,9 @@ async def send_media(channel,kind):
 class Games(commands.Cog):
  def __init__(self,bot):self.bot=bot
  @app_commands.command(name='game_start',description='Start a team or team-v-team bowling game')
- @app_commands.choices(lane=[app_commands.Choice(name=x.title(),value=x) for x in ['house','fresh','dry','oily','transition']])
- async def start(self,i:discord.Interaction,team:str,opponent:str|None=None,lane:app_commands.Choice[str]|None=None,seed:int|None=None):
+ @app_commands.choices(lane=[app_commands.Choice(name=x.title(),value=x) for x in ['house','fresh','dry','oily','transition']],
+                        layout=[app_commands.Choice(name=x.title(),value=x) for x in ['standard','broadcast','finals','chaos']])
+ async def start(self,i:discord.Interaction,team:str,opponent:str|None=None,lane:app_commands.Choice[str]|None=None,seed:int|None=None,layout:app_commands.Choice[str]|None=None):
   if channel_has_active_match(i.channel_id):
    return await i.response.send_message("A match is already active or recoverable in this channel. Finish or restore it first.",ephemeral=True)
   ra=team_roster(team);rr=team_roster(opponent) if opponent else []
@@ -270,12 +305,12 @@ class Games(commands.Cog):
     if n<len(ra):bowlers.append(rb(ra[n],team))
     if n<len(rr):bowlers.append(rb(rr[n],opponent))
   else:bowlers=[rb(x,team) for x in ra]
-  s=GameSession(bowlers,seed,lane.value if lane else 'house');prepare_new_session(i.channel_id);SESSIONS[i.channel_id]=s
+  s=GameSession(bowlers,seed,lane.value if lane else 'house',
+                layout=layout.value if layout else 'broadcast');prepare_new_session(i.channel_id);SESSIONS[i.channel_id]=s
   for p in s.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
   save_snapshot(i.channel_id,s,'start')
   await i.response.send_message(f"🎤 **WELCOME TO THE GUTTER SAINTS LANES!**\n**{team}**"+(f' vs **{opponent}**' if opponent else ''))
-  for b in bowlers:await i.channel.send(line('entrance',name=b.name));await send_media(i.channel,'entrance')
-  await post_match_controls(i.channel,s)
+  await post_match_controls(i.channel,s,introduce=True)
  @app_commands.command(name='bowler_sprite',description='Set the character sprite for a registered bowler')
  @app_commands.default_permissions(manage_guild=True)
  @app_commands.choices(character=[app_commands.Choice(name='The Dude',value='the_dude'),app_commands.Choice(name='Jesus',value='jesus'),app_commands.Choice(name='No Sprite',value='none')])
@@ -390,6 +425,8 @@ class Games(commands.Cog):
     announcement=f'{top[1]} **{top[2]}** — {top[3]}'
    else:
     announcement=None
+  audience=crowd_cue(s,ev)
+  if audience:announcement=(announcement+'\n' if announcement else '')+audience
   if policy['audio']:
    await play_sound(ch,AUDIO_MAP.get(event_kind,'pins'))
   # Optional media is theatrical, but don't send duplicate crowd hype/groan
@@ -415,6 +452,7 @@ class Games(commands.Cog):
    await ch.send(embed=scoreboard_embed(s))
    s.persisted=True
    await publish_victory(ch,s,last_event)
+   await publish_match_final(ch,s,None)
    LANE_MESSAGES.pop(key,None)
    SESSIONS.pop(key,None)
    clear_session(key)
@@ -468,6 +506,8 @@ class Games(commands.Cog):
     g=build_gazette(s.tournament_id)
     if g:await ch.send(format_gazette(g))
   await publish_victory(ch,s,last_event)
+  champion=winning_bowler(s)
+  await publish_match_final(ch,s,winner or (champion.bowler.name if champion else None))
   LANE_MESSAGES.pop(key,None)
   clear_session(key)
   SESSIONS.pop(key,None)

@@ -15,9 +15,9 @@ def line(kind,**kw): return random.choice(LINES.get(kind,LINES['normal'])).forma
 def event_text(session,event):
     if event.get('split_conversion'): kind='split_convert'
     elif event.get('pins',0)==0: kind='gutter'
+    elif event.get('spare'): kind='spare'  # 0/ and tenth X-/ are spares, never strikes
     elif event.get('pins',0)==10: kind='strike'
     elif event.get('split'): kind='split'
-    elif event.get('spare'): kind='spare'
     else: kind='normal'
     return event_line(session,kind,event)
 

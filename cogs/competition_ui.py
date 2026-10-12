@@ -66,7 +66,11 @@ async def launch_fixture(i,cid):
  for n in range(max(len(home),len(away))):
   if n<len(home):bowlers.append(rb(home[n],names[f['home_id']]))
   if n<len(away):bowlers.append(rb(away[n],names[f['away_id']]))
- s=GameSession(bowlers,lane=co['lane_condition'],season_id=co['season_id'],competition_id=cid,fixture_id=f['id']);
+ from services.showtime import is_elimination_final
+ all_fixtures=competition_view(cid)[2]
+ championship=is_elimination_final(dict(f),co['format'],[dict(x) for x in all_fixtures])
+ s=GameSession(bowlers,lane=co['lane_condition'],season_id=co['season_id'],competition_id=cid,fixture_id=f['id'],
+               layout='finals' if championship else 'broadcast');
  from services.v25 import prepare_new_session
  prepare_new_session(i.channel_id);SESSIONS[i.channel_id]=s
  for p in s.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
@@ -74,6 +78,8 @@ async def launch_fixture(i,cid):
  save_snapshot(i.channel_id,s,'start')
  with connect() as c:c.execute("UPDATE fixtures SET status='playing' WHERE id=?",(f['id'],))
  await i.response.send_message(f"🎳 **{co['name']}**\nFixture #{f['id']} is live — **{names[f['home_id']]} vs {names[f['away_id']]}**.")
+ from cogs.games import post_match_controls
+ await post_match_controls(i.channel,s,introduce=True)
 
 class CompetitionPick(discord.ui.Select):
  def __init__(self,parent):

@@ -1,4 +1,4 @@
-name: Gazette regression
+name: Gutter Saints full regression
 on:
   push:
     branches: [main]
@@ -13,4 +13,5 @@ jobs:
           python-version: '3.13'
       - run: python -m pip install -r requirements.txt
       - run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - run: python -m services.release_audit
       - run: python -m compileall -q services cogs storage ui

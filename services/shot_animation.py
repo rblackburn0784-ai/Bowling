@@ -8,6 +8,8 @@ in the embed until playback has elapsed.
 from io import BytesIO
 from PIL import Image
 from services import scene_renderer
+from services.showtime_graphics import transition_ribbon
+from services.showtime import is_finals
 
 MAX_GIF_BYTES=7_500_000
 # 17:15 hybrid with edge-to-edge portrait left lane at every size.
@@ -41,7 +43,7 @@ def _frames(session,event,size):
             output_size=size)
         if frame is None:
             return None
-        frames.append(frame)
+        frames.append(transition_ribbon(frame,stage,is_finals(session)))
     return frames
 
 def _encode(frames):

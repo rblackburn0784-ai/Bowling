@@ -69,7 +69,7 @@ class ChallengeResponse(discord.ui.View):
   for x in self.children:x.disabled=True
   await i.response.edit_message(content=f"✅ **Challenge accepted!** 🎳 **{players[0].name}** vs **{players[1].name}**. Use the Bowl Next Ball / Auto Play buttons on the live scoreboard.",view=self)
   from cogs.games import post_match_controls
-  await post_match_controls(i.channel,session)
+  await post_match_controls(i.channel,session,introduce=True)
  @discord.ui.button(label='Decline',style=discord.ButtonStyle.danger)
  async def decline(self,i,b):
   PENDING.discard(self.key)

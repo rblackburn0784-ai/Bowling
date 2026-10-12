@@ -11,6 +11,7 @@ import logging
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
 from services import bowler_sprites, ball_sprites
 from services.hybrid_broadcast import compose_hybrid_broadcast
+from services.showtime import celebration_worthy
 
 ROOT=Path(__file__).resolve().parent.parent
 BG=ROOT/'assets'/'lane'/'gutter_saints_empty.png'
@@ -467,7 +468,7 @@ def render_scene_image(session,event=None,stage='leave',sprite_frame=None,ball_f
         character_event=event
         if stage=='victory' and victor_id is not None:
             character_event=dict(event,bowler_id=victor_id)
-        pose=('cheer' if stage=='victory' else
+        pose=('cheer' if stage=='victory' or (stage=='leave' and celebration_worthy(event)) else
               (sprite_frame or 1) if stage=='approach' else 5)
         _bowler(im,session,character_event,pose)
     im=im.convert('RGB')

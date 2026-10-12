@@ -30,6 +30,10 @@ def stage_line(session, stage, event):
     seen=event.setdefault('_stage_commentary',{})
     if stage not in seen:
         seen[stage]='🎙️ ' + _choose(session, 'stage:' + stage, STAGES[stage], name=event.get('bowler','Our bowler'))
+    from services.showtime import stage_cue
+    cue=stage_cue(session,stage,event)
+    if cue and cue not in seen[stage]:
+        seen[stage] += '  •  ' + cue
     return seen[stage]
 
 def event_line(session, kind, event):

@@ -1,6 +1,7 @@
 import discord
 from services.commentary import event_text,perfect_watch
 from services.dude_commentary import stage_line
+from services.showtime import result_cue, STAGE_LABELS, is_finals
 from services.bowler_sprites import sprite_key, has_sequence
 from services.career import rank_title,rank_progress
 from services.v25 import archetype
@@ -61,7 +62,8 @@ def scoreboard_sprite(bowler):
 
 
 def scoreboard_embed(session,last=None,team_names=None,director=None,stage=None,prior_cards=None,prior_scores=None):
-    e=discord.Embed(title='🎳 Gutter Saints — Live Game',description=f'Lane: **{session.lane.title()}** • Seed: `{session.seed}`')
+    title='🏆 Gutter Saints — Championship Broadcast' if is_finals(session) else '🎳 Gutter Saints — Live Game'
+    e=discord.Embed(title=title,description=f'Lane: **{session.lane.title()}** • Seed: `{session.seed}`')
     cards=prior_cards if stage and stage!='leave' and prior_cards is not None else session.card()
     scores=prior_scores if stage and stage!='leave' and prior_scores is not None else session.scores()
     totals={}
@@ -81,12 +83,15 @@ def scoreboard_embed(session,last=None,team_names=None,director=None,stage=None,
         zones=last.get('lane_zones',{});line=last.get('line_boards',0);move=f' • Line {abs(line)} boards '+('left' if line>0 else 'right') if line else ''
         e.add_field(name='🎯 Shot Decision',value=f'**{ball}** • **{intent}** • Lane **{lane_no}** ({trans*100:.0f}% transition){move} • Target **{last.get("physics",{}).get("target","pocket")}**\nOil read: outside {zones.get("outside",0)*100:.0f}% • track {zones.get("track",0)*100:.0f}% • inside {zones.get("inside",0)*100:.0f}%',inline=False)
         if stage and stage!='leave':
-            commentary=stage_line(session,stage,last)
+            commentary=f'**{STAGE_LABELS.get(stage,stage.title())}**  |  '+stage_line(session,stage,last)
         else:
             commentary=event_text(session,last)
+            extra=result_cue(session,last)
+            if extra:commentary+='\n'+extra
             if director:commentary+='\n\n🎙️ **BROADCAST DIRECTOR**\n'+director
         e.add_field(name='🎙️ Game Updates',value=commentary[:1024],inline=False)
         p=next(x for x in session.players if x.bowler.name==last['bowler']);watch=perfect_watch(p) if not stage or stage=='leave' else None
+        if last.get('strike_streak',0)>=12:watch=None  # 300 already announced in final result
         if watch:e.add_field(name='🚨 Perfect Game Watch',value=watch,inline=False)
     return e
 
