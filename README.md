@@ -1,3 +1,11 @@
+# v2.9.2 — Career & Competition Finalisation
+
+New earned career milestones, qualified lifetime records, admin-only duplicate-safe awards, atomic tournament honours, competition health checks, safe tournament pause/resume and consistent menu navigation. **No bowling physics, camera placement, GIF timing or scoring changes.**
+
+[Release notes and migration checklist](docs/v2.9.2_career_competition_finalisation.md) • `python -m unittest discover -s tests -p test_v292_career_competition.py -v`. Keep existing `data/` and your production PNGs; back up the database before deploying.
+
+---
+
 # v2.9.1 — The Show Must Go On
 
 Final commentary, optional celebrations, match intros, finals atmosphere and broadcast phase ribbons. [Release notes](docs/v2.9.1_the_show_must_go_on.md).

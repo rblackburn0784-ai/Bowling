@@ -7,12 +7,18 @@ from services.media import pick
 class Awards(commands.Cog):
  def __init__(self,bot):self.bot=bot
  @app_commands.command(name='award_give',description='Give a tournament or special award to a bowler')
+ @app_commands.default_permissions(manage_guild=True)
  async def give(self,i:discord.Interaction,bowler:str,title:str,detail:str=''):
-  with connect() as c:
-   b=c.execute('SELECT id FROM bowlers WHERE name=? COLLATE NOCASE',(bowler,)).fetchone()
-   if not b:return await i.response.send_message('Bowler not found.',ephemeral=True)
-   c.execute('INSERT INTO awards(bowler_id,title,detail) VALUES(?,?,?)',(b['id'],title,detail));c.execute('UPDATE bowler_stats SET awards=awards+1 WHERE bowler_id=?',(b['id'],))
-  await i.response.send_message(f'🏅 **{title}**\nAwarded to **{bowler}**'+(f'\n*{detail}*' if detail else ''));u=pick('award')
+  from cogs.menu import admin_ok
+  if not admin_ok(i):return await i.response.send_message('Manage Server permission required to give awards.',ephemeral=True)
+  title=title.strip();detail=detail.strip()
+  if not title or len(title)>60 or len(detail)>200:return await i.response.send_message('Award title must be 1–60 characters and detail at most 200.',ephemeral=True)
+  from services.awards_admin import give_manual_award
+  with connect() as c:b=c.execute('SELECT id FROM bowlers WHERE name=? COLLATE NOCASE',(bowler,)).fetchone()
+  if not b:return await i.response.send_message('Bowler not found.',ephemeral=True)
+  ok,message=give_manual_award(b['id'],title,detail,i.user.id)
+  if not ok:return await i.response.send_message(message,ephemeral=True)
+  await i.response.send_message(f'🏅 **{title}**\nAwarded to **{message}**'+(f'\n*{detail}*' if detail else ''));u=pick('award')
   if u:await i.channel.send(u)
  @app_commands.command(name='awards',description='Show awards won by a bowler')
  async def show(self,i:discord.Interaction,bowler:str):

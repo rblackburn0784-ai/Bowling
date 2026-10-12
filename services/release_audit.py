@@ -6,7 +6,7 @@ from services.scoring import score_game
 from services.simulation_lab import rookie_balance_suite
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-CORE=['storage/database.py','services/game_engine.py','services/pin_engine.py','services/impact_model.py','services/scene_renderer.py','services/ball_sprites.py','services/lane_physics.py','services/shot_strategy.py','services/lane_adaptation.py','services/career.py','services/honours.py','services/broadcast_director.py','services/gazette.py','services/v25.py','services/league_engine.py','cogs/league.py','cogs/competition_ui.py','cogs/games.py','cogs/director.py','cogs/menu.py','ui/embeds.py']
+CORE=['storage/database.py','services/game_engine.py','services/pin_engine.py','services/impact_model.py','services/scene_renderer.py','services/ball_sprites.py','services/lane_physics.py','services/shot_strategy.py','services/lane_adaptation.py','services/career.py','services/career_finale.py','services/awards_admin.py','services/tournament_admin.py','services/honours.py','services/broadcast_director.py','services/gazette.py','services/v25.py','services/league_engine.py','cogs/league.py','cogs/competition_ui.py','cogs/games.py','cogs/director.py','cogs/menu.py','ui/embeds.py']
 
 def run():
  checks=[]

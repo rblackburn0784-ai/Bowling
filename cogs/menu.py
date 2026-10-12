@@ -136,6 +136,14 @@ class ArsenalView(HomeView):
  def __init__(self,bowler_id):super().__init__();self.add_item(BallSelect(bowler_id))
 class CareerView(HomeView):
  def __init__(self,bowler_id):super().__init__();self.bowler_id=bowler_id
+ @discord.ui.button(label='Career Progress',emoji='📈',style=discord.ButtonStyle.primary)
+ async def progress(self,i,b):
+  from services.career_finale import career_profile
+  p=career_profile(self.bowler_id)
+  if not p:return await i.response.send_message('Bowler unavailable.',ephemeral=True)
+  next_rank=f"{p['xp']}/{p['next_rank_xp']} XP to next rank" if p['next_rank_xp'] is not None else 'Maximum rank reached'
+  skills=' • '.join(f"{key.title()} {value}" for key,value in p['attributes'].items())
+  await i.response.send_message(f"📈 **{p['name']} — Career**\n**Rank {p['rank']} — {p['rank_title']}**\n{next_rank} ({p['rank_percent']:.1f}%)\n**{p['games']} games** • Average {p['average']:.2f} • High {p['high_game']}\nAchievements **{p['achievement_count']}** • Honours **{p['honours_count']}**\nCosmetic exhibition XP: **{p['cosmetic_xp']}** (does not affect rank)\n{skills}",ephemeral=True)
  @discord.ui.button(label='Career Timeline',emoji='🕰️',style=discord.ButtonStyle.primary)
  async def timeline(self,i,b):
   from services.career import recent_timeline
@@ -168,6 +176,10 @@ class PublicMenu(discord.ui.View):
   x=get_bowler_by_owner(i.user.id)
   if not x:return await i.response.send_message('You do not have a linked bowler yet — use **Create Bowler**.',ephemeral=True)
   await i.response.send_message(embed=bowler_embed(x),view=CareerView(x.id),ephemeral=True)
+ @discord.ui.button(label='Career Records',emoji='🏛️',style=discord.ButtonStyle.secondary,custom_id='gs:records')
+ async def records(self,i,b):
+  from cogs.dashboard_ui import CareerRecordView
+  await i.response.send_message('🏛️ **Career Records**\nCompare earned records; averages require three completed games.',view=CareerRecordView(),ephemeral=True)
  @discord.ui.button(label='My Stats',emoji='📊',style=discord.ButtonStyle.secondary,custom_id='gs:mystats')
  async def stats(self,i,b):
   x=get_bowler_by_owner(i.user.id)

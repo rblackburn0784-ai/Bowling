@@ -11,6 +11,7 @@ from contextlib import nullcontext
 from services.pin_engine import ALL,roll_pins
 from services.scoring import score_game
 from services.career import add_tendency
+from services.career_finale import unlock_career_milestones
 from services.v25 import award_progression,unlock_achievements
 from storage.database import connect
 
@@ -97,6 +98,8 @@ def commit_postgame(session, game_id, summaries, winner, totals, db=None):
             if sm['score']>=250:add_tendency(p.bowler.id,'nerves',1.5,'Delivered a 250+ pressure game','game',db=c)
             seven_ten='7–10 Split' in getattr(p,'special_conversions',set())
             for title,detail in unlock_achievements(p.bowler.id,sm,{'seven_ten':seven_ten},db=c):
+                achievement_cards.append((p.bowler.name,title,detail))
+            for title,detail in unlock_career_milestones(p.bowler.id,db=c):
                 achievement_cards.append((p.bowler.name,title,detail))
         if is_tourney:
             from services.competition import _advance_byes

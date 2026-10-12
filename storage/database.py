@@ -131,6 +131,7 @@ def ensure_v25_schema():
         if 'session_uid' not in gcols:c.execute('ALTER TABLE games ADD COLUMN session_uid TEXT')
         c.execute('CREATE UNIQUE INDEX IF NOT EXISTS ix_games_session_uid ON games(session_uid)')
         c.execute('CREATE TABLE IF NOT EXISTS exhibition_rewards(bowler_id INTEGER PRIMARY KEY,cosmetic_xp INTEGER NOT NULL DEFAULT 0,FOREIGN KEY(bowler_id) REFERENCES bowlers(id) ON DELETE CASCADE)')
+        c.execute('CREATE TABLE IF NOT EXISTS tournament_honour_runs(tournament_id INTEGER PRIMARY KEY,created_at TEXT DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(tournament_id) REFERENCES tournaments(id))')
         c.execute('CREATE UNIQUE INDEX IF NOT EXISTS ix_fixture_game_id ON fixture_games(game_id) WHERE game_id IS NOT NULL')
         fgcols={r['name'] for r in c.execute('PRAGMA table_info(fixture_games)')}
         if 'rolloff_json' not in fgcols:c.execute('ALTER TABLE fixture_games ADD COLUMN rolloff_json TEXT')

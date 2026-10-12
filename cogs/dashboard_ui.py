@@ -29,7 +29,8 @@ class Nav(discord.ui.View):
  @discord.ui.button(label='🏠 Main Menu',style=discord.ButtonStyle.secondary,row=4)
  async def home(self,i,b):
   from cogs.menu import PublicMenu
-  await nav(i,'🎳 **THE GUTTER SAINTS**',PublicMenu(),'Bowling, careers, achievements and tournament control.')
+  from cogs.menu import admin_ok
+  await nav(i,'🎳 **THE GUTTER SAINTS**',PublicMenu(admin=admin_ok(i)),'Bowling, careers, achievements and tournament control.')
 
 class TeamCreateModal(discord.ui.Modal,title='Create Team'):
  name=discord.ui.TextInput(label='Team name',max_length=40)
@@ -249,11 +250,13 @@ class AwardModal(discord.ui.Modal,title='Give Award'):
  detail=discord.ui.TextInput(label='Detail',required=False,max_length=200)
  def __init__(self,bid):super().__init__();self.bid=bid
  async def on_submit(self,i):
+  from cogs.menu import admin_ok
+  if not admin_ok(i):return await i.response.send_message('Manage Server permission required.',ephemeral=True)
   b=rows('SELECT name FROM bowlers WHERE id=?',(self.bid,))
   if not b:return await i.response.send_message('Bowler not found.',ephemeral=True)
-  with connect() as c:
-   c.execute('INSERT OR IGNORE INTO bowler_stats(bowler_id) VALUES(?)',(self.bid,));c.execute('INSERT INTO awards(bowler_id,title,detail) VALUES(?,?,?)',(self.bid,self.title_in.value,self.detail.value));c.execute('UPDATE bowler_stats SET awards=awards+1 WHERE bowler_id=?',(self.bid,))
-  await i.response.send_message(f"🏅 **{self.title_in.value}** awarded to **{b[0]['name']}**.",ephemeral=True)
+  from services.awards_admin import give_manual_award
+  ok,message=give_manual_award(self.bid,self.title_in.value,self.detail.value,i.user.id)
+  await i.response.send_message(f"🏅 **{self.title_in.value.strip()}** awarded to **{message}**." if ok else message,ephemeral=True)
 class AwardsView(Nav):
  def __init__(self):super().__init__();self.bowler=None;self.add_item(AwardSelect(self))
  @discord.ui.button(label='View Awards',style=discord.ButtonStyle.primary,row=1)
@@ -291,8 +294,15 @@ class SimModal(discord.ui.Modal,title='Simulation Lab'):
 class RecordsDashboard(Nav):
  @discord.ui.button(label='🏛️ Hall of Fame',style=discord.ButtonStyle.primary)
  async def hof(self,i,b):
-  r=rows('SELECT b.name,s.high_game,s.perfect_games FROM bowler_stats s JOIN bowlers b ON b.id=s.bowler_id WHERE s.games>0 ORDER BY s.high_game DESC LIMIT 10')
+  from services.career_finale import leaderboard
+  _,r=leaderboard('high_game')
   await i.response.send_message('🏛️ **Hall of Fame**\n'+('\n'.join(f"• {x['name']} — HG {x['high_game']} • 300s {x['perfect_games']}" for x in r) or 'No records yet.'),ephemeral=True)
+ @discord.ui.button(label='📊 Career Records',style=discord.ButtonStyle.primary)
+ async def recordboards(self,i,b):
+  await nav(i,'📊 **Career Records**',CareerRecordView(),'Choose a leaderboard. Average requires at least 3 games.')
+ @discord.ui.button(label='🩺 Competition Health',style=discord.ButtonStyle.secondary)
+ async def competitionhealth(self,i,b):
+  await nav(i,'🩺 **Competition Health**',CompetitionHealthView(),'Read-only fixture integrity and outstanding work.')
  @discord.ui.button(label='🏅 Awards',style=discord.ButtonStyle.primary)
  async def awards(self,i,b):await nav(i,'🏅 **Awards**',AwardsView())
  @discord.ui.button(label='🧠 Simulation Lab',style=discord.ButtonStyle.success)
@@ -309,3 +319,39 @@ class SettingsDashboard(Nav):
   else:await i.response.send_message('I am not connected to voice.',ephemeral=True)
  @discord.ui.button(label='🎥 Media Setup',style=discord.ButtonStyle.primary)
  async def media(self,i,b):await i.response.send_message('GIFs: **assets/media.json**\nAudio: **assets/audio.json**\nUse the manifests to add or replace presentation assets.',ephemeral=True)
+
+
+class RecordCategory(discord.ui.Select):
+ def __init__(self):
+  from services.career_finale import BOARDS
+  choices=[discord.SelectOption(label=item[2],value=key) for key,item in BOARDS.items()]
+  super().__init__(placeholder='Select career leaderboard',options=choices,row=0)
+ async def callback(self,i):
+  from services.career_finale import leaderboard
+  name,results=leaderboard(self.values[0])
+  info=' (minimum 3 games)' if self.values[0]=='average' else ''
+  lines=[f"**{j}. {r['name']}** — {r['value']:.2f}" if self.values[0]=='average'
+         else f"**{j}. {r['name']}** — {int(r['value'])}" for j,r in enumerate(results,1)]
+  await i.response.send_message(f"📊 **{name}{info}**\n"+('\n'.join(lines) or 'No qualified games yet.'),ephemeral=True)
+
+class CareerRecordView(discord.ui.View):
+ def __init__(self):
+  super().__init__(timeout=600);self.add_item(RecordCategory())
+ @discord.ui.button(label='🏠 Main Menu',style=discord.ButtonStyle.secondary,row=4)
+ async def home(self,i,b):
+  from cogs.menu import PublicMenu,admin_ok
+  await i.response.edit_message(content='🎳 **THE GUTTER SAINTS**',embed=None,view=PublicMenu(admin=admin_ok(i)))
+
+class CompetitionHealthSelect(discord.ui.Select):
+ def __init__(self):
+  r=rows("SELECT id,name FROM competitions WHERE state IN ('draft','registration','locked','active','completed') ORDER BY id DESC LIMIT 25")
+  super().__init__(placeholder='Inspect competition',options=opts(r) or [discord.SelectOption(label='No competitions',value='0')],row=0)
+ async def callback(self,i):
+  from services.career_finale import competition_health
+  report=competition_health(int(self.values[0]))
+  if not report:return await i.response.send_message('No competition found.',ephemeral=True)
+  notes='\n'.join('• '+x for x in report['issues'][:12]) or '✅ No fixture integrity warnings.'
+  await i.response.send_message(f"🩺 **{report['name']}**\nState: {report['state']} • Completed: {report['completed']}/{report['total']}\nNext playable fixture: {report['next_fixture_id'] or 'None'}\n{notes}",ephemeral=True)
+
+class CompetitionHealthView(Nav):
+ def __init__(self):super().__init__();self.add_item(CompetitionHealthSelect())

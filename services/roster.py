@@ -18,7 +18,9 @@ def update_owned_bowler(owner_id,name,handedness,rank,accuracy,style,flair,consi
     with connect() as con:
         r=con.execute('SELECT id FROM bowlers WHERE owner_id=? ORDER BY id LIMIT 1',(owner_id,)).fetchone()
         if not r:return False,'You do not have a bowler yet.'
-        try:con.execute('UPDATE bowlers SET name=?,handedness=?,rank=?,accuracy=?,style=?,flair=?,consistency=?,spin=?,nerves=? WHERE id=?',(name,handedness,rank,accuracy,style,flair,consistency,spin,nerves,r['id']))
+        # Identity editing is allowed; earned rank and attributes are never user-editable.
+        if handedness not in ('R','L') or not name.strip():return False,'Name and handedness (R/L) are required.'
+        try:con.execute('UPDATE bowlers SET name=?,handedness=? WHERE id=?',(name.strip(),handedness,r['id']))
         except Exception as e:return False,str(e)
         return True,None
 

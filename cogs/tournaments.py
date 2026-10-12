@@ -7,6 +7,11 @@ from ui.embeds import bracket_embed
 
 class Tournaments(commands.Cog):
  def __init__(self,bot):self.bot=bot
+ async def cog_app_command_check(self,i):
+  from cogs.menu import admin_ok
+  if admin_ok(i):return True
+  await i.response.send_message('Manage Server permission required for tournament administration.',ephemeral=True)
+  return False
  @app_commands.default_permissions(manage_guild=True)
  @app_commands.command(name='tournament_create',description='Create a single-elimination tournament')
  @app_commands.choices(lane=[app_commands.Choice(name=x.title(),value=x) for x in ['house','fresh','dry','oily','transition']])
@@ -33,7 +38,7 @@ class Tournaments(commands.Cog):
  @app_commands.default_permissions(manage_guild=True)
  @app_commands.command(name='tournament_result',description='Report a completed team match and advance the winner')
  async def result(self,i:discord.Interaction,tournament:str,round_no:int,match_no:int,team_a_score:int,team_b_score:int):
-  ok,err=report_match(tournament,round_no,match_no,team_a_score,team_b_score)
+  ok,err=report_match(tournament,round_no,match_no,team_a_score,team_b_score,i.user.id)
   if not ok:return await i.response.send_message(err,ephemeral=True)
   t,rows=bracket(tournament);await i.response.send_message('📣 **RESULT CONFIRMED — THE BRACKET MOVES ON!**',embed=bracket_embed(t,rows))
 async def setup(bot):await bot.add_cog(Tournaments(bot))

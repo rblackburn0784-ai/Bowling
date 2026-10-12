@@ -16,7 +16,7 @@ class DirectorView(discord.ui.View):
  @discord.ui.button(label='Main Menu',emoji='🏠',style=discord.ButtonStyle.secondary,row=4)
  async def home(self,i,b):
   from cogs.menu import PublicMenu
-  await i.response.edit_message(content='🎳 **THE GUTTER SAINTS**\nBowling, careers, achievements and tournament control.',embed=None,view=PublicMenu())
+  await i.response.edit_message(content='🎳 **THE GUTTER SAINTS**\nBowling, careers, achievements and tournament control.',embed=None,view=PublicMenu(admin=True))
  @discord.ui.button(label='Admin Home',emoji='🛠️',style=discord.ButtonStyle.secondary,row=4)
  async def adminhome(self,i,b):
   from cogs.menu import AdminMenu
@@ -44,6 +44,21 @@ class DirectorView(discord.ui.View):
   SESSIONS[i.channel_id]=s;await i.response.send_message('♻️ Match restored.',ephemeral=True)
   from cogs.games import post_match_controls
   await post_match_controls(i.channel,s)
+ @discord.ui.button(label='Pause / Resume',emoji='⏯️',style=discord.ButtonStyle.secondary,row=2)
+ async def toggle_pause(self,i,b):
+  from services.tournament_admin import tournament_health,set_tournament_paused
+  status=tournament_health(self.name)
+  if not status:return await i.response.send_message('Tournament not found.',ephemeral=True)
+  ok,message=set_tournament_paused(self.name,not status['paused'],i.user.id)
+  await i.response.send_message(('✅ ' if ok else '⚠️ ')+message,ephemeral=True)
+ @discord.ui.button(label='Integrity Check',emoji='🩺',style=discord.ButtonStyle.secondary,row=2)
+ async def integrity(self,i,b):
+  from services.tournament_admin import tournament_health
+  status=tournament_health(self.name)
+  if not status:return await i.response.send_message('Tournament not found.',ephemeral=True)
+  notes='\n'.join('• '+x for x in status['issues'][:10]) or '✅ No bracket-integrity issues detected.'
+  sessions=', '.join(str(x) for x in status['recoverable_channels']) or 'None'
+  await i.response.send_message(f"🩺 **{status['name']}** — {status['complete']}/{status['total']} matches\nPaused: **{status['paused']}** • Recoverable channels: **{sessions}**\n{notes}",ephemeral=True)
  @discord.ui.button(label='Publish Gazette',emoji='📰',style=discord.ButtonStyle.primary)
  async def gazette(self,i,b):
   from services.gazette import build_gazette,format_gazette
