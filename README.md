@@ -1,3 +1,9 @@
+# v2.9.3 — Release Candidate (feature freeze)
+
+Release-candidate hardening over v2.9.2: collision-driven **non-guaranteed** strike carry, front-to-back pin transfer and ball deflection; identical pin-fall timing in all three cameras; frozen v2.9.0 and v2.8.5t simulation paths for in-progress match restores; automated physics stress and database rollback/backup gates. **No new gameplay systems, no change to GIF length, layout or public menus.**
+
+See [v2.9.3 RC checklist, verified results and remaining staging gates](docs/v2.9.3_release_candidate.md). The source ZIP/GitHub repository do not contain the user's production camera, bowler or pin PNG assets, and live Discord user acceptance has not been performed. Run `python -m unittest discover -s tests -p 'test_*.py' -v`, `python -m services.release_audit`, `python -m services.v293_rc_audit 500`, then test the real installed art and Discord controls before general release. 
+
 # v2.9.2 — Career & Competition Finalisation
 
 New earned career milestones, qualified lifetime records, admin-only duplicate-safe awards, atomic tournament honours, competition health checks, safe tournament pause/resume and consistent menu navigation. **No bowling physics, camera placement, GIF timing or scoring changes.**

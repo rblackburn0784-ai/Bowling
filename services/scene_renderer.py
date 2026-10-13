@@ -359,7 +359,7 @@ def pin_layers(base,event,stage='approach',impact_frame=0,
                 if p in after:
                     _upright(base,view,p,front_positions)
             elif stage=='impact' and p in down:
-                _fall(base,view,p,max(0,min(1,(impact_frame-1)/4)),front_positions)
+                _fall(base,view,p,pin_impact_progress(event,p,impact_frame),front_positions)
             else:
                 _upright(base,view,p,front_positions)
 

@@ -45,27 +45,32 @@ def roll_pins(rng,bowler,standing,lane='house',pressure=0.0,form=0.0,transition=
  quality=max(0,min(1,.30+.48*base+.11*oil_fit+pressure_mod+style_recovery+flair_form+prestige+intent.quality-abs(miss)*.15+rng.gauss(0,.045+(50-c)/1200)))
  target=(spare_target(standing,PINS,bowler.handedness) if spare and standing else 1)
  hand=-1 if str(bowler.handedness).upper().startswith('L') else 1
+ # A two-pin same-row baby split can be converted with a ball threaded
+ # between the pins. Aim at the gap, rather than the middle of just one pin.
+ # Wider 4–6 and 7–10 type splits retain their difficult individual targets.
+ target_x=PINS[target][0] if spare else 0
+ gap_shot=False
+ if spare and len(standing)==2:
+  first,second=sorted(standing)
+  x1,y1=PINS[first];x2,y2=PINS[second]
+  if y1==y2 and abs(x1-x2)<=2.0:
+   target_x=(x1+x2)/2
+   gap_shot=True
  geometry=impact_geometry(miss,m,ball,lane_state,hand,line_boards,
-                          spare=spare,target_x=PINS[target][0] if spare else 0)
- # A strike requires a well-placed pocket hit. Oil, line moves, entry angle,
- # revs and speed therefore change strike *and* ordinary pinfall chances.
- if standing==ALL and not spare:
-  pocket_error=abs(geometry['impact_x']-geometry['pocket_x'])
-  pocket_factor=math.exp(-.5*(pocket_error/.92)**2)
-  strike_p=clamp((.015+.69*(quality**2.38)+intent.carry*(.55+sty/160+fl/180))
-                 *pocket_factor*geometry['carry_factor'],.002,.82)
-  if rng.random()<strike_p:
-   down=set(standing)
-   down,tags=_special_carry(rng,standing,down,quality,miss,bowler,spare)
-   details=dict(geometry,miss=miss,ball=ball.key,target='pocket',
-                metrics=m,tags=tags,intent=intent.key,
-                contact_order=[1,2,3,4,5,6,7,8,9,10],
-                strike_chance=round(strike_p,5),aim_pin=1)
-   return down,quality,details
- down,order=pinfall(rng,standing,PINS,quality,geometry,spare=spare)
+                          spare=spare,target_x=target_x)
+ # A physically favourable pocket hit can produce energetic pin-to-pin carry,
+ # but it never bypasses the collision model or manufactures a strike.
+ pocket_error=abs(geometry['impact_x']-geometry['pocket_x'])
+ pocket_factor=math.exp(-.5*(pocket_error/.92)**2)
+ strike_p=clamp((.018+1.16*(quality**2.15)+intent.carry*(.55+sty/160+fl/180))
+                *pocket_factor*geometry['carry_factor'],.002,.82)
+ power_carry=bool(standing==ALL and not spare and rng.random()<strike_p)
+ down,order=pinfall(rng,standing,PINS,quality,geometry,spare=spare,
+                    power_carry=power_carry)
  down,tags=_special_carry(rng,standing,down,quality,miss,bowler,spare)
  details=dict(geometry,miss=miss,ball=ball.key,
               target=target if spare else 'pocket',metrics=m,
               tags=tags,intent=intent.key,contact_order=order,
-              aim_pin=target)
+              strike_chance=round(strike_p,5) if not spare else 0.0,
+              power_carry=power_carry,aim_pin=target,aim_gap=gap_shot)
  return down,quality,details

@@ -1,5 +1,6 @@
 import csv, io, json, sqlite3, time, base64, pickle, hashlib, copy
 from datetime import datetime
+from contextlib import closing
 from pathlib import Path
 from config import DB_PATH, ROOT
 from storage.database import connect
@@ -13,7 +14,7 @@ def backup_database(reason='change'):
     safe_reason=''.join(x for x in reason[:24] if x.isalnum() or x in '-_') or 'backup'
     dest=BACKUP_DIR/f'gutter_saints_{stamp}_{safe_reason}.db'
     # Online backups include uncheckpointed WAL pages, unlike shutil.copy2.
-    with sqlite3.connect(DB_PATH) as source, sqlite3.connect(dest) as target:
+    with closing(sqlite3.connect(DB_PATH)) as source, closing(sqlite3.connect(dest)) as target:
         source.backup(target)
         integrity=target.execute('PRAGMA quick_check').fetchone()[0]
         if integrity!='ok':

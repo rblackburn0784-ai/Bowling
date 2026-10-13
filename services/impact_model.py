@@ -45,6 +45,9 @@ def impact_geometry(miss, metrics, ball, lane, hand, line_boards=0, *,
     entry_angle = float(metrics.get('entry_angle',4.0))
     speed = float(metrics.get('speed',16.0))
     revs = float(metrics.get('revs',300.0))
+    # Entry direction drives the lateral path *through* the pin deck;
+    # rear pins see a different impact x after the ball deflects.
+    deflection = hand * clamp((entry_angle-3.5)*.075 + (revs-250)*.00022,-.22,.40)
     # A good angle/speed combination carries through the back rack.
     angle_fit = clamp(1.-abs(entry_angle-4.7)/9.5,.35,1.)
     speed_fit = clamp(1.-abs(speed-16.3)/10.,.48,1.)
@@ -53,40 +56,53 @@ def impact_geometry(miss, metrics, ball, lane, hand, line_boards=0, *,
     return {'impact_x':round(impact_x,5), 'pocket_x':round(target_x+pocket,5),
             'oil_bias':round(oil_bias,5), 'line_correction':round(line_correction,5),
             'angle_fit':round(angle_fit,5),'speed_fit':round(speed_fit,5),
-            'carry_factor':round(carry,5)}
+            'carry_factor':round(carry,5),
+            'deflection':round(deflection,5)}
 
 
-def pinfall(rng, standing, positions, quality, geometry, *, spare=False):
-    """Front-to-back contact and transfer: every pin is a legal standing pin.
+def pinfall(rng, standing, positions, quality, geometry, *, spare=False, power_carry=False):
+    """Contact-first pinfall with front-to-back energy transfer and deflection.
 
-    The impact point influences direct contact. Pins that fall can transfer
-    energy to neighbours one rack row behind, which makes entry/carry
-    meaningful and produces believable spare leaves without teleporting pins.
+    A pin falls through ball contact or a nearby falling pin, not an
+    unconnected global lottery. A very small residual chance represents a
+    chaotic secondary rebound from pins outside the simplified 2D model.
+    `power_carry` denotes an excellent pocket impact, not a forced strike;
+    even these deliveries must knock down the head pin and propagate through
+    the rack to clear ten pins. In particular this avoids unearned teleported
+    corner pins and makes a 7–10 conversion appropriately difficult.
     """
-    impact_x=geometry['impact_x'];carry=geometry['carry_factor']
+    impact_x=float(geometry['impact_x'])
+    carry=float(geometry['carry_factor'])
+    deflection=float(geometry.get('deflection',0))
     knocked=set()
-    # The chronological pin order is also the authoritative animation order.
-    order=sorted(standing,key=lambda p:(positions[p][1],abs(positions[p][0]-impact_x),p))
+    order=sorted(standing,key=lambda p:(positions[p][1],
+                                         abs(positions[p][0]-impact_x),p))
     for pin in order:
         x,depth=positions[pin]
-        distance=abs(x-impact_x)
-        # Width grows slightly downlane due to deflection and mixing.
-        width=(1.25+depth*.55) if not spare else (.96+depth*.44)
-        direct=exp(-.5*(distance/width)**2)
-        nearby=sum(1 for fallen in knocked if
-                   0 < depth-positions[fallen][1]<=2 and
-                   abs(x-positions[fallen][0])<=1.65)
-        transfer=min(.25,nearby*.082*carry)
-        base=(.045+quality*(.46+.34*direct)*carry+transfer
-              -max(0,distance-width)*.028)
-        chance=clamp(base,.006,.968)
-        if rng.random()<chance:
-            knocked.add(pin)
-    # Weak direct contact can still clip a pin instead of magically leaving
-    # a perfect gutter-to-zero-pin shot every time.
-    if not knocked and standing and rng.random()<quality*.30:
-        nearest=min(standing,key=lambda pin:abs(positions[pin][0]-impact_x)
-                    + .12*positions[pin][1])
-        knocked.add(nearest)
-    return knocked, sorted(knocked,key=lambda p:(positions[p][1],
-                                                  abs(positions[p][0]-impact_x),p))
+        # Ball path bends and deflects laterally across the rack.
+        path_x=impact_x+depth*deflection
+        distance=abs(x-path_x)
+        contact_radius=(1.08+depth*.11) if not spare else (1.02+depth*.06)
+        direct=exp(-.5*(distance/contact_radius)**2)
+        # Each actual predecessor can transfer impact energy one or two rows
+        # backwards through neighbours; transfer does not cross isolated splits.
+        predecessors=[other for other in knocked
+                      if 0<depth-positions[other][1]<=2
+                      and abs(x-positions[other][0])<=1.50]
+        cascade=clamp(sum(.36 if depth-positions[q][1]==1 else .10
+                          for q in predecessors)*carry,0.,.68)
+        ball_touch=distance<=contact_radius*1.32
+        connected=ball_touch or bool(predecessors)
+        if not connected:
+            chance=.003  # rare secondary ricochet, never a blanket strike
+        else:
+            ball_energy=(.18+.89*quality)*carry*direct
+            chance=.025+ball_energy+(.28+.26*quality)*cascade
+            if power_carry and not spare:
+                # Pocket carry energises *reachable* pins only. Far pin
+                # survival still depends on the actual advancing cascade.
+                chance=max(chance,.965 if predecessors else .958*direct)
+        chance=clamp(chance,.003,.985)
+        if rng.random()<chance:knocked.add(pin)
+    return knocked,sorted(knocked,key=lambda p:(positions[p][1],
+                        abs(positions[p][0]-impact_x),p))
