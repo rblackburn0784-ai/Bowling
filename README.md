@@ -1,3 +1,10 @@
+# v2.9.3a — Match Stop, Admin Exhibitions & Single-Play Animation
+
+- Administrator **Stop Game** button (live scoreboards and Match dashboard), plus `/game_stop`, with a confirmation step, recoverable cancel/rollback and no changes to committed games.
+- Admin-initiated `/game_start` and dashboard Start Match are unranked, reward-free exhibitions; genuine fixtures and tournaments remain ranked. Older active games are not silently reclassified.
+- Shortened GIF attachment headroom to prevent repeated presentation loops; the actual 23-frame shot, physics and scoring remain unchanged.
+- See [v2.9.3a release notes](docs/v2.9.3a_match_stop_exhibitions_animation.md). This package includes production PNG assets.
+
 # v2.9.3 — Release Candidate (feature freeze)
 
 Release-candidate hardening over v2.9.2: collision-driven **non-guaranteed** strike carry, front-to-back pin transfer and ball deflection; identical pin-fall timing in all three cameras; frozen v2.9.0 and v2.8.5t simulation paths for in-progress match restores; automated physics stress and database rollback/backup gates. **No new gameplay systems, no change to GIF length, layout or public menus.**

@@ -1,0 +1,196 @@
+{
+  "vertical": {
+    "standing.png": {
+      "canvas": [
+        26,
+        68
+      ],
+      "actual": [
+        26,
+        68
+      ]
+    },
+    "fall_left.png": {
+      "canvas": [
+        62,
+        26
+      ],
+      "actual": [
+        38,
+        26
+      ]
+    },
+    "fall_right.png": {
+      "canvas": [
+        62,
+        26
+      ],
+      "actual": [
+        34,
+        26
+      ]
+    },
+    "fall_backward.png": {
+      "canvas": [
+        36,
+        56
+      ],
+      "actual": [
+        36,
+        53
+      ]
+    },
+    "fall_forward.png": {
+      "canvas": [
+        36,
+        56
+      ],
+      "actual": [
+        34,
+        56
+      ]
+    }
+  },
+  "overhead": {
+    "pin_1.png": {
+      "canvas": [
+        44,
+        68
+      ],
+      "actual": [
+        44,
+        68
+      ]
+    },
+    "pin_2.png": {
+      "canvas": [
+        44,
+        68
+      ],
+      "actual": [
+        43,
+        68
+      ]
+    },
+    "pin_3.png": {
+      "canvas": [
+        44,
+        68
+      ],
+      "actual": [
+        43,
+        68
+      ]
+    },
+    "pin_4.png": {
+      "canvas": [
+        44,
+        68
+      ],
+      "actual": [
+        44,
+        67
+      ]
+    },
+    "pin_5.png": {
+      "canvas": [
+        44,
+        68
+      ],
+      "actual": [
+        43,
+        68
+      ]
+    },
+    "pin_6.png": {
+      "canvas": [
+        44,
+        68
+      ],
+      "actual": [
+        43,
+        68
+      ]
+    },
+    "pin_7.png": {
+      "canvas": [
+        44,
+        68
+      ],
+      "actual": [
+        44,
+        68
+      ]
+    },
+    "pin_8.png": {
+      "canvas": [
+        44,
+        68
+      ],
+      "actual": [
+        44,
+        67
+      ]
+    },
+    "pin_9.png": {
+      "canvas": [
+        44,
+        68
+      ],
+      "actual": [
+        44,
+        68
+      ]
+    },
+    "pin_10.png": {
+      "canvas": [
+        44,
+        68
+      ],
+      "actual": [
+        44,
+        68
+      ]
+    },
+    "fall_left.png": {
+      "canvas": [
+        66,
+        44
+      ],
+      "actual": [
+        52,
+        44
+      ]
+    },
+    "fall_right.png": {
+      "canvas": [
+        66,
+        44
+      ],
+      "actual": [
+        60,
+        44
+      ]
+    },
+    "fall_backward.png": {
+      "canvas": [
+        44,
+        66
+      ],
+      "actual": [
+        44,
+        66
+      ]
+    },
+    "fall_forward.png": {
+      "canvas": [
+        44,
+        66
+      ],
+      "actual": [
+        44,
+        36
+      ]
+    }
+  }
+}

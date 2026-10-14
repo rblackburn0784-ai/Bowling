@@ -23,7 +23,8 @@ class SecondBallPlaybackTests(unittest.TestCase):
   impacts=[x for x in ANIMATION_SEQUENCE if x[0]=='impact']
   self.assertEqual([x[3] for x in impacts],list(range(1,6)))
   self.assertGreaterEqual(impacts[-1][-1],450)
-  self.assertGreaterEqual(DISCORD_PLAYBACK_HEADROOM_SECONDS,1.0)
+  self.assertGreaterEqual(DISCORD_PLAYBACK_HEADROOM_SECONDS,0.0)
+  self.assertLessEqual(DISCORD_PLAYBACK_HEADROOM_SECONDS,0.5)
   self.assertLess(DURATION_SECONDS,3.5)
 
  def test_second_ball_single_pin_has_progressive_knockdown(self):

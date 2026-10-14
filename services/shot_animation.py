@@ -29,10 +29,10 @@ ANIMATION_SEQUENCE=(
     ('impact',None,1.0,4,155),  # deep fall
     ('impact',None,1.0,5,540),  # knocked-down pins held visibly
 )
-# discord.File uploads do not tell us when the client actually begins playing
-# the GIF. Leave headroom so slower clients can see flight and pinfall before
-# the result image replaces the attachment.
-DISCORD_PLAYBACK_HEADROOM_SECONDS=1.5
+# GIF has NO loop extension. Discord's clients may nevertheless replay an
+# attachment while it remains mounted. Replace it promptly with the static
+# leave after the first 23-frame (2.795s) shot. Keep only brief upload slack.
+DISCORD_PLAYBACK_HEADROOM_SECONDS=0.30
 DURATION_SECONDS=sum(item[-1] for item in ANIMATION_SEQUENCE)/1000
 
 def _frames(session,event,size):

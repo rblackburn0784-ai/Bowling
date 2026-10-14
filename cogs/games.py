@@ -43,6 +43,7 @@ def rb(r,team=None):
  return b
 LANE_MESSAGES={}
 MATCH_BUSY=set()
+STOP_REQUESTS={}  # channel -> (session_uid, cancelling administrator ID)
 # Fixed broadcast pacing: frame changes are deliberately slower than
 # the typical Discord attachment-edit rate, with a pause between deliveries.
 AUTO_BETWEEN_BALLS=0.7
@@ -91,6 +92,84 @@ async def recover_completed_match(i, session):
   await i.followup.send('⚠️ Finalisation failed again. The saved result remains recoverable; do not start a replacement match in this channel.',ephemeral=True)
   return False
 
+async def stop_active_match(channel,session,actor_id):
+ """Cancel an uncommitted game, including reversible per-ball career changes."""
+ key=channel.id
+ if SESSIONS.get(key) is not session:
+  return False,'This match is no longer active; use the current scoreboard.'
+ from services.v25 import cancel_unfinished_session
+ uid=session.session_uid
+ try:
+  ok,detail=cancel_unfinished_session(key,uid,actor_id)
+ except Exception as exc:
+  logging.exception('Could not safely cancel match in channel %s',key)
+  return False,f'Cancellation was refused for safety: {exc}'
+ if not ok:
+  return False,detail
+ STOP_REQUESTS.pop(key,None)
+ SESSIONS.pop(key,None)
+ previous=LANE_MESSAGES.pop(key,None)
+ if previous is not None:
+  try:
+   await previous.edit(embed=discord.Embed(title='🛑 MATCH CANCELLED',
+        description='Unranked/unfinished game discarded — no final score recorded.'),
+        attachments=[],view=None)
+  except (discord.HTTPException,AttributeError):
+   logging.warning('Could not remove stale scoreboard controls for cancelled match')
+ try:
+  await channel.send(f'🛑 **GAME STOPPED** — {detail}')
+ except discord.HTTPException:
+  logging.warning('Could not post cancellation announcement in channel %s',key)
+ return True,detail
+
+
+class StopMatchConfirm(discord.ui.View):
+ """Two-click admin-only stop; applies even if Auto Play is underway."""
+ def __init__(self,channel_id,session):
+  super().__init__(timeout=60)
+  self.channel_id=channel_id;self.session=session
+ async def interaction_check(self,i):
+  permissions=getattr(i.user,'guild_permissions',None)
+  if (i.channel_id!=self.channel_id or
+      not permissions or not (permissions.administrator or permissions.manage_guild)):
+   await i.response.send_message('Only a server administrator can stop a match.',ephemeral=True)
+   return False
+  if SESSIONS.get(self.channel_id) is not self.session:
+   await i.response.send_message('Match controls are stale.',ephemeral=True)
+   return False
+  return True
+ @discord.ui.button(label='🛑 Confirm Stop',style=discord.ButtonStyle.danger)
+ async def confirm(self,i,b):
+  await i.response.defer(ephemeral=True)
+  if self.channel_id in MATCH_BUSY:
+   STOP_REQUESTS[self.channel_id]=(self.session.session_uid,i.user.id)
+   await i.followup.send('🛑 Stop requested. The current delivery will finish its visual playback, then the game will be cancelled without a final result.',ephemeral=True)
+  else:
+   ok,message=await stop_active_match(i.channel,self.session,i.user.id)
+   await i.followup.send(('✅ ' if ok else '⚠️ ')+message,ephemeral=True)
+  self.stop()
+ @discord.ui.button(label='Keep Playing',style=discord.ButtonStyle.secondary)
+ async def keep(self,i,b):
+  self.stop()
+  await i.response.edit_message(content='Match continues.',view=None)
+
+
+async def prompt_stop_match(i,session):
+ permissions=getattr(i.user,'guild_permissions',None)
+ if not permissions or not (permissions.administrator or permissions.manage_guild):
+  return await i.response.send_message('Manage Server permission required to stop games.',ephemeral=True)
+ if session is None:
+  from services.v25 import restore_session
+  session=restore_session(i.channel_id)
+  if session is not None:
+   SESSIONS[i.channel_id]=session
+ if not session or SESSIONS.get(i.channel_id) is not session:
+  return await i.response.send_message('No current or recoverable match to stop.',ephemeral=True)
+ await i.response.send_message('⚠️ **Stop this game?** This discards its unfinished score, '
+   'reverts its own career changes, and releases the channel. Completed results are never erased.',
+   view=StopMatchConfirm(i.channel_id,session),ephemeral=True)
+
+
 class LiveMatchControls(discord.ui.View):
  """Buttons belong to the current channel's active match, not a stale view."""
  def __init__(self,channel_id,session):
@@ -99,13 +178,18 @@ class LiveMatchControls(discord.ui.View):
   self.session=session
 
  async def interaction_check(self,i):
-  if i.channel_id!=self.channel_id or SESSIONS.get(self.channel_id) is not self.session or self.session.complete:
+  stop_button=(getattr(i,'data',None) or {}).get('custom_id')=='gutter:stop-match'
+  if i.channel_id!=self.channel_id or SESSIONS.get(self.channel_id) is not self.session or (self.session.complete and not stop_button):
    await i.response.send_message('This match has finished or its controls are out of date.',ephemeral=True)
    return False
   if not can_operate_match(i.user,self.session):
    await i.response.send_message('Only a competing player or server administrator can bowl this match.',ephemeral=True)
    return False
   return True
+
+ @discord.ui.button(label='🛑 Stop Game',style=discord.ButtonStyle.danger,custom_id='gutter:stop-match')
+ async def stop_game(self,i,b):
+  await prompt_stop_match(i,self.session)
 
  @discord.ui.button(label='🎳 Bowl Next Ball',style=discord.ButtonStyle.primary,custom_id='gutter:manual-bowl')
  async def bowl_next(self,i,b):
@@ -290,7 +374,7 @@ async def send_media(channel,kind):
  if url:await channel.send(url)
 class Games(commands.Cog):
  def __init__(self,bot):self.bot=bot
- @app_commands.command(name='game_start',description='Start a team or team-v-team bowling game')
+ @app_commands.command(name='game_start',description='Start an unranked team exhibition (no career, ranking or achievements)')
  @app_commands.choices(lane=[app_commands.Choice(name=x.title(),value=x) for x in ['house','fresh','dry','oily','transition']],
                         layout=[app_commands.Choice(name=x.title(),value=x) for x in ['standard','broadcast','finals','chaos']])
  async def start(self,i:discord.Interaction,team:str,opponent:str|None=None,lane:app_commands.Choice[str]|None=None,seed:int|None=None,layout:app_commands.Choice[str]|None=None):
@@ -306,10 +390,12 @@ class Games(commands.Cog):
     if n<len(rr):bowlers.append(rb(rr[n],opponent))
   else:bowlers=[rb(x,team) for x in ra]
   s=GameSession(bowlers,seed,lane.value if lane else 'house',
-                layout=layout.value if layout else 'broadcast');prepare_new_session(i.channel_id);SESSIONS[i.channel_id]=s
+                layout=layout.value if layout else 'broadcast')
+  s.friendly_challenge=True; s.practice_no_rewards=True  # Unsanctioned /game_start is an exhibition.
+  prepare_new_session(i.channel_id);SESSIONS[i.channel_id]=s
   for p in s.players:p.ball_key=bowler_loadout(p.bowler.id).get('primary_ball','hybrid')
   save_snapshot(i.channel_id,s,'start')
-  await i.response.send_message(f"🎤 **WELCOME TO THE GUTTER SAINTS LANES!**\n**{team}**"+(f' vs **{opponent}**' if opponent else ''))
+  await i.response.send_message(f"🤝 **UNRANKED EXHIBITION — NO CAREER REWARDS**\n**{team}**"+(f' vs **{opponent}**' if opponent else ''))
   await post_match_controls(i.channel,s,introduce=True)
  @app_commands.command(name='bowler_sprite',description='Set the character sprite for a registered bowler')
  @app_commands.default_permissions(manage_guild=True)
@@ -343,8 +429,20 @@ class Games(commands.Cog):
   s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id']
   save_snapshot(key,s,'post_ball')
   await animate_delivery(ch,s,ev,prior_cards,prior_scores,AUTO_FRAME_DELAY)
+  if STOP_REQUESTS.get(key,(None,None))[0]==s.session_uid:
+   stopped,reason=await stop_active_match(ch,s,STOP_REQUESTS[key][1])
+   if not stopped:raise RuntimeError('Game stop blocked: '+reason)
+   return
   director=await self.reaction(ch,s,ev)
+  if STOP_REQUESTS.get(key,(None,None))[0]==s.session_uid:
+   stopped,reason=await stop_active_match(ch,s,STOP_REQUESTS[key][1])
+   if not stopped:raise RuntimeError('Game stop blocked: '+reason)
+   return
   await update_lane(ch,s,ev,'leave',director=director)
+  if STOP_REQUESTS.get(key,(None,None))[0]==s.session_uid:
+   stopped,reason=await stop_active_match(ch,s,STOP_REQUESTS[key][1])
+   if not stopped:raise RuntimeError('Game stop blocked: '+reason)
+   return
   if s.complete:
    await self.finish(ch,s,key,ev)
 
@@ -366,6 +464,10 @@ class Games(commands.Cog):
   MATCH_BUSY.add(key)
   try:
    while not s.complete and SESSIONS.get(key) is s:
+    if STOP_REQUESTS.get(key,(None,None))[0]==s.session_uid:
+     stopped,reason=await stop_active_match(ch,s,STOP_REQUESTS[key][1])
+     if not stopped:raise RuntimeError('Game stop blocked: '+reason)
+     break
     await self._deliver(ch,s)
     if not s.complete:await asyncio.sleep(AUTO_BETWEEN_BALLS)
    return True
@@ -393,6 +495,11 @@ class Games(commands.Cog):
   await i.response.defer(ephemeral=True)
   if not await self.play_all(i.channel,s):
    await i.followup.send('Match already bowling or no longer active.',ephemeral=True)
+
+ @app_commands.command(name='game_stop',description='Administrator: safely cancel the current unfinished match')
+ @app_commands.default_permissions(manage_guild=True)
+ async def game_stop(self,i:discord.Interaction):
+  await prompt_stop_match(i,SESSIONS.get(i.channel_id))
 
  @app_commands.command(name='game_scoreboard')
  async def board(self,i:discord.Interaction):
@@ -443,12 +550,13 @@ class Games(commands.Cog):
    with connect() as db:
     db.execute('CREATE TABLE IF NOT EXISTS friendly_xp_daily(bowler_id INTEGER NOT NULL,day TEXT NOT NULL,PRIMARY KEY(bowler_id,day))')
     for p in s.players:
+     if getattr(s,'practice_no_rewards',False):continue
      granted=db.execute("INSERT OR IGNORE INTO friendly_xp_daily(bowler_id,day) VALUES(?,date('now'))",(p.bowler.id,)).rowcount
      if granted:
       # Exhibition rewards are recorded separately and cannot trigger rank XP.
       db.execute('INSERT OR IGNORE INTO exhibition_rewards(bowler_id) VALUES(?)',(p.bowler.id,))
       db.execute('UPDATE exhibition_rewards SET cosmetic_xp=cosmetic_xp+1 WHERE bowler_id=?',(p.bowler.id,))
-   await ch.send('🤝 **FRIENDLY EXHIBITION COMPLETE** — No league points, rank changes, career attribute growth or achievements. Each bowler can earn at most **1 non-ranking XP per UTC day** from friendly challenges.')
+   await ch.send('🤝 **UNRANKED EXHIBITION COMPLETE** — No standings, rank, career attributes, achievements or history.' if getattr(s,'practice_no_rewards',False) else '🤝 **FRIENDLY EXHIBITION COMPLETE** — No league points, rank changes, career attribute growth or achievements. Each bowler can earn at most **1 non-ranking XP per UTC day** from friendly challenges.')
    await ch.send(embed=scoreboard_embed(s))
    s.persisted=True
    await publish_victory(ch,s,last_event)

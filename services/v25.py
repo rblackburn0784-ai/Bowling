@@ -26,7 +26,7 @@ def audit(actor_id,action,target_type='',target_id=None,detail=''):
 def archetype(b):
     vals={'Power Player':b.spin+b.accuracy*.25,'Shot Maker':b.accuracy+b.consistency*.35,'Spinner':b.spin+b.style*.25,'Clutch Bowler':b.nerves+b.consistency*.25,'Showman':b.style+b.flair*.8,'Steady Hand':b.consistency+b.accuracy*.3};return max(vals,key=vals.get)
 def session_dict(s):
-    return {'physics_version':getattr(s,'physics_version','2.8.5t'),'seed':s.seed,'rng_state':base64.b64encode(pickle.dumps(s.rng.getstate())).decode('ascii'),'lane':s.lane,'turn':s.turn,'tournament_id':s.tournament_id,'match_id':s.match_id,'season_id':getattr(s,'season_id',None),'competition_id':getattr(s,'competition_id',None),'fixture_id':getattr(s,'fixture_id',None),'persisted':s.persisted,'session_uid':s.session_uid,'friendly_challenge':getattr(s,'friendly_challenge',False),'last_attribute_changes':getattr(s,'last_attribute_changes',[]),'last_attribute_bowler_id':getattr(s,'last_attribute_bowler_id',None),'ball_count':getattr(s,'ball_count',0),'layout':getattr(s,'layout','broadcast'),'branding':getattr(s,'branding',None),'story_leader':getattr(s,'story_leader',None),'story_low':getattr(s,'story_low',{}),'story_seen':list(getattr(s,'story_seen',set())),'lane_pair':{'left':{'number':s.lane_pair.left.number,'traffic':s.lane_pair.left.traffic,'oil':s.lane_pair.left.oil,'track':s.lane_pair.left.track,'inside':s.lane_pair.left.inside,'middle':s.lane_pair.left.middle,'outside':s.lane_pair.left.outside,'carrydown':s.lane_pair.left.carrydown},'right':{'number':s.lane_pair.right.number,'traffic':s.lane_pair.right.traffic,'oil':s.lane_pair.right.oil,'track':s.lane_pair.right.track,'inside':s.lane_pair.right.inside,'middle':s.lane_pair.right.middle,'outside':s.lane_pair.right.outside,'carrydown':s.lane_pair.right.carrydown},'next_side':s.lane_pair.next_side},'players':[{'bowler':{k:getattr(p.bowler,k) for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves','team_name','sprite_key','affiliation']},'frames':p.frames,'standing':sorted(p.standing),'frame':p.frame,'ball':p.ball,'split_leave':p.split_leave,'split_frames':sorted(p.split_frames),'split_conversions':sorted(p.split_conversions),'strike_streak':p.strike_streak,'max_strike_streak':p.max_strike_streak,'form':getattr(p,'form',0.0),'special_conversions':sorted(getattr(p,'special_conversions',set())),'ball_key':getattr(p,'ball_key','hybrid'),'shot_intent':getattr(p,'shot_intent','auto'),'next_intent':getattr(p,'next_intent',None),'line_boards':getattr(p,'line_boards',0),'active_ball':getattr(p,'active_ball',None)} for p in s.players]}
+    return {'physics_version':getattr(s,'physics_version','2.8.5t'),'seed':s.seed,'rng_state':base64.b64encode(pickle.dumps(s.rng.getstate())).decode('ascii'),'lane':s.lane,'turn':s.turn,'tournament_id':s.tournament_id,'match_id':s.match_id,'season_id':getattr(s,'season_id',None),'competition_id':getattr(s,'competition_id',None),'fixture_id':getattr(s,'fixture_id',None),'persisted':s.persisted,'session_uid':s.session_uid,'friendly_challenge':getattr(s,'friendly_challenge',False),'practice_no_rewards':getattr(s,'practice_no_rewards',False),'last_attribute_changes':getattr(s,'last_attribute_changes',[]),'last_attribute_bowler_id':getattr(s,'last_attribute_bowler_id',None),'ball_count':getattr(s,'ball_count',0),'layout':getattr(s,'layout','broadcast'),'branding':getattr(s,'branding',None),'story_leader':getattr(s,'story_leader',None),'story_low':getattr(s,'story_low',{}),'story_seen':list(getattr(s,'story_seen',set())),'lane_pair':{'left':{'number':s.lane_pair.left.number,'traffic':s.lane_pair.left.traffic,'oil':s.lane_pair.left.oil,'track':s.lane_pair.left.track,'inside':s.lane_pair.left.inside,'middle':s.lane_pair.left.middle,'outside':s.lane_pair.left.outside,'carrydown':s.lane_pair.left.carrydown},'right':{'number':s.lane_pair.right.number,'traffic':s.lane_pair.right.traffic,'oil':s.lane_pair.right.oil,'track':s.lane_pair.right.track,'inside':s.lane_pair.right.inside,'middle':s.lane_pair.right.middle,'outside':s.lane_pair.right.outside,'carrydown':s.lane_pair.right.carrydown},'next_side':s.lane_pair.next_side},'players':[{'bowler':{k:getattr(p.bowler,k) for k in ['id','name','owner_id','handedness','rank','accuracy','style','flair','consistency','spin','nerves','team_name','sprite_key','affiliation']},'frames':p.frames,'standing':sorted(p.standing),'frame':p.frame,'ball':p.ball,'split_leave':p.split_leave,'split_frames':sorted(p.split_frames),'split_conversions':sorted(p.split_conversions),'strike_streak':p.strike_streak,'max_strike_streak':p.max_strike_streak,'form':getattr(p,'form',0.0),'special_conversions':sorted(getattr(p,'special_conversions',set())),'ball_key':getattr(p,'ball_key','hybrid'),'shot_intent':getattr(p,'shot_intent','auto'),'next_intent':getattr(p,'next_intent',None),'line_boards':getattr(p,'line_boards',0),'active_ball':getattr(p,'active_ball',None)} for p in s.players]}
 def legacy_session_uid(d):
     """Stable recovery ID for pre-v2.8.5s snapshots without a session UID."""
     immutable={'seed':d['seed'],'lane':d['lane'],
@@ -41,7 +41,7 @@ def session_from_dict(d):
         bd=dict(x['bowler']); team=bd.pop('team_name',None); b=Bowler(**bd); b.team_name=team; bowlers.append(b)
     lp=d.get('lane_pair',{});start=lp.get('left',{}).get('number',3);s=GameSession(bowlers,d['seed'],d['lane'],d.get('tournament_id'),d.get('match_id'),start,d.get('layout','broadcast'),d.get('season_id'),d.get('competition_id'),d.get('fixture_id'));s.turn=d['turn'];s.physics_version=d.get('physics_version','2.8.5t');
     if d.get('rng_state'):s.rng.setstate(pickle.loads(base64.b64decode(d['rng_state'])))
-    s.persisted=d.get('persisted',False);s.session_uid=d.get('session_uid') or legacy_session_uid(d);s.friendly_challenge=d.get('friendly_challenge',False);s.last_attribute_changes=copy.deepcopy(d.get('last_attribute_changes',[]));s.last_attribute_bowler_id=d.get('last_attribute_bowler_id');s.ball_count=d.get('ball_count',0);s.branding=d.get('branding');s.story_leader=d.get('story_leader');s.story_low=copy.deepcopy(d.get('story_low',{}));s.story_seen=set(d.get('story_seen',[]))
+    s.persisted=d.get('persisted',False);s.session_uid=d.get('session_uid') or legacy_session_uid(d);s.friendly_challenge=d.get('friendly_challenge',False);s.practice_no_rewards=d.get('practice_no_rewards',False);s.last_attribute_changes=copy.deepcopy(d.get('last_attribute_changes',[]));s.last_attribute_bowler_id=d.get('last_attribute_bowler_id');s.ball_count=d.get('ball_count',0);s.branding=d.get('branding');s.story_leader=d.get('story_leader');s.story_low=copy.deepcopy(d.get('story_low',{}));s.story_seen=set(d.get('story_seen',[]))
     for side in ('left','right'):
         src=lp.get(side,{})
         lane=getattr(s.lane_pair,side)
@@ -191,3 +191,61 @@ def export_tournament_xlsx(name):
         sh.freeze_panes='A2';sh.auto_filter.ref=sh.dimensions
         for col in sh.columns:sh.column_dimensions[col[0].column_letter].width=min(32,max(12,max(len(str(c.value or '')) for c in col)+2))
     p=EXPORT_DIR/f'{name.replace("/","-")}_results.xlsx';wb.save(p);return p
+
+
+def cancel_unfinished_session(channel_id, session_uid, actor_id=None):
+    """Discard an unfinished game and its per-delivery attribute evidence.
+
+    Validation and rollback happen in one SQLite transaction. If an unrelated
+    match has changed a bowler's career since our last post-ball checkpoint,
+    refuse to alter that bowler's career rather than clobber unrelated work.
+    Completed/persisted games can *never* be cancelled through this path.
+    """
+    with connect() as db:
+        row=db.execute('SELECT state_json FROM active_sessions WHERE channel_id=?',
+                       (channel_id,)).fetchone()
+        if not row:
+            return False, 'No recoverable game remains in this channel.'
+        state=json.loads(row['state_json'])
+        uid=state.get('session_uid') or legacy_session_uid(state)
+        if uid!=session_uid:
+            return False, 'This match has changed; refresh its controls.'
+        if state.get('persisted') or db.execute(
+            'SELECT 1 FROM games WHERE session_uid=?', (uid,)).fetchone():
+            return False, 'This match is already recorded. Use result correction, not Stop.'
+        snapshots=db.execute('''SELECT id,label,state_json,career_json
+            FROM match_snapshots WHERE channel_id=? ORDER BY id''',
+            (channel_id,)).fetchall()
+        own=[row for row in snapshots if
+             (json.loads(row['state_json']).get('session_uid') or
+              legacy_session_uid(json.loads(row['state_json']))) == uid]
+        if not own:
+            return False, 'No matching rollback checkpoints; match was not cancelled.'
+        # Undo career changes from last delivery to first, with no intermediate
+        # commits. A post-ball checkpoint contains the career state *after* a
+        # delivery; a pre-ball checkpoint contains its state before.
+        for index in range(len(own)-1,-1,-1):
+            before=own[index]
+            if before['label']!='pre_ball' or not before['career_json']:
+                continue
+            after=own[index+1] if index+1<len(own) and own[index+1]['label']=='post_ball' else None
+            expected=after['career_json'] if after else before['career_json']
+            if expected:
+                checkpoint=json.loads(expected)
+                current=_career_checkpoint(db,checkpoint['bowler_id'])
+                if current is None or json.loads(current)!=checkpoint:
+                    raise RuntimeError('Career changed outside this game. Stop refused; '
+                                       'restore or undo the affected deliveries first.')
+            _restore_career_checkpoint(db,before['career_json'])
+        fixture_id=state.get('fixture_id')
+        if fixture_id is not None:
+            db.execute("UPDATE fixtures SET status='scheduled' WHERE id=? AND status='playing'",
+                       (fixture_id,))
+        db.execute('DELETE FROM active_sessions WHERE channel_id=?',(channel_id,))
+        db.execute('DELETE FROM match_snapshots WHERE channel_id=?',(channel_id,))
+        if actor_id is not None:
+            db.execute('''INSERT INTO audit_log(actor_id,action,target_type,target_id,detail)
+                          VALUES(?,?,?,?,?)''',
+                       (actor_id,'cancel_game','session',channel_id,
+                        f'Cancelled unfinished game {uid}; no result or awards recorded'))
+    return True, 'The match was cancelled. No game result, rankings, achievements or fixture result was awarded.'

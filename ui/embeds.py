@@ -62,8 +62,11 @@ def scoreboard_sprite(bowler):
 
 
 def scoreboard_embed(session,last=None,team_names=None,director=None,stage=None,prior_cards=None,prior_scores=None):
-    title='🏆 Gutter Saints — Championship Broadcast' if is_finals(session) else '🎳 Gutter Saints — Live Game'
-    e=discord.Embed(title=title,description=f'Lane: **{session.lane.title()}** • Seed: `{session.seed}`')
+    title=('🏆 Gutter Saints — Championship Broadcast' if is_finals(session) else
+           '🤝 Gutter Saints — Unranked Exhibition' if getattr(session,'friendly_challenge',False) else
+           '🎳 Gutter Saints — Live Game')
+    category='**PRACTICE — NO CAREER REWARDS** • ' if getattr(session,'practice_no_rewards',False) else ''
+    e=discord.Embed(title=title,description=f'{category}Lane: **{session.lane.title()}** • Seed: `{session.seed}`')
     cards=prior_cards if stage and stage!='leave' and prior_cards is not None else session.card()
     scores=prior_scores if stage and stage!='leave' and prior_scores is not None else session.scores()
     totals={}

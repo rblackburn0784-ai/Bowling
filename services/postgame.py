@@ -28,13 +28,20 @@ def tournament_rolloff(session, summaries, totals):
     teams=sorted(totals)
     reps={name:max((p for p,sm in summaries if p.bowler.team_name==name),
                    key=lambda p:score_game(p.frames)) for name in teams}
+    # The roll-off must use the same frozen physics version as a restored
+    # match. Changing engines on upgrade would otherwise change tie winners.
+    rolloff_engine=roll_pins
+    if getattr(session,'physics_version','2.8.5t') == '2.8.5t':
+        from services.legacy_v285t_pin_engine import roll_pins as rolloff_engine
+    elif getattr(session,'physics_version','2.8.5t') == '2.9.0':
+        from services.legacy_v290_pin_engine import roll_pins as rolloff_engine
     rng=random.Random(f'rolloff:{session.session_uid}:{session.seed}')
     log=[]
     for round_no in range(1,513):
         pins={}
         for name in teams:
             player=reps[name]
-            down,_,_=roll_pins(rng,player.bowler,set(ALL),lane=session.lane,
+            down,_,_=rolloff_engine(rng,player.bowler,set(ALL),lane=session.lane,
                                ball_key=player.ball_key if player.ball_key!='auto' else 'hybrid',
                                target_mode='strike',shot_intent='normal')
             pins[name]=len(down)

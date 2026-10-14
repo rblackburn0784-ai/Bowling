@@ -179,6 +179,8 @@ class MatchSetupView(Nav):
   from services.v271 import bowler_loadout
   players=[rb(by_id[bid]) for bid in (self.bowler_a,self.bowler_b)]
   s=GameSession(players,lane=self.lane)
+  s.friendly_challenge=True  # Admin exhibition: never record career/rank/achievements.
+  s.practice_no_rewards=True  # No cosmetic XP either for admin test matches.
   from cogs.games import LANE_MESSAGES
   from services.v25 import prepare_new_session
   prepare_new_session(i.channel_id)
@@ -238,6 +240,10 @@ class MatchDashboard(Nav):
   s=SESSIONS.get(i.channel_id)
   if not s:return await i.response.send_message('No active game in this channel.',ephemeral=True)
   await i.response.send_message(file=discord.File(lane_card(s),filename='gutter_lane.png'),ephemeral=True)
+ @discord.ui.button(label='🛑 Stop Game',style=discord.ButtonStyle.danger)
+ async def stop_game(self,i,b):
+  from cogs.games import prompt_stop_match
+  await prompt_stop_match(i,SESSIONS.get(i.channel_id))
  @discord.ui.button(label='↩️ Undo / Restore',style=discord.ButtonStyle.danger)
  async def recovery(self,i,b):await nav(i,'↩️ **Match Recovery**',RecoveryView())
 
