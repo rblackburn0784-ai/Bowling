@@ -464,7 +464,7 @@ class Games(commands.Cog):
   MATCH_BUSY.add(key)
   try:
    while not s.complete and SESSIONS.get(key) is s:
-    if STOP_REQUESTS.get(key,(None,None))[0]==s.session_uid:
+    if key in STOP_REQUESTS and STOP_REQUESTS[key][0]==getattr(s,'session_uid',None):
      stopped,reason=await stop_active_match(ch,s,STOP_REQUESTS[key][1])
      if not stopped:raise RuntimeError('Game stop blocked: '+reason)
      break
