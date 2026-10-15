@@ -1,3 +1,4 @@
+from services.broadcast_studio import BroadcastConfig,replay_reason,shot_identity,mode as broadcast_mode
 import asyncio,discord,logging
 from discord import app_commands
 from discord.ext import commands
@@ -7,7 +8,7 @@ from services.game_engine import GameSession
 from services.state import SESSIONS
 from services.media import pick
 from services.lane_visual import lane_card,lane_sequence
-from services.shot_animation import animated_shot,DISCORD_PLAYBACK_HEADROOM_SECONDS
+from services.shot_animation import animated_shot,replay_shot,DISCORD_PLAYBACK_HEADROOM_SECONDS
 from services.bowler_sprites import sprite_key,has_sequence,APPROACH_FRAME_SECONDS
 from services.audio import play_sound
 from services.presentation import classify,AUDIO_MAP,GIF_MAP,layout_policy
@@ -332,6 +333,30 @@ async def animate_delivery(channel,session,event,prior_cards,prior_scores,delay)
       ball_frame=index+1,ball_progress=progress)
    await asyncio.sleep(frame_delay)
 
+
+async def broadcast_replay(channel,session,event):
+ """Read-only slow-motion replay of an already-delivered shot."""
+ reason=replay_reason(event,session)
+ if not reason or not BroadcastConfig().replay:return False
+ try:
+  clip,duration=await asyncio.to_thread(replay_shot,session,event,BroadcastConfig().slow_motion)
+  if clip is None:return False
+  current=LANE_MESSAGES.get(channel.id)
+  if current is None:return False
+  shot=getattr(session,'ball_count',0)
+  picture=discord.File(clip,filename=f'gs_replay_{session.seed}_{shot}.gif')
+  embed=scoreboard_embed(session,event,stage='impact')
+  embed.set_footer(text=f'🎥 {reason} • Recorded delivery replay — no extra shot')
+  await current.edit(embed=embed,attachments=[picture])
+  await asyncio.sleep(duration+DISCORD_PLAYBACK_HEADROOM_SECONDS)
+  await update_lane(channel,session,event,'leave')
+  return True
+ except Exception:
+  logging.exception('Broadcast replay failed; game result remains untouched')
+  try:await update_lane(channel,session,event,'leave')
+  except Exception:logging.exception('Could not restore lane after replay')
+  return False
+
 async def publish_victory(channel,session,last_event=None):
  """Edit the one live graphic to the champion's optional cheer.png pose.
 
@@ -437,6 +462,8 @@ class Games(commands.Cog):
    if not stopped:raise RuntimeError('Game stop blocked: '+reason)
    return
   await update_lane(ch,s,ev,'leave',director=director)
+  if not getattr(s,'broadcast_replay_off',False):
+   await broadcast_replay(ch,s,ev)
   if STOP_REQUESTS.get(key,(None,None))[0]==s.session_uid:
    stopped,reason=await stop_active_match(ch,s,STOP_REQUESTS[key][1])
    if not stopped:raise RuntimeError('Game stop blocked: '+reason)
