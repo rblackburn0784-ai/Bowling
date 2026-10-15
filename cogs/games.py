@@ -235,17 +235,15 @@ async def publish_match_intro(channel,session):
   return False
 
 async def publish_match_final(channel,session,winner):
- """A final results card only for tournament/competition/finals; no gameplay writes."""
- if not (is_finals(session) or getattr(session,'tournament_id',None) or getattr(session,'fixture_id',None)):
-  return False
+ """Display the closing scorecard after all completed matches; visual only."""
  try:
-  label='🏆 CHAMPIONSHIP RESULT' if is_finals(session) else '🏁 OFFICIAL MATCH RESULT'
+  label='🏆 CHAMPIONSHIP RESULT' if is_finals(session) else '🏁 MATCH COMPLETE'
   await channel.send(label,file=discord.File(final_card(session,winner),
                      filename=f'gs_final_{session.seed}.png'))
   if is_finals(session):await play_sound(channel,'champion')
   return True
  except Exception:
-  logging.exception('Final presentation card unavailable; committed results remain valid')
+  logging.exception('Final presentation card unavailable; completed result remains valid')
   return False
 
 async def post_match_controls(channel,session,introduce=False):
@@ -560,7 +558,8 @@ class Games(commands.Cog):
    await ch.send(embed=scoreboard_embed(s))
    s.persisted=True
    await publish_victory(ch,s,last_event)
-   await publish_match_final(ch,s,None)
+   friendly_winner=winning_bowler(s)
+   await publish_match_final(ch,s,friendly_winner.bowler.name if friendly_winner else None)
    LANE_MESSAGES.pop(key,None)
    SESSIONS.pop(key,None)
    clear_session(key)
