@@ -452,19 +452,19 @@ class Games(commands.Cog):
   s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id']
   save_snapshot(key,s,'post_ball')
   await animate_delivery(ch,s,ev,prior_cards,prior_scores,AUTO_FRAME_DELAY)
-  if STOP_REQUESTS.get(key,(None,None))[0]==s.session_uid:
+  if key in STOP_REQUESTS and STOP_REQUESTS[key][0]==getattr(s,'session_uid',None):
    stopped,reason=await stop_active_match(ch,s,STOP_REQUESTS[key][1])
    if not stopped:raise RuntimeError('Game stop blocked: '+reason)
    return
   director=await self.reaction(ch,s,ev)
-  if STOP_REQUESTS.get(key,(None,None))[0]==s.session_uid:
+  if key in STOP_REQUESTS and STOP_REQUESTS[key][0]==getattr(s,'session_uid',None):
    stopped,reason=await stop_active_match(ch,s,STOP_REQUESTS[key][1])
    if not stopped:raise RuntimeError('Game stop blocked: '+reason)
    return
   await update_lane(ch,s,ev,'leave',director=director)
   if not getattr(s,'broadcast_replay_off',False):
    await broadcast_replay(ch,s,ev)
-  if STOP_REQUESTS.get(key,(None,None))[0]==s.session_uid:
+  if key in STOP_REQUESTS and STOP_REQUESTS[key][0]==getattr(s,'session_uid',None):
    stopped,reason=await stop_active_match(ch,s,STOP_REQUESTS[key][1])
    if not stopped:raise RuntimeError('Game stop blocked: '+reason)
    return
