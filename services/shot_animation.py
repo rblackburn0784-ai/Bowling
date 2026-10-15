@@ -33,7 +33,7 @@ REPLAY_SEQUENCE=(
 )
 REPLAY_DURATION_SECONDS=sum(x[-1] for x in REPLAY_SEQUENCE)/1000
 
-def _frames(session,event,size,sequence):
+def _frames(session,event,size,sequence=ANIMATION_SEQUENCE):
     frames=[]
     for stage,pose,progress,impact,_ in sequence:
         frame=scene_renderer.render_scene_image(session,event,stage,
@@ -44,7 +44,7 @@ def _frames(session,event,size,sequence):
         frames.append(transition_ribbon(frame,stage,is_finals(session)))
     return frames
 
-def _encode(frames,sequence):
+def _encode(frames,sequence=ANIMATION_SEQUENCE):
     w,h=frames[0].size
     montage=Image.new('RGB',(w,h))
     sample_ids=(0,min(3,len(frames)-1),min(5,len(frames)-1),len(frames)-1)
