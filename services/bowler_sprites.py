@@ -1,7 +1,7 @@
 """Five-frame transparent PNG approach sprites; no changes to bowling physics."""
 from functools import lru_cache
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageChops
 
 ROOT = Path(__file__).resolve().parent.parent
 SPRITE_DIR = ROOT / 'assets' / 'sprites'
@@ -24,6 +24,33 @@ def _image(key, frame):
     except (OSError, ValueError):
         return None
 
+def _remove_flattened_checker(image):
+    """Recover transparency when old cheer PNGs baked in a grey checkerboard.
+
+    Only applies to *opaque* images whose corners look like the supplied
+    light-neutral transparency preview. Actual transparent PNGs and opaque
+    photos without these corners are not altered. Cached at load time.
+    """
+    rgba=image.convert('RGBA')
+    if rgba.getchannel('A').getextrema()[0] < 255:
+        return rgba
+    points=((0,0),(rgba.width-1,0),(0,rgba.height-1),
+            (rgba.width-1,rgba.height-1))
+    corners=[rgba.getpixel(p)[:3] for p in points]
+    if not all(min(pixel)>=200 and max(pixel)-min(pixel)<=12
+               for pixel in corners):
+        return rgba
+    r,g,b=rgba.split()[:3]
+    highest=ImageChops.lighter(r,ImageChops.lighter(g,b))
+    lowest=ImageChops.darker(r,ImageChops.darker(g,b))
+    spread=ImageChops.subtract(highest,lowest)
+    light=lowest.point(lambda v:255 if v>=204 else 0)
+    neutral=spread.point(lambda v:255 if v<=9 else 0)
+    alpha=ImageChops.invert(ImageChops.multiply(light,neutral))
+    rgba.putalpha(alpha)
+    return rgba
+
+
 @lru_cache(maxsize=8)
 def celebration_image(key):
     """Optional victory pose from assets/sprites/<character>/cheer.png.
@@ -38,7 +65,7 @@ def celebration_image(key):
         return None
     try:
         with Image.open(path) as source:
-            rgba=source.convert('RGBA')
+            rgba=_remove_flattened_checker(source)
             bbox=rgba.getbbox()
             return rgba.crop(bbox) if bbox else None
     except (OSError, ValueError):
