@@ -6,6 +6,8 @@ PATTERNS = {
     "oily": {"name":"Neon Flood 44'","length":44,"volume":.82,"ratio":4.0},
     "dry": {"name":"Burnt Saints 37'","length":37,"volume":.30,"ratio":6.0},
     "transition": {"name":"Transition 40'","length":40,"volume":.46,"ratio":5.0},
+    "sport": {"name":"Saints Sport 42'","length":42,"volume":.61,"ratio":2.9},
+    "heavy": {"name":"Neon Heavy 45'","length":45,"volume":.86,"ratio":3.4},
 }
 
 @dataclass
