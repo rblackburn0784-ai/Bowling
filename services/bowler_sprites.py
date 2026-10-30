@@ -1,17 +1,36 @@
 """Five-frame transparent PNG approach sprites; no changes to bowling physics."""
 from functools import lru_cache
+import re
 from pathlib import Path
 from PIL import Image, ImageChops
 
 ROOT = Path(__file__).resolve().parent.parent
 SPRITE_DIR = ROOT / 'assets' / 'sprites'
 SUPPORTED = ('the_dude', 'jesus')
+MAX_CHOICES=20
 FRAMES = 5
 APPROACH_FRAME_SECONDS = 0.18
 
+def installed_sprites():
+    return _discover_installed(str(SPRITE_DIR.resolve()))
+
+@lru_cache(maxsize=8)
+def _discover_installed(folder):
+    directory=Path(folder)
+    if not directory.is_dir():return ()
+    names=sorted(x.name for x in directory.iterdir()
+                 if x.is_dir() and re.fullmatch(r'[a-z][a-z0-9_]{0,39}',x.name))
+    ordered=list(SUPPORTED)+[x for x in names if x not in SUPPORTED]
+    return tuple(k for k in ordered if k in names and has_sequence(k))[:MAX_CHOICES]
+
+def sprite_label(key):
+    return {'the_dude':'The Dude','jesus':'Jesus'}.get(
+        key,key.replace('_',' ').title() if key else 'Standard / Unassigned')
+
 @lru_cache(maxsize=32)
 def _image(key, frame):
-    if key not in SUPPORTED or not 1 <= frame <= FRAMES:
+    if (not re.fullmatch(r'[a-z][a-z0-9_]{0,39}',str(key))
+            or not (SPRITE_DIR/key).is_dir() or not 1 <= frame <= FRAMES):
         return None
     path = SPRITE_DIR / key / f'{frame}.png'
     if not path.is_file():
@@ -58,7 +77,7 @@ def celebration_image(key):
     Missing artwork must not crash or block game completion. Keeps the
     numbered five-frame approach animations entirely unchanged.
     """
-    if key not in SUPPORTED:
+    if not key or not re.fullmatch(r'[a-z][a-z0-9_]{0,39}',str(key)):
         return None
     path=SPRITE_DIR/key/'cheer.png'
     if not path.is_file():
@@ -77,7 +96,7 @@ def sprite_key(bowler):
     explicit = getattr(bowler, 'sprite_key', None)
     if explicit == 'none':
         return None
-    if explicit in SUPPORTED:
+    if explicit in installed_sprites():
         return explicit
     name = bowler.name.casefold().replace(' ', '').replace('_','')
     if name in ('thedude','dude'):
@@ -87,7 +106,8 @@ def sprite_key(bowler):
     return None
 
 def has_sequence(key):
-    return key in SUPPORTED and all(_image(key,frame) is not None for frame in range(1,FRAMES+1))
+    return bool(key and re.fullmatch(r'[a-z][a-z0-9_]{0,39}',str(key)) and
+                (SPRITE_DIR/key).is_dir() and all(_image(key,frame) is not None for frame in range(1,FRAMES+1)))
 
 def draw_approach(base, bowler, frame):
     """Return True when a sprite was composited. Coordinate system: original 680×760 lane."""
@@ -120,7 +140,7 @@ def assign_match_sprites(bowlers):
     occupied = set()
     for bowler in players:
         character = sprite_key(bowler)
-        if character in SUPPORTED:
+        if character in installed_sprites():
             occupied.add(character)
     for bowler in players:
         if getattr(bowler, 'sprite_key', None) is not None:
@@ -129,11 +149,12 @@ def assign_match_sprites(bowlers):
         if natural:
             bowler.sprite_key = natural
             continue
-        choice = next((key for key in SUPPORTED if key not in occupied),None)
-        if choice is None:
-            choice = SUPPORTED[sum(1 for p in players[:players.index(bowler)]
-                                   if getattr(p, 'sprite_key', None) in SUPPORTED) % len(SUPPORTED)]
+        playable = installed_sprites()
+        choice = next((key for key in playable if key not in occupied),None)
+        if choice is None and playable:
+            choice=playable[sum(1 for p in players[:players.index(bowler)]
+                               if getattr(p,'sprite_key',None) in playable) % len(playable)]
         bowler.sprite_key=choice
-        occupied.add(choice)
+        if choice:occupied.add(choice)
     return {getattr(bowler, 'id',idx):sprite_key(bowler)
             for idx,bowler in enumerate(players)}

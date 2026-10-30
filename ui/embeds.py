@@ -2,7 +2,7 @@ import discord
 from services.commentary import event_text,perfect_watch
 from services.dude_commentary import stage_line
 from services.showtime import result_cue, STAGE_LABELS, is_finals
-from services.bowler_sprites import sprite_key, has_sequence
+from services.bowler_sprites import sprite_key, has_sequence, sprite_label
 from services.career import rank_title,rank_progress
 from services.v25 import archetype
 from services.v271 import bowler_loadout
@@ -24,6 +24,7 @@ def bowler_embed(b):
     scores=[x['score'] for x in recent][::-1];form=' '.join('🟢' if x>=avg+10 else '🔴' if x<=avg-10 else '🟡' for x in scores) if scores else '—'
     load=bowler_loadout(b.id);ball=BALLS.get(load.get('primary_ball','hybrid'))
     e=discord.Embed(title=f'🎳 {b.name} — Career Profile',description=f"{b.handedness}-handed • **{rank_title(b.rank)} — Rank {b.rank}** • **{archetype(b)}**\nXP **{xp}**"+(f" / **{nxt}** • Next-rank progress **{progress:.0f}%**" if nxt else " • **MAX RANK**")+f"\nPreferred ball: **{ball.name if ball else 'Hybrid'}**")
+    e.add_field(name='🎭 Selected Character',value=f'**{sprite_label(getattr(b,"sprite_key",None))}**',inline=False)
     e.add_field(name='📈 Recent Form',value=f"{form}\n"+(('Last 5: '+' · '.join(map(str,scores))) if scores else 'No completed games yet')+f"\nCareer Avg **{avg:.1f}** • PB **{s.get('high_game',0)}**",inline=False)
     lines=[]
     for n in ('accuracy','consistency','spin','nerves','style','flair'):
