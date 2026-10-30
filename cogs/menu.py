@@ -1,11 +1,98 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from services.roster import get_bowler_by_owner,list_bowlers
+from services.roster import get_bowler_by_owner,list_bowlers,update_owned_sprite
 from storage.database import connect
 from ui.embeds import bowler_embed
 from services.equipment import BALLS
 from services.v271 import bowler_loadout,set_bowler_ball
+from services.bowler_sprites import installed_sprites,sprite_label
+from services.sprite_preview import render_sprite_preview,PREVIEW_FILENAME
+
+
+def bowler_art_file(key):
+ return discord.File(render_sprite_preview(key),filename=PREVIEW_FILENAME)
+
+def art_embed(title,key,description):
+ e=discord.Embed(title=title,description=description,colour=discord.Color.from_rgb(44,167,219))
+ e.add_field(name='🎭 Selected Sprite',value=f'**{sprite_label(key)}** • {len(installed_sprites())}/20 installed',inline=False)
+ e.set_image(url=f'attachment://{PREVIEW_FILENAME}')
+ return e
+
+class OwnedView(discord.ui.View):
+ def __init__(self,owner_id,timeout=600):
+  super().__init__(timeout=timeout);self.owner_id=owner_id
+ async def interaction_check(self,i):
+  if i.user.id != self.owner_id:
+   await i.response.send_message('Only the bowler owner can change this selection.',ephemeral=True)
+   return False
+  return True
+
+class SpriteChoiceSelect(discord.ui.Select):
+ def __init__(self,state):
+  self.state=state
+  keys=installed_sprites()
+  super().__init__(placeholder='Select your bowling character',row=0,
+      options=[discord.SelectOption(label=sprite_label(key),value=key,
+          default=key==state.sprite,description='Five-frame bowling animation') for key in keys])
+ async def callback(self,i):
+  key=self.values[0]
+  if key not in installed_sprites():
+   return await i.response.send_message('That sprite is currently unavailable.',ephemeral=True)
+  self.state.sprite=key
+  is_new=isinstance(self.state,BowlerBuildState)
+  view=CreateSpriteView(self.state) if is_new else EditSpriteView(self.state)
+  embed=art_embed(f'🎳 Create {self.state.name} — Choose Character' if is_new else f'🎭 Edit {self.state.name}',
+       key,'Select your animated bowler, then continue.' if is_new else 'Choose a sprite and press **Save Sprite**. Rank and attributes are unchanged.')
+  await i.response.edit_message(embed=embed,view=view,attachments=[bowler_art_file(key)])
+
+class CreateSpriteView(OwnedView):
+ def __init__(self,state):
+  super().__init__(state.owner_id);self.state=state
+  if installed_sprites():self.add_item(SpriteChoiceSelect(state))
+  else:self.next.disabled=True
+ @discord.ui.button(label='Next: Build Stats',style=discord.ButtonStyle.success,row=2)
+ async def next(self,i,b):
+  if self.state.sprite not in installed_sprites():
+   return await i.response.send_message('Choose an installed sprite first.',ephemeral=True)
+  await i.response.edit_message(embed=builder_embed(self.state,1),view=StatPageOne(self.state))
+ @discord.ui.button(label='Cancel',style=discord.ButtonStyle.secondary,row=2)
+ async def cancel(self,i,b):await i.response.edit_message(content='Bowler creation cancelled.',embed=None,view=HomeView(),attachments=[])
+
+class EditSpriteState:
+ def __init__(self,bowler,owner_id):
+  self.name=bowler.name;self.owner_id=owner_id
+  keys=installed_sprites();preferred=bowler.sprite_key
+  self.sprite=preferred if preferred in keys else (keys[0] if keys else None)
+
+class EditSpriteView(OwnedView):
+ def __init__(self,state):
+  super().__init__(state.owner_id);self.state=state
+  if installed_sprites():self.add_item(SpriteChoiceSelect(state))
+  else:self.save.disabled=True
+ @discord.ui.button(label='Save Sprite',style=discord.ButtonStyle.success,row=2)
+ async def save(self,i,b):
+  result,error=update_owned_sprite(i.user.id,self.state.sprite)
+  if not result:return await i.response.send_message(error,ephemeral=True)
+  bowler=get_bowler_by_owner(i.user.id)
+  embed=bowler_embed(bowler);embed.set_image(url=f'attachment://{PREVIEW_FILENAME}')
+  await i.response.edit_message(embed=embed,view=CareerView(bowler.id),attachments=[bowler_art_file(self.state.sprite)])
+ @discord.ui.button(label='Cancel',style=discord.ButtonStyle.secondary,row=2)
+ async def cancel(self,i,b):
+  bowler=get_bowler_by_owner(i.user.id)
+  if bowler:
+   embed=bowler_embed(bowler);embed.set_image(url=f'attachment://{PREVIEW_FILENAME}')
+   await i.response.edit_message(embed=embed,view=CareerView(bowler.id),attachments=[bowler_art_file(bowler.sprite_key)])
+  else:await i.response.edit_message(content='No bowler linked.',embed=None,view=HomeView(),attachments=[])
+
+async def open_sprite_editor(i,bowler):
+ keys=installed_sprites()
+ if not keys:
+  return await i.response.send_message('No complete character animation packs installed. Each character needs 1.png–5.png in assets/sprites/<key>/.',ephemeral=True)
+ state=EditSpriteState(bowler,i.user.id)
+ await i.response.send_message(embed=art_embed(f'🎭 Edit {state.name}',state.sprite,
+     'Choose a sprite and press **Save Sprite**. Rank and attributes are unchanged.'),
+     view=EditSpriteView(state),file=bowler_art_file(state.sprite),ephemeral=True)
 
 def admin_ok(i):return bool(i.user.guild_permissions.administrator or i.user.guild_permissions.manage_guild)
 async def swap(i,title,view,body='Choose an option below.'):
@@ -29,11 +116,17 @@ class BowlerIdentityModal(discord.ui.Modal,title='Create Bowler'):
   if get_bowler_by_owner(i.user.id):return await i.response.send_message('You already have a linked bowler.',ephemeral=True)
   hand=self.handedness.value.strip().upper()
   if hand not in ('R','L'):return await i.response.send_message('Handedness must be R or L.',ephemeral=True)
-  state=BowlerBuildState(self.name.value.strip(),hand)
-  await i.response.send_message(embed=builder_embed(state,1),view=StatPageOne(state),ephemeral=True)
+  if not self.name.value.strip():return await i.response.send_message('Enter a bowler name.',ephemeral=True)
+  keys=installed_sprites()
+  if not keys:return await i.response.send_message('No complete bowler animation packs installed.',ephemeral=True)
+  state=BowlerBuildState(self.name.value.strip(),hand,i.user.id)
+  state.sprite=keys[0]
+  await i.response.send_message(embed=art_embed(f'🎳 Create {state.name} — Choose Character',state.sprite,
+      'Select your character below. You can change it later from **Edit Bowler**.'),
+      view=CreateSpriteView(state),file=bowler_art_file(state.sprite),ephemeral=True)
 class BowlerBuildState:
- def __init__(self,name,hand):
-  self.name=name;self.hand=hand;self.stats={'accuracy':5,'style':5,'flair':5,'consistency':5,'spin':5,'nerves':5}
+ def __init__(self,name,hand,owner_id=None):
+  self.name=name;self.hand=hand;self.owner_id=owner_id;self.sprite=None;self.stats={'accuracy':5,'style':5,'flair':5,'consistency':5,'spin':5,'nerves':5}
  @property
  def used(self):return sum(self.stats.values())
  @property
@@ -47,6 +140,8 @@ def builder_embed(state,page):
  colour=discord.Color.green() if state.remaining>=0 else discord.Color.red()
  e=discord.Embed(title=f'🎳 Build {state.name}',description='\n'.join(lines),colour=colour)
  e.add_field(name='Career Rank',value='**Rookie — Rank 1** (earned through play)',inline=False)
+ e.add_field(name='🎭 Your Sprite',value=f'**{sprite_label(state.sprite)}**',inline=False)
+ e.set_image(url=f'attachment://{PREVIEW_FILENAME}')
  e.add_field(name='Points',value=f'**Used:** {state.used} / {DEFAULT_STAT_BUDGET}\n**Remaining:** {state.remaining}',inline=False)
  e.set_footer(text=f'Stat Builder • Page {page}/2 • Creation range 5–25 • Career range 1–50')
  return e
@@ -60,17 +155,17 @@ class StatSelect(discord.ui.Select):
   page=1 if self.key in ('accuracy','style','flair') else 2
   view=StatPageOne(self.state) if page==1 else StatPageTwo(self.state)
   await i.response.edit_message(embed=builder_embed(self.state,page),view=view)
-class StatPageOne(discord.ui.View):
+class StatPageOne(OwnedView):
  def __init__(self,state):
-  super().__init__(timeout=600);self.state=state
+  super().__init__(state.owner_id);self.state=state
   for row,(key,label) in enumerate((('accuracy','Accuracy'),('style','Style'),('flair','Flair'))):self.add_item(StatSelect(state,key,label,row))
  @discord.ui.button(label='Next: More Stats',emoji='➡️',style=discord.ButtonStyle.primary,row=4)
  async def nxt(self,i,b):await i.response.edit_message(embed=builder_embed(self.state,2),view=StatPageTwo(self.state))
  @discord.ui.button(label='Cancel',style=discord.ButtonStyle.secondary,row=4)
  async def cancel(self,i,b):await i.response.edit_message(content='Bowler creation cancelled.',embed=None,view=HomeView())
-class StatPageTwo(discord.ui.View):
+class StatPageTwo(OwnedView):
  def __init__(self,state):
-  super().__init__(timeout=600);self.state=state
+  super().__init__(state.owner_id);self.state=state
   for row,(key,label) in enumerate((('consistency','Consistency'),('spin','Spin'),('nerves','Nerves'))):self.add_item(StatSelect(state,key,label,row))
   self.create.disabled=state.remaining!=0
  @discord.ui.button(label='Back',emoji='⬅️',style=discord.ButtonStyle.secondary,row=3)
@@ -85,7 +180,10 @@ class StatPageTwo(discord.ui.View):
   if any(x<CREATION_MIN_STAT or x>CREATION_MAX_STAT for x in self.state.stats.values()):return await i.response.send_message(f'Every starting stat must be between {CREATION_MIN_STAT} and {CREATION_MAX_STAT}.',ephemeral=True)
   if get_bowler_by_owner(i.user.id):return await i.response.send_message('You already have a linked bowler.',ephemeral=True)
   v=self.state.stats
-  try:create_bowler(Bowler(None,self.state.name,i.user.id,self.state.hand,1,v['accuracy'],v['style'],v['flair'],v['consistency'],v['spin'],v['nerves']))
+  if self.state.sprite not in installed_sprites():return await i.response.send_message('Character artwork is unavailable.',ephemeral=True)
+  character=Bowler(None,self.state.name,i.user.id,self.state.hand,1,v['accuracy'],v['style'],v['flair'],v['consistency'],v['spin'],v['nerves'])
+  character.sprite_key=self.state.sprite
+  try:create_bowler(character)
   except Exception as e:return await i.response.send_message(f'Could not create bowler: {e}',ephemeral=True)
   await i.response.edit_message(content=f"🎳 **{self.state.name}** created with **{self.state.used}/{DEFAULT_STAT_BUDGET}** points.",embed=None,view=HomeView())
  @discord.ui.button(label='Cancel',style=discord.ButtonStyle.danger,row=3)
@@ -136,6 +234,12 @@ class ArsenalView(HomeView):
  def __init__(self,bowler_id):super().__init__();self.add_item(BallSelect(bowler_id))
 class CareerView(HomeView):
  def __init__(self,bowler_id):super().__init__();self.bowler_id=bowler_id
+ @discord.ui.button(label='Change Sprite',emoji='🎭',style=discord.ButtonStyle.success)
+ async def sprite(self,i,b):
+  bowler=get_bowler_by_owner(i.user.id)
+  if not bowler or bowler.id!=self.bowler_id:
+   return await i.response.send_message('Only the linked bowler owner can edit this sprite.',ephemeral=True)
+  await open_sprite_editor(i,bowler)
  @discord.ui.button(label='Career Progress',emoji='📈',style=discord.ButtonStyle.primary)
  async def progress(self,i,b):
   from services.career_finale import career_profile
@@ -175,7 +279,14 @@ class PublicMenu(discord.ui.View):
  async def mine(self,i,b):
   x=get_bowler_by_owner(i.user.id)
   if not x:return await i.response.send_message('You do not have a linked bowler yet — use **Create Bowler**.',ephemeral=True)
-  await i.response.send_message(embed=bowler_embed(x),view=CareerView(x.id),ephemeral=True)
+  embed=bowler_embed(x)
+  embed.set_image(url=f'attachment://{PREVIEW_FILENAME}')
+  await i.response.send_message(embed=embed,view=CareerView(x.id),file=bowler_art_file(x.sprite_key),ephemeral=True)
+ @discord.ui.button(label='Edit Bowler',emoji='🎭',style=discord.ButtonStyle.primary,custom_id='gs:editbowler')
+ async def edit_bowler(self,i,b):
+  bowler=get_bowler_by_owner(i.user.id)
+  if not bowler:return await i.response.send_message('Create your linked bowler first.',ephemeral=True)
+  await open_sprite_editor(i,bowler)
  @discord.ui.button(label='Career Records',emoji='🏛️',style=discord.ButtonStyle.secondary,custom_id='gs:records')
  async def records(self,i,b):
   from cogs.dashboard_ui import CareerRecordView

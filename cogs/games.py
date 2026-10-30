@@ -1,3 +1,4 @@
+from services.broadcast_studio import BroadcastConfig,replay_reason,shot_identity,mode as broadcast_mode
 import asyncio,discord,logging
 from discord import app_commands
 from discord.ext import commands
@@ -7,7 +8,7 @@ from services.game_engine import GameSession
 from services.state import SESSIONS
 from services.media import pick
 from services.lane_visual import lane_card,lane_sequence
-from services.shot_animation import animated_shot,DISCORD_PLAYBACK_HEADROOM_SECONDS
+from services.shot_animation import animated_shot,replay_shot,DISCORD_PLAYBACK_HEADROOM_SECONDS
 from services.bowler_sprites import sprite_key,has_sequence,APPROACH_FRAME_SECONDS
 from services.audio import play_sound
 from services.presentation import classify,AUDIO_MAP,GIF_MAP,layout_policy
@@ -235,17 +236,15 @@ async def publish_match_intro(channel,session):
   return False
 
 async def publish_match_final(channel,session,winner):
- """A final results card only for tournament/competition/finals; no gameplay writes."""
- if not (is_finals(session) or getattr(session,'tournament_id',None) or getattr(session,'fixture_id',None)):
-  return False
+ """Display the closing scorecard after all completed matches; visual only."""
  try:
-  label='🏆 CHAMPIONSHIP RESULT' if is_finals(session) else '🏁 OFFICIAL MATCH RESULT'
+  label='🏆 CHAMPIONSHIP RESULT' if is_finals(session) else '🏁 MATCH COMPLETE'
   await channel.send(label,file=discord.File(final_card(session,winner),
                      filename=f'gs_final_{session.seed}.png'))
   if is_finals(session):await play_sound(channel,'champion')
   return True
  except Exception:
-  logging.exception('Final presentation card unavailable; committed results remain valid')
+  logging.exception('Final presentation card unavailable; completed result remains valid')
   return False
 
 async def post_match_controls(channel,session,introduce=False):
@@ -333,6 +332,30 @@ async def animate_delivery(channel,session,event,prior_cards,prior_scores,delay)
       prior_cards=prior_cards,prior_scores=prior_scores,
       ball_frame=index+1,ball_progress=progress)
    await asyncio.sleep(frame_delay)
+
+
+async def broadcast_replay(channel,session,event):
+ """Read-only slow-motion replay of an already-delivered shot."""
+ reason=replay_reason(event,session)
+ if not reason or not BroadcastConfig().replay:return False
+ try:
+  clip,duration=await asyncio.to_thread(replay_shot,session,event,BroadcastConfig().slow_motion)
+  if clip is None:return False
+  current=LANE_MESSAGES.get(channel.id)
+  if current is None:return False
+  shot=getattr(session,'ball_count',0)
+  picture=discord.File(clip,filename=f'gs_replay_{session.seed}_{shot}.gif')
+  embed=scoreboard_embed(session,event,stage='impact')
+  embed.set_footer(text=f'🎥 {reason} • Recorded delivery replay — no extra shot')
+  await current.edit(embed=embed,attachments=[picture])
+  await asyncio.sleep(duration+DISCORD_PLAYBACK_HEADROOM_SECONDS)
+  await update_lane(channel,session,event,'leave')
+  return True
+ except Exception:
+  logging.exception('Broadcast replay failed; game result remains untouched')
+  try:await update_lane(channel,session,event,'leave')
+  except Exception:logging.exception('Could not restore lane after replay')
+  return False
 
 async def publish_victory(channel,session,last_event=None):
  """Edit the one live graphic to the champion's optional cheer.png pose.
@@ -429,17 +452,19 @@ class Games(commands.Cog):
   s.last_attribute_changes=ev['attribute_changes'];s.last_attribute_bowler_id=ev['bowler_id']
   save_snapshot(key,s,'post_ball')
   await animate_delivery(ch,s,ev,prior_cards,prior_scores,AUTO_FRAME_DELAY)
-  if STOP_REQUESTS.get(key,(None,None))[0]==s.session_uid:
+  if key in STOP_REQUESTS and STOP_REQUESTS[key][0]==getattr(s,'session_uid',None):
    stopped,reason=await stop_active_match(ch,s,STOP_REQUESTS[key][1])
    if not stopped:raise RuntimeError('Game stop blocked: '+reason)
    return
   director=await self.reaction(ch,s,ev)
-  if STOP_REQUESTS.get(key,(None,None))[0]==s.session_uid:
+  if key in STOP_REQUESTS and STOP_REQUESTS[key][0]==getattr(s,'session_uid',None):
    stopped,reason=await stop_active_match(ch,s,STOP_REQUESTS[key][1])
    if not stopped:raise RuntimeError('Game stop blocked: '+reason)
    return
   await update_lane(ch,s,ev,'leave',director=director)
-  if STOP_REQUESTS.get(key,(None,None))[0]==s.session_uid:
+  if not getattr(s,'broadcast_replay_off',False):
+   await broadcast_replay(ch,s,ev)
+  if key in STOP_REQUESTS and STOP_REQUESTS[key][0]==getattr(s,'session_uid',None):
    stopped,reason=await stop_active_match(ch,s,STOP_REQUESTS[key][1])
    if not stopped:raise RuntimeError('Game stop blocked: '+reason)
    return
@@ -560,7 +585,8 @@ class Games(commands.Cog):
    await ch.send(embed=scoreboard_embed(s))
    s.persisted=True
    await publish_victory(ch,s,last_event)
-   await publish_match_final(ch,s,None)
+   friendly_winner=winning_bowler(s)
+   await publish_match_final(ch,s,friendly_winner.bowler.name if friendly_winner else None)
    LANE_MESSAGES.pop(key,None)
    SESSIONS.pop(key,None)
    clear_session(key)
