@@ -1,4 +1,5 @@
 import discord
+from services.menu_navigation import edit_panel, menu_home, modal_panel
 from discord import app_commands
 from discord.ext import commands
 from services.roster import get_bowler_by_owner,list_bowlers,update_owned_sprite
@@ -88,19 +89,18 @@ class EditSpriteView(OwnedView):
 async def open_sprite_editor(i,bowler):
  keys=installed_sprites()
  if not keys:
-  return await i.response.send_message('No complete character animation packs installed. Each character needs 1.png–5.png in assets/sprites/<key>/.',ephemeral=True)
+  return await edit_panel(i, content='No complete character animation packs installed. Each character needs 1.png–5.png in assets/sprites/<key>/.')
  state=EditSpriteState(bowler,i.user.id)
- await i.response.send_message(embed=art_embed(f'🎭 Edit {state.name}',state.sprite,
-     'Choose a sprite and press **Save Sprite**. Rank and attributes are unchanged.'),
-     view=EditSpriteView(state),file=bowler_art_file(state.sprite),ephemeral=True)
+ await edit_panel(i, embed=art_embed(f'🎭 Edit {state.name}',state.sprite,
+     'Choose a sprite and press **Save Sprite**. Rank and attributes are unchanged.'), view=EditSpriteView(state), file=bowler_art_file(state.sprite))
 
 def admin_ok(i):return bool(i.user.guild_permissions.administrator or i.user.guild_permissions.manage_guild)
 async def swap(i,title,view,body='Choose an option below.'):
- await i.response.edit_message(content=f'{title}\n{body}',embed=None,view=view)
+ await edit_panel(i, content=f'{title}\n{body}', embed=None, view=view)
 class HomeView(discord.ui.View):
  def __init__(self):super().__init__(timeout=300)
  @discord.ui.button(label='🏠 Main Menu',style=discord.ButtonStyle.secondary)
- async def home(self,i,b):await i.response.send_message('🎳 **THE GUTTER SAINTS**',view=PublicMenu(admin=admin_ok(i)),ephemeral=True)
+ async def home(self,i,b):await edit_panel(i, content='🎳 **THE GUTTER SAINTS**', view=PublicMenu(admin=admin_ok(i)))
 class AdminHomeView(HomeView):
  async def interaction_check(self,i):
   if not admin_ok(i):
@@ -108,7 +108,7 @@ class AdminHomeView(HomeView):
    return False
   return True
  @discord.ui.button(label='🛠️ Admin Home',style=discord.ButtonStyle.secondary)
- async def adminhome(self,i,b):await i.response.send_message('🛠️ **Gutter Saints Admin Control**',view=AdminMenu(),ephemeral=True)
+ async def adminhome(self,i,b):await edit_panel(i, content='🛠️ **Gutter Saints Admin Control**', view=AdminMenu())
 class BowlerIdentityModal(discord.ui.Modal,title='Create Bowler'):
  name=discord.ui.TextInput(label='Bowler name',max_length=32)
  handedness=discord.ui.TextInput(label='Handedness',placeholder='R or L',default='R',max_length=1)
@@ -121,9 +121,8 @@ class BowlerIdentityModal(discord.ui.Modal,title='Create Bowler'):
   if not keys:return await i.response.send_message('No complete bowler animation packs installed.',ephemeral=True)
   state=BowlerBuildState(self.name.value.strip(),hand,i.user.id)
   state.sprite=keys[0]
-  await i.response.send_message(embed=art_embed(f'🎳 Create {state.name} — Choose Character',state.sprite,
-      'Select your character below. You can change it later from **Edit Bowler**.'),
-      view=CreateSpriteView(state),file=bowler_art_file(state.sprite),ephemeral=True)
+  await modal_panel(i, embed=art_embed(f'🎳 Create {state.name} — Choose Character',state.sprite,
+      'Select your character below. You can change it later from **Edit Bowler**.'), view=CreateSpriteView(state), file=bowler_art_file(state.sprite))
 class BowlerBuildState:
  def __init__(self,name,hand,owner_id=None):
   self.name=name;self.hand=hand;self.owner_id=owner_id;self.sprite=None;self.stats={'accuracy':5,'style':5,'flair':5,'consistency':5,'spin':5,'nerves':5}
@@ -229,7 +228,7 @@ class AdminMenu(HomeView):
 class BallSelect(discord.ui.Select):
  def __init__(self,bowler_id):
   self.bowler_id=bowler_id;super().__init__(placeholder='Choose primary strike ball',options=[discord.SelectOption(label=v.name,value=k,description=f'Hook {v.hook:.2f} • Length {v.length:.2f} • Control {v.control:.2f}') for k,v in BALLS.items()])
- async def callback(self,i):set_bowler_ball(self.bowler_id,self.values[0]);await i.response.send_message(f'🎳 Primary ball set to **{BALLS[self.values[0]].name}**. Spares use Plastic automatically.',ephemeral=True)
+ async def callback(self,i):set_bowler_ball(self.bowler_id,self.values[0]);await edit_panel(i, content=f'🎳 Primary ball set to **{BALLS[self.values[0]].name}**. Spares use Plastic automatically.', view=ArsenalView(self.bowler_id))
 class ArsenalView(HomeView):
  def __init__(self,bowler_id):super().__init__();self.add_item(BallSelect(bowler_id))
 class CareerView(HomeView):
@@ -244,28 +243,28 @@ class CareerView(HomeView):
  async def progress(self,i,b):
   from services.career_finale import career_profile
   p=career_profile(self.bowler_id)
-  if not p:return await i.response.send_message('Bowler unavailable.',ephemeral=True)
+  if not p:return await edit_panel(i, content='Bowler unavailable.', view=CareerView(self.bowler_id))
   next_rank=f"{p['xp']}/{p['next_rank_xp']} XP to next rank" if p['next_rank_xp'] is not None else 'Maximum rank reached'
   skills=' • '.join(f"{key.title()} {value}" for key,value in p['attributes'].items())
-  await i.response.send_message(f"📈 **{p['name']} — Career**\n**Rank {p['rank']} — {p['rank_title']}**\n{next_rank} ({p['rank_percent']:.1f}%)\n**{p['games']} games** • Average {p['average']:.2f} • High {p['high_game']}\nAchievements **{p['achievement_count']}** • Honours **{p['honours_count']}**\nCosmetic exhibition XP: **{p['cosmetic_xp']}** (does not affect rank)\n{skills}",ephemeral=True)
+  await edit_panel(i, content=f"📈 **{p['name']} — Career**\n**Rank {p['rank']} — {p['rank_title']}**\n{next_rank} ({p['rank_percent']:.1f}%)\n**{p['games']} games** • Average {p['average']:.2f} • High {p['high_game']}\nAchievements **{p['achievement_count']}** • Honours **{p['honours_count']}**\nCosmetic exhibition XP: **{p['cosmetic_xp']}** (does not affect rank)\n{skills}", view=CareerView(self.bowler_id))
  @discord.ui.button(label='Career Timeline',emoji='🕰️',style=discord.ButtonStyle.primary)
  async def timeline(self,i,b):
   from services.career import recent_timeline
   rows=recent_timeline(self.bowler_id,15)
   text='\n'.join(f"{r['icon']} **{r['headline']}** — {r['detail']}" for r in rows) or 'No career milestones yet.'
-  await i.response.send_message('🕰️ **CAREER TIMELINE**\n'+text,ephemeral=True)
+  await edit_panel(i, content='🕰️ **CAREER TIMELINE**\n'+text, view=CareerView(self.bowler_id))
  @discord.ui.button(label='Honours',emoji='🏆',style=discord.ButtonStyle.success)
  async def honours(self,i,b):
   from services.honours import honours_for_bowler
   rows=honours_for_bowler(self.bowler_id)
   text='\n'.join(f"• **{r['title']}** — {r['detail']}" for r in rows[:15]) or 'No career honours yet.'
-  await i.response.send_message('🏆 **CAREER HONOURS**\n'+text,ephemeral=True)
+  await edit_panel(i, content='🏆 **CAREER HONOURS**\n'+text, view=CareerView(self.bowler_id))
  @discord.ui.button(label='Tendencies',emoji='🧬',style=discord.ButtonStyle.secondary)
  async def tendencies(self,i,b):
   from services.career import tendency_summary
   rows=tendency_summary(self.bowler_id)
   text='\n'.join(f"**{r['stat'].title()}**: {r['score']:+.1f} ({r['evidence']} recent signals)" for r in rows) or 'No strong tendencies yet.'
-  await i.response.send_message('🧬 **CAREER TENDENCIES**\n'+text+'\n\n±10 sustained evidence triggers an attribute change.',ephemeral=True)
+  await edit_panel(i, content='🧬 **CAREER TENDENCIES**\n'+text+'\n\n±10 sustained evidence triggers an attribute change.', view=CareerView(self.bowler_id))
 class PublicMenu(discord.ui.View):
  def __init__(self,admin=False):
   super().__init__(timeout=None)
@@ -281,7 +280,7 @@ class PublicMenu(discord.ui.View):
   if not x:return await i.response.send_message('You do not have a linked bowler yet — use **Create Bowler**.',ephemeral=True)
   embed=bowler_embed(x)
   embed.set_image(url=f'attachment://{PREVIEW_FILENAME}')
-  await i.response.send_message(embed=embed,view=CareerView(x.id),file=bowler_art_file(x.sprite_key),ephemeral=True)
+  await edit_panel(i, embed=embed, view=CareerView(x.id), file=bowler_art_file(x.sprite_key))
  @discord.ui.button(label='Edit Bowler',emoji='🎭',style=discord.ButtonStyle.primary,custom_id='gs:editbowler')
  async def edit_bowler(self,i,b):
   bowler=get_bowler_by_owner(i.user.id)
@@ -290,45 +289,45 @@ class PublicMenu(discord.ui.View):
  @discord.ui.button(label='Career Records',emoji='🏛️',style=discord.ButtonStyle.secondary,custom_id='gs:records')
  async def records(self,i,b):
   from cogs.dashboard_ui import CareerRecordView
-  await i.response.send_message('🏛️ **Career Records**\nCompare earned records; averages require three completed games.',view=CareerRecordView(),ephemeral=True)
+  await edit_panel(i, content='🏛️ **Career Records**\nCompare earned records; averages require three completed games.', view=CareerRecordView())
  @discord.ui.button(label='My Stats',emoji='📊',style=discord.ButtonStyle.secondary,custom_id='gs:mystats')
  async def stats(self,i,b):
   x=get_bowler_by_owner(i.user.id)
   if not x:return await i.response.send_message('Create a bowler first.',ephemeral=True)
-  await i.response.send_message(embed=bowler_embed(x),view=HomeView(),ephemeral=True)
+  await edit_panel(i, embed=bowler_embed(x), view=HomeView())
  @discord.ui.button(label='Achievements',emoji='🏅',style=discord.ButtonStyle.secondary,custom_id='gs:achievements')
  async def achievements(self,i,b):
   x=get_bowler_by_owner(i.user.id)
   if not x:return await i.response.send_message('Create a bowler first.',ephemeral=True)
   with connect() as c:r=c.execute('SELECT title FROM achievements WHERE bowler_id=? ORDER BY earned_at',(x.id,)).fetchall()
-  await i.response.send_message('🏅 **Achievements**\n'+('\n'.join('• '+a['title'] for a in r) or 'None yet.'),view=HomeView(),ephemeral=True)
+  await edit_panel(i, content='🏅 **Achievements**\n'+('\n'.join('• '+a['title'] for a in r) or 'None yet.'), view=HomeView())
  @discord.ui.button(label='My Arsenal',emoji='🎯',style=discord.ButtonStyle.secondary,custom_id='gs:arsenal')
  async def arsenal(self,i,b):
   x=get_bowler_by_owner(i.user.id)
   if not x:return await i.response.send_message('Create a bowler first.',ephemeral=True)
-  load=bowler_loadout(x.id);await i.response.send_message(f"🎯 **{x.name}'s Arsenal**\nPrimary: **{BALLS[load.get('primary_ball','hybrid')].name}**",view=ArsenalView(x.id),ephemeral=True)
+  load=bowler_loadout(x.id);await edit_panel(i, content=f"🎯 **{x.name}'s Arsenal**\nPrimary: **{BALLS[load.get('primary_ball','hybrid')].name}**", view=ArsenalView(x.id))
  @discord.ui.button(label='Browse Bowlers',emoji='👀',style=discord.ButtonStyle.secondary,custom_id='gs:browse')
- async def browse(self,i,b):await i.response.send_message('🎳 **Bowlers**\n'+('\n'.join('• '+x['name'] for x in list_bowlers()) or 'None'),view=HomeView(),ephemeral=True)
+ async def browse(self,i,b):await edit_panel(i, content='🎳 **Bowlers**\n'+('\n'.join('• '+x['name'] for x in list_bowlers()) or 'None'), view=HomeView())
  @discord.ui.button(label='Challenge Bowler',emoji='⚔️',style=discord.ButtonStyle.primary,custom_id='gs:challenge')
  async def challenge(self,i,b):
   if not get_bowler_by_owner(i.user.id):return await i.response.send_message('Create your linked bowler before challenging anyone.',ephemeral=True)
   from cogs.friendly_challenges import ChallengeComposer
-  await i.response.send_message('⚔️ **Friendly Exhibition Challenge** — Select a linked opponent. A public invitation will appear in this channel for them to accept or decline.',view=ChallengeComposer(i.user.id),ephemeral=True)
+  await edit_panel(i, content='⚔️ **Friendly Exhibition Challenge** — Select a linked opponent. A public invitation will appear in this channel for them to accept or decline.', view=ChallengeComposer(i.user.id))
  @discord.ui.button(label='Season Hub',emoji='📅',style=discord.ButtonStyle.secondary,custom_id='gs:seasonhub')
  async def seasonhub(self,i,b):
   from cogs.season_ui import SeasonExperience
-  await i.response.send_message('📅 **Gutter Saints Season Hub**',view=SeasonExperience(),ephemeral=True)
+  await edit_panel(i, content='📅 **Gutter Saints Season Hub**', view=SeasonExperience())
  @discord.ui.button(label='My Competition',emoji='🏆',style=discord.ButtonStyle.primary,custom_id='gs:mycompetition')
  async def mycompetition(self,i,b):
   from cogs.competition_ui import my_competitions_embed
-  await i.response.send_message(embed=my_competitions_embed(i.user.id),view=HomeView(),ephemeral=True)
+  await edit_panel(i, embed=my_competitions_embed(i.user.id), view=HomeView())
  @discord.ui.button(label='Gutter Gazette',emoji='📰',style=discord.ButtonStyle.primary,custom_id='gs:gazette')
  async def gazette(self,i,b):
   from services.gazette import latest_gazette,format_gazette,gazette_archive
   g=latest_gazette()
   archive=gazette_archive(5)
   tail='\n\n**Recent Issues**\n'+'\n'.join(f"• #{x['issue_no']} — {x['tournament']}: {x['headline']}" for x in archive) if archive else ''
-  await i.response.send_message(format_gazette(g)+tail,view=HomeView(),ephemeral=True)
+  await edit_panel(i, content=format_gazette(g)+tail, view=HomeView())
  @discord.ui.button(label='Admin Control',emoji='🛠️',style=discord.ButtonStyle.danger,custom_id='gs:admin')
  async def admin(self,i,b):
   if not admin_ok(i):return await i.response.send_message('Admin/Manage Server permission required.',ephemeral=True)
