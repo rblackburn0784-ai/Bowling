@@ -16,20 +16,32 @@ def installed_sprites():
 
 @lru_cache(maxsize=8)
 def _discover_installed(folder):
-    directory=Path(folder)
-    if not directory.is_dir():return ()
-    names=sorted(x.name for x in directory.iterdir()
-                 if x.is_dir() and re.fullmatch(r'[a-z][a-z0-9_]{0,39}',x.name))
-    ordered=list(SUPPORTED)+[x for x in names if x not in SUPPORTED]
-    return tuple(k for k in ordered if k in names and has_sequence(k))[:MAX_CHOICES]
+    """Select up to 20 working characters, prioritising numbered 01–20 packs.
+
+    Legacy The Dude and Jesus characters remain usable by saved bowlers.
+    Each offered character must have five readable 1.png–5.png frames.
+    """
+    directory = Path(folder)
+    if not directory.is_dir():
+        return ()
+    names = sorted(child.name for child in directory.iterdir()
+                   if child.is_dir() and re.fullmatch(r'[a-z0-9][a-z0-9_]{0,39}', child.name))
+    numbered = [name for name in names if re.fullmatch(r'\d{2}_[a-z0-9_]+', name)]
+    other = [name for name in names if name not in numbered and name not in SUPPORTED]
+    ordered = numbered + other + list(SUPPORTED)
+    return tuple(name for name in ordered if name in names and has_sequence(name))[:MAX_CHOICES]
 
 def sprite_label(key):
-    return {'the_dude':'The Dude','jesus':'Jesus'}.get(
-        key,key.replace('_',' ').title() if key else 'Standard / Unassigned')
+    if key == 'the_dude':return 'The Dude'
+    if key == 'jesus':return 'Jesus'
+    if key and re.fullmatch(r'\d{2}_[a-z0-9_]+',key):
+        return f'{key[:2]} · {key[3:].replace("_"," ").title()}'
+    return key.replace('_',' ').title() if key else 'Standard / Unassigned'
 
-@lru_cache(maxsize=32)
+
+@lru_cache(maxsize=128)
 def _image(key, frame):
-    if (not re.fullmatch(r'[a-z][a-z0-9_]{0,39}',str(key))
+    if (not re.fullmatch(r'[a-z0-9][a-z0-9_]{0,39}',str(key))
             or not (SPRITE_DIR/key).is_dir() or not 1 <= frame <= FRAMES):
         return None
     path = SPRITE_DIR / key / f'{frame}.png'
@@ -77,7 +89,7 @@ def celebration_image(key):
     Missing artwork must not crash or block game completion. Keeps the
     numbered five-frame approach animations entirely unchanged.
     """
-    if not key or not re.fullmatch(r'[a-z][a-z0-9_]{0,39}',str(key)):
+    if not key or not re.fullmatch(r'[a-z0-9][a-z0-9_]{0,39}',str(key)):
         return None
     path=SPRITE_DIR/key/'cheer.png'
     if not path.is_file():
@@ -96,7 +108,7 @@ def sprite_key(bowler):
     explicit = getattr(bowler, 'sprite_key', None)
     if explicit == 'none':
         return None
-    if explicit in installed_sprites():
+    if explicit and has_sequence(explicit):
         return explicit
     name = bowler.name.casefold().replace(' ', '').replace('_','')
     if name in ('thedude','dude'):
@@ -106,7 +118,7 @@ def sprite_key(bowler):
     return None
 
 def has_sequence(key):
-    return bool(key and re.fullmatch(r'[a-z][a-z0-9_]{0,39}',str(key)) and
+    return bool(key and re.fullmatch(r'[a-z0-9][a-z0-9_]{0,39}',str(key)) and
                 (SPRITE_DIR/key).is_dir() and all(_image(key,frame) is not None for frame in range(1,FRAMES+1)))
 
 def draw_approach(base, bowler, frame):
@@ -140,7 +152,7 @@ def assign_match_sprites(bowlers):
     occupied = set()
     for bowler in players:
         character = sprite_key(bowler)
-        if character in installed_sprites():
+        if character and has_sequence(character):
             occupied.add(character)
     for bowler in players:
         if getattr(bowler, 'sprite_key', None) is not None:
