@@ -91,7 +91,7 @@ class ConventionalScoreRules(unittest.TestCase):
 class SecondDeliveryGameRules(unittest.TestCase):
     def test_two_balls_same_player_same_lane_and_true_remaining_pins(self):
         s=GameSession([bowler(1),bowler(2)],seed=101)
-        with patch('services.game_engine.roll_pins',side_effect=controlled_rolls([7,3,10,10])):
+        with patch('services.physics_v296.roll_pins',side_effect=controlled_rolls([7,3,10,10])):
             one=s.bowl()
             self.assertEqual((one['bowler_id'],one['frame'],one['ball']), (1,1,1))
             self.assertEqual(one['after'],[8,9,10])
@@ -116,7 +116,7 @@ class SecondDeliveryGameRules(unittest.TestCase):
             self.assertEqual(four['before'],sorted(ALL))
     def test_first_nine_gutter_followed_by_ten_is_spare_not_strike(self):
         session=GameSession([bowler(1)],seed=42)
-        with patch('services.game_engine.roll_pins',
+        with patch('services.physics_v296.roll_pins',
                    side_effect=controlled_rolls([0,10])):
             first=session.bowl()
             second=session.bowl()
@@ -132,13 +132,13 @@ class SecondDeliveryGameRules(unittest.TestCase):
 
     def test_snapshot_restores_mid_frame_with_same_lane(self):
         session=GameSession([bowler(1),bowler(2)],seed=41)
-        with patch('services.game_engine.roll_pins',side_effect=controlled_rolls([7])):
+        with patch('services.physics_v296.roll_pins',side_effect=controlled_rolls([7])):
             first=session.bowl()
         restored=session_from_dict(session_dict(session))
         self.assertEqual(restored.current().bowler.id,1)
         self.assertEqual(restored.current().ball,2)
         self.assertEqual(restored.current().standing,set(first['after']))
-        with patch('services.game_engine.roll_pins',side_effect=controlled_rolls([3])):
+        with patch('services.physics_v296.roll_pins',side_effect=controlled_rolls([3])):
             second=restored.bowl()
         self.assertEqual(second['lane_no'],first['lane_no'])
         self.assertEqual(second['before'],first['after'])
@@ -153,7 +153,7 @@ class SecondDeliveryGameRules(unittest.TestCase):
         return s
     def test_tenth_strike_three_balls_same_lane_correct_numbers(self):
         session=self._prepare_tenth()
-        with patch('services.game_engine.roll_pins',side_effect=controlled_rolls([10,7,3])):
+        with patch('services.physics_v296.roll_pins',side_effect=controlled_rolls([10,7,3])):
             events=[session.bowl() for _ in range(3)]
         self.assertEqual([e['ball'] for e in events],[1,2,3])
         self.assertEqual([e['lane_no'] for e in events],[3,3,3])
@@ -165,7 +165,7 @@ class SecondDeliveryGameRules(unittest.TestCase):
         self.assertEqual(frame_notation(session.players[0].frames[9]),'X7/')
     def test_tenth_spare_refills_new_rack_for_bonus(self):
         session=self._prepare_tenth()
-        with patch('services.game_engine.roll_pins',side_effect=controlled_rolls([9,1,10])):
+        with patch('services.physics_v296.roll_pins',side_effect=controlled_rolls([9,1,10])):
             events=[session.bowl() for _ in range(3)]
         self.assertEqual([e['ball'] for e in events],[1,2,3])
         self.assertEqual([e['lane_no'] for e in events],[3,3,3])
@@ -176,7 +176,7 @@ class SecondDeliveryGameRules(unittest.TestCase):
         self.assertEqual(frame_notation(session.players[0].frames[9]),'9/X')
     def test_tenth_gutter_spare_and_bonus_strike_are_not_three_strikes(self):
         session=self._prepare_tenth()
-        with patch('services.game_engine.roll_pins',
+        with patch('services.physics_v296.roll_pins',
                    side_effect=controlled_rolls([0,10,10])):
             events=[session.bowl() for _ in range(3)]
         self.assertEqual(frame_notation(session.players[0].frames[9]),'-/X')
@@ -188,7 +188,7 @@ class SecondDeliveryGameRules(unittest.TestCase):
 
     def test_tenth_strike_gutter_then_spare_uses_plastic_third(self):
         session=self._prepare_tenth()
-        with patch('services.game_engine.roll_pins',
+        with patch('services.physics_v296.roll_pins',
                    side_effect=controlled_rolls([10,0,10])):
             events=[session.bowl() for _ in range(3)]
         self.assertEqual(frame_notation(session.players[0].frames[9]),'X-/')
@@ -203,7 +203,7 @@ class SecondDeliveryGameRules(unittest.TestCase):
 
     def test_tenth_open_ends_after_two(self):
         session=self._prepare_tenth()
-        with patch('services.game_engine.roll_pins',side_effect=controlled_rolls([7,2])):
+        with patch('services.physics_v296.roll_pins',side_effect=controlled_rolls([7,2])):
             events=[session.bowl() for _ in range(2)]
         self.assertEqual([e['ball'] for e in events],[1,2])
         self.assertTrue(session.complete)

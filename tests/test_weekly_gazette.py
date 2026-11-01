@@ -50,7 +50,7 @@ class GazetteTests(unittest.TestCase):
  def test_missing_season(self):
   with self.assertRaises(ValueError):season_gazette.publish(999,'2026-10-07')
  def test_permission_guard_present(self):
-  source=Path(__file__).resolve().parents[1].joinpath('cogs','season_ui.py').read_text()
+  source=Path(__file__).resolve().parents[1].joinpath('cogs','season_ui.py').read_text(encoding='utf-8')
   self.assertIn('guild_permissions.manage_guild',source)
 
 if __name__=='__main__':unittest.main()

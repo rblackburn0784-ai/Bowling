@@ -236,16 +236,20 @@ async def publish_match_intro(channel,session):
   return False
 
 async def publish_match_final(channel,session,winner):
- """Display the closing scorecard after all completed matches; visual only."""
+ # A visual-only, idempotent finish marker; never re-bowls or awards XP.
+ if getattr(session,'_showtime_final_sent',False):return False
  try:
   label='🏆 CHAMPIONSHIP RESULT' if is_finals(session) else '🏁 MATCH COMPLETE'
-  await channel.send(label,file=discord.File(final_card(session,winner),
-                     filename=f'gs_final_{session.seed}.png'))
-  if is_finals(session):await play_sound(channel,'champion')
-  return True
+  picture=discord.File(final_card(session,winner),filename=f'gs_final_{session.seed}.png')
+  await channel.send(label,file=picture)
+  session._showtime_final_sent=True
  except Exception:
   logging.exception('Final presentation card unavailable; completed result remains valid')
   return False
+ if is_finals(session):
+  try:await play_sound(channel,'champion')
+  except Exception:logging.exception('Championship audio unavailable; scoreboard already published')
+ return True
 
 async def post_match_controls(channel,session,introduce=False):
  """Live controls. Intro runs for new starts only; Undo/Restore never re-announces."""
@@ -398,7 +402,7 @@ async def send_media(channel,kind):
 class Games(commands.Cog):
  def __init__(self,bot):self.bot=bot
  @app_commands.command(name='game_start',description='Start an unranked team exhibition (no career, ranking or achievements)')
- @app_commands.choices(lane=[app_commands.Choice(name=x.title(),value=x) for x in ['house','fresh','dry','oily','transition']],
+ @app_commands.choices(lane=[app_commands.Choice(name=x.title(),value=x) for x in ['house','fresh','dry','oily','transition','sport','heavy']],
                         layout=[app_commands.Choice(name=x.title(),value=x) for x in ['standard','broadcast','finals','chaos']])
  async def start(self,i:discord.Interaction,team:str,opponent:str|None=None,lane:app_commands.Choice[str]|None=None,seed:int|None=None,layout:app_commands.Choice[str]|None=None):
   if channel_has_active_match(i.channel_id):
@@ -422,11 +426,13 @@ class Games(commands.Cog):
   await post_match_controls(i.channel,s,introduce=True)
  @app_commands.command(name='bowler_sprite',description='Set the character sprite for a registered bowler')
  @app_commands.default_permissions(manage_guild=True)
- @app_commands.choices(character=[app_commands.Choice(name='The Dude',value='the_dude'),app_commands.Choice(name='Jesus',value='jesus'),app_commands.Choice(name='No Sprite',value='none')])
+ @app_commands.choices(character=[app_commands.Choice(name='The Dude',value='the_dude'),app_commands.Choice(name='Jesus',value='jesus'),app_commands.Choice(name='01 · Cardigan Classic',value='01_cardigan_classic'),app_commands.Choice(name='02 · Purple Showman',value='02_purple_showman'),app_commands.Choice(name='03 · Pink Storm',value='03_pink_storm'),app_commands.Choice(name='04 · Blue Flame Veteran',value='04_blue_flame_veteran'),app_commands.Choice(name='05 · Red Thunder',value='05_red_thunder'),app_commands.Choice(name='06 · Teal Braids',value='06_teal_braids'),app_commands.Choice(name='07 · Navy Gold',value='07_navy_gold'),app_commands.Choice(name='08 · Violet Auburn',value='08_violet_auburn'),app_commands.Choice(name='09 · Black Silver',value='09_black_silver'),app_commands.Choice(name='10 · Magenta Strike',value='10_magenta_strike'),app_commands.Choice(name='11 · Navy Orange',value='11_navy_orange'),app_commands.Choice(name='12 · Lime Flash',value='12_lime_flash'),app_commands.Choice(name='13 · Black Gold',value='13_black_gold'),app_commands.Choice(name='14 · Hot Pink',value='14_hot_pink'),app_commands.Choice(name='15 · White Red',value='15_white_red'),app_commands.Choice(name='16 · Teal Braid',value='16_teal_braid'),app_commands.Choice(name='17 · Forest Green',value='17_forest_green'),app_commands.Choice(name='18 · Royal Blue',value='18_royal_blue'),app_commands.Choice(name='19 · Silver Violet',value='19_silver_violet'),app_commands.Choice(name='20 · Metallic Silver',value='20_metallic_silver'),app_commands.Choice(name='No Sprite',value='none')])
  async def bowler_sprite(self,i:discord.Interaction,bowler:str,character:app_commands.Choice[str]):
   if not i.guild or not i.user.guild_permissions.manage_guild:
    return await i.response.send_message('Manage Server permission required.',ephemeral=True)
   key=character.value
+  if key!='none' and not has_sequence(key):
+   return await i.response.send_message('Character artwork not installed or missing an animation frame.',ephemeral=True)
   with connect() as db:
    cur=db.execute('UPDATE bowlers SET sprite_key=? WHERE name=? COLLATE NOCASE',(key,bowler))
   if not cur.rowcount:

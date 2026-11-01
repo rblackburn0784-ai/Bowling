@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[1]
 
 class MenuContractTests(unittest.TestCase):
     def _classes(self,path):
-        return {n.name:n for n in ast.parse((ROOT/path).read_text()).body if isinstance(n,ast.ClassDef)}
+        return {n.name:n for n in ast.parse((ROOT/path).read_text(encoding="utf-8")).body if isinstance(n,ast.ClassDef)}
     def test_new_public_records_are_not_admin_gated(self):
         menu=self._classes('cogs/menu.py')
         self.assertIn('PublicMenu',menu)

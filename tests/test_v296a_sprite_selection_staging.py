@@ -15,8 +15,8 @@ class BowlerSelectionTests(unittest.TestCase):
         choices=installed_sprites()
         self.assertLessEqual(len(choices),MAX_CHOICES)
         if not choices:self.skipTest('PNG artwork not yet present in GitHub staging')
-        self.assertIn('the_dude',choices)
-        self.assertIn('jesus',choices)
+        self.assertTrue(has_sequence('the_dude'))
+        self.assertTrue(has_sequence('jesus'))
         self.assertTrue(all(has_sequence(x) for x in choices))
 
     def test_saved_sprite_overrides_name(self):

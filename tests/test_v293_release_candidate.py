@@ -38,7 +38,7 @@ class PhysicsReleaseGates(unittest.TestCase):
         from services.legacy_v290_pin_engine import roll_pins as frozen
         from services.legacy_v290_impact_model import impact_geometry as old_geometry
         src=Path(__file__).resolve().parents[1]
-        self.assertEqual(GameSession([mk_bowler()],seed=3).physics_version,'2.9.3')
+        self.assertEqual(GameSession([mk_bowler()],seed=3).physics_version,'2.9.6')
         self.assertNotEqual(impact_geometry.__code__.co_code,old_geometry.__code__.co_code)
         a=GameSession([mk_bowler()],seed=431,lane='dry');a.physics_version='2.9.0'
         for _ in range(6):a.bowl()
@@ -52,7 +52,7 @@ class PhysicsReleaseGates(unittest.TestCase):
         self.assertEqual(a.scores(),b.scores())
         self.assertEqual(a.rng.getstate(),b.rng.getstate())
         # Old model is copied, not a delegating wrapper to the revised engine.
-        self.assertIn('def roll_pins(', (src/'services/legacy_v290_pin_engine.py').read_text())
+        self.assertIn('def roll_pins(', (src/'services/legacy_v290_pin_engine.py').read_text(encoding='utf-8'))
         self.assertIsNot(frozen,roll_pins)
 
     def test_geometry_physically_uses_hook_oil_entry_speed_revs_line_and_hand(self):
@@ -285,11 +285,11 @@ class DatabaseRecoveryGates(unittest.TestCase):
         x=s.bowl()
         save_snapshot(3991,s,'post_ball')
         restored=restore_session(3991)
-        self.assertEqual(restored.physics_version,'2.9.3')
+        self.assertEqual(restored.physics_version,'2.9.6')
         self.assertEqual(restored.ball_count,1)
         previous=undo_snapshot(3991)
         self.assertEqual(previous.ball_count,0)
-        self.assertEqual(previous.physics_version,'2.9.3')
+        self.assertEqual(previous.physics_version,'2.9.6')
         self.assertEqual(previous.bowl(),x)
 
 

@@ -128,8 +128,8 @@ class PresentationTests(unittest.TestCase):
     def test_admin_match_creation_paths_explicitly_choose_unranked(self):
         src=Path(__file__).resolve().parents[1]
         for name in ('cogs/games.py','cogs/dashboard_ui.py'):
-            self.assertIn('s.friendly_challenge=True', (src/name).read_text())
-            self.assertIn('s.practice_no_rewards=True', (src/name).read_text())
+            self.assertIn('s.friendly_challenge=True', (src/name).read_text(encoding="utf-8"))
+            self.assertIn('s.practice_no_rewards=True', (src/name).read_text(encoding="utf-8"))
 
 
 if __name__=='__main__':unittest.main()

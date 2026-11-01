@@ -115,6 +115,7 @@ class V290PhysicsTests(unittest.TestCase):
         # On a new-version session, injecting the known previous engine must
         # give identical results and consume the same RNG draws as restore.
         parallel=GameSession([bowler(1,25)],seed=9827,lane='oily')
+        parallel.physics_version='2.9.3'  # frozen historical model
         with patch('services.game_engine.roll_pins',side_effect=old_engine):
             for _ in range(4):parallel.bowl()
         self.assertEqual(parallel.rng.getstate(),restored.rng.getstate())

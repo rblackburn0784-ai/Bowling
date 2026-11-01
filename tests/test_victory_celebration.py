@@ -97,8 +97,15 @@ class VictoryPublishingTests(unittest.IsolatedAsyncioTestCase):
                 Image.new('RGB',(100,100)).save(image_path)
                 with patch('cogs.games.render_victory_scene',return_value=image_path), \
                      patch('cogs.games.scoreboard_embed',return_value=discord.Embed(title='Live Game')):
-                    done=await games.publish_victory(channel,session,
-                        {'before':[1],'down':[1],'after':[],'bowler_id':2})
+                    try:
+                        done=await games.publish_victory(channel,session,
+                            {'before':[1],'down':[1],'after':[],'bowler_id':2})
+                    finally:
+                        # A mocked Discord Message.edit does not consume/close File.
+                        # Windows refuses to unlink winner.png while File owns it.
+                        if message.edit.await_args is not None:
+                            for attachment in message.edit.await_args.kwargs.get('attachments', ()):
+                                attachment.close()
             self.assertTrue(done)
             message.edit.assert_awaited_once()
             self.assertIsNone(message.edit.await_args.kwargs['view'])

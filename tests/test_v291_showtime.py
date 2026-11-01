@@ -114,7 +114,9 @@ class ShowtimeVisualTests(unittest.TestCase):
             image=Image.open(out);image.verify()
             out.seek(0)
             self.assertEqual(Image.open(out).size,(WIDTH,HEIGHT))
-            self.assertLess(len(out.getvalue()),900_000)
+            # v2.9.6c uses detailed 1672×941 photographic neon scoreboards.
+            # Keep the image below the typical 8 MB Discord upload threshold.
+            self.assertLess(len(out.getvalue()),8_000_000)
 
     def test_long_names_and_12_bowlers_stay_in_frame(self):
         s=session()

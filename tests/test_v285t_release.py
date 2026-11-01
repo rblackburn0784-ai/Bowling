@@ -1,6 +1,7 @@
 """v2.8.5t: end-to-end SQL and renderer hardening regressions (no Discord required)."""
 import copy
 import tempfile
+from contextlib import closing
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -196,7 +197,7 @@ class ReleaseIntegrityTests(unittest.TestCase):
             created=backup_database('before result')
         self.assertTrue(created.is_file())
         import sqlite3
-        with sqlite3.connect(created) as db:
+        with closing(sqlite3.connect(created)) as db:
             self.assertEqual(db.execute('PRAGMA quick_check').fetchone()[0],'ok')
             self.assertEqual(db.execute('SELECT COUNT(*) FROM bowlers').fetchone()[0],2)
 

@@ -161,7 +161,7 @@ def assign_match_sprites(bowlers):
         if natural:
             bowler.sprite_key = natural
             continue
-        playable = installed_sprites()
+        playable = tuple(k for k in SUPPORTED if has_sequence(k)) + tuple(k for k in installed_sprites() if k not in SUPPORTED)
         choice = next((key for key in playable if key not in occupied),None)
         if choice is None and playable:
             choice=playable[sum(1 for p in players[:players.index(bowler)]
