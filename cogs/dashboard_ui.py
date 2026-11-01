@@ -1,4 +1,5 @@
 import asyncio, discord
+from services.menu_navigation import edit_panel, menu_home, modal_panel
 from storage.database import connect
 from services.roster import create_team,add_team_member,team_roster
 from services.competition import create_tournament,add_entry,start_tournament,bracket
@@ -338,7 +339,7 @@ class RecordCategory(discord.ui.Select):
   info=' (minimum 3 games)' if self.values[0]=='average' else ''
   lines=[f"**{j}. {r['name']}** — {r['value']:.2f}" if self.values[0]=='average'
          else f"**{j}. {r['name']}** — {int(r['value'])}" for j,r in enumerate(results,1)]
-  await i.response.send_message(f"📊 **{name}{info}**\n"+('\n'.join(lines) or 'No qualified games yet.'),ephemeral=True)
+  await edit_panel(i, content=f"📊 **{name}{info}**\n"+('\n'.join(lines) or 'No qualified games yet.'), view=CareerRecordView())
 
 class CareerRecordView(discord.ui.View):
  def __init__(self):
@@ -346,7 +347,7 @@ class CareerRecordView(discord.ui.View):
  @discord.ui.button(label='🏠 Main Menu',style=discord.ButtonStyle.secondary,row=4)
  async def home(self,i,b):
   from cogs.menu import PublicMenu,admin_ok
-  await i.response.edit_message(content='🎳 **THE GUTTER SAINTS**',embed=None,view=PublicMenu(admin=admin_ok(i)))
+  await menu_home(i)
 
 class CompetitionHealthSelect(discord.ui.Select):
  def __init__(self):

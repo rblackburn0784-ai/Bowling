@@ -1,4 +1,5 @@
 import discord
+from services.menu_navigation import edit_panel, menu_home, modal_panel
 from storage.database import connect
 from services.state import SESSIONS
 PENDING=set()
@@ -15,6 +16,11 @@ class OpponentSelect(discord.ui.Select):
 class ChallengeComposer(discord.ui.View):
  def __init__(self,owner):
   super().__init__(timeout=300);self.owner=owner;self.target=None;self.add_item(OpponentSelect(self,owner))
+ @discord.ui.button(label='🏠 Main Menu',style=discord.ButtonStyle.secondary,row=2)
+ async def home(self,i,b):
+  if i.user.id!=self.owner:
+   return await i.response.send_message('Not your menu.',ephemeral=True)
+  await menu_home(i)
  @discord.ui.button(label='Send Challenge',style=discord.ButtonStyle.success,row=1)
  async def send(self,i,b):
   if i.user.id!=self.owner:return await i.response.send_message('Not your menu.',ephemeral=True)
@@ -35,7 +41,7 @@ class ChallengeComposer(discord.ui.View):
    await i.channel.send(notice,view=ChallengeResponse(key,i.user.id,z['owner_id'],a['id'],z['id']),allowed_mentions=discord.AllowedMentions(users=True,roles=False,everyone=False))
   except Exception:
    PENDING.discard(key);return await i.response.send_message('Unable to post challenge here.',ephemeral=True)
-  await i.response.send_message('Challenge posted.',ephemeral=True)
+  await edit_panel(i, content='Challenge posted.', view=ChallengeComposer(self.owner))
 
 class ChallengeResponse(discord.ui.View):
  def __init__(self,key,challenger,target,a,b):

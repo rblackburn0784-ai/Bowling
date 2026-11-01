@@ -1,4 +1,5 @@
 import io
+from services.menu_navigation import edit_panel, menu_home, modal_panel
 import discord
 from PIL import Image,ImageDraw,ImageFont
 from storage.database import connect
@@ -48,7 +49,7 @@ class SeasonSelect(discord.ui.Select):
   super().__init__(placeholder='Choose season',options=[discord.SelectOption(label=r['name'][:100],value=str(r['id'])) for r in rows] or [discord.SelectOption(label='No seasons available',value='0')])
  async def callback(self,i):
   self.owner_view.sid=int(self.values[0]);data=season_home(self.owner_view.sid)
-  await i.response.edit_message(embed=_embed('📅 Season Home',[f"**{data[0]['name']}** — {data[0]['status'].title()}",f"Competitions: {len(data[1])}"] if data else ['No season selected']),view=self.owner_view)
+  await edit_panel(i, embed=_embed('📅 Season Home',[f"**{data[0]['name']}** — {data[0]['status'].title()}",f"Competitions: {len(data[1])}"] if data else ['No season selected']), view=self.owner_view)
 
 class CompetitionSelect(discord.ui.Select):
  def __init__(self,parent,sid):
@@ -56,7 +57,7 @@ class CompetitionSelect(discord.ui.Select):
   with connect() as c:rows=c.execute('SELECT id,name FROM competitions WHERE season_id=? ORDER BY id DESC LIMIT 25',(sid,)).fetchall()
   super().__init__(placeholder='Choose season competition',options=[discord.SelectOption(label=r['name'][:100],value=str(r['id'])) for r in rows] or [discord.SelectOption(label='No competitions',value='0')],row=0)
  async def callback(self,i):
-  self.owner_view.cid=int(self.values[0]);await i.response.edit_message(embed=_embed('🏆 Competition selected',[f"Competition #{self.owner_view.cid}",'Choose Fixtures, Form Table or Zones below.']),view=self.owner_view)
+  self.owner_view.cid=int(self.values[0]);await edit_panel(i, embed=_embed('🏆 Competition selected',[f"Competition #{self.owner_view.cid}",'Choose Fixtures, Form Table or Zones below.']), view=self.owner_view)
 
 class LeagueWeekView(discord.ui.View):
  def __init__(self,sid):
@@ -69,16 +70,22 @@ class LeagueWeekView(discord.ui.View):
   if not await self.need(i):return
   round_no,fs=week_fixtures(self.cid);names=_names(self.cid,{x['home_id'] for x in fs if x['home_id']}|{x['away_id'] for x in fs if x['away_id']})
   lines=[f"**{names.get(f['home_id'],'BYE')}** vs **{names.get(f['away_id'],'BYE')}** • {f['status'].title()}"+(f" • {f['home_score']}–{f['away_score']}" if f['home_score'] is not None else '') for f in fs]
-  await i.response.send_message(embed=_embed(f'📅 Fixture Week • Round {round_no}',lines),ephemeral=True)
+  await edit_panel(i, embed=_embed(f'📅 Fixture Week • Round {round_no}',lines), view=self)
  @discord.ui.button(label='Form Table',style=discord.ButtonStyle.primary,row=1)
  async def form(self,i,b):
   if not await self.need(i):return
-  await i.response.send_message(embed=_embed('📈 League Form',[f"**{n}. {r['name']}** • {r['points']} pts • {form}" for n,r,zone,form in zones(self.cid)]),ephemeral=True)
+  await edit_panel(i, embed=_embed('📈 League Form',[f"**{n}. {r['name']}** • {r['points']} pts • {form}" for n,r,zone,form in zones(self.cid)]), view=self)
  @discord.ui.button(label='Promotion / Playoffs',style=discord.ButtonStyle.secondary,row=1)
  async def zone(self,i,b):
   if not await self.need(i):return
   symbols={'promotion':'⬆️','playoff':'🏆','relegation':'⬇️','safe':'•'}
-  await i.response.send_message(embed=_embed('🔥 Promotion, Playoffs & Relegation',[f"{symbols[z]} **{n}. {r['name']}** — {r['points']} pts • {form}" for n,r,z,form in zones(self.cid)]),ephemeral=True)
+  await edit_panel(i, embed=_embed('🔥 Promotion, Playoffs & Relegation',[f"{symbols[z]} **{n}. {r['name']}** — {r['points']} pts • {form}" for n,r,z,form in zones(self.cid)]), view=self)
+
+ @discord.ui.button(label='⬅️ Season Hub',style=discord.ButtonStyle.secondary,row=3)
+ async def season_back(self,i,b):
+  await edit_panel(i,content='📅 **Gutter Saints Season Hub**',view=SeasonExperience(self.sid))
+ @discord.ui.button(label='🏠 Main Menu',style=discord.ButtonStyle.secondary,row=4)
+ async def home(self,i,b):await menu_home(i)
 
 class SeasonExperience(discord.ui.View):
  def __init__(self,sid=None,admin=False):
@@ -92,10 +99,10 @@ class SeasonExperience(discord.ui.View):
   return True
  @discord.ui.button(label='Graphical Season Hub',style=discord.ButtonStyle.success,row=1)
  async def hub(self,i,b):
-  if await self.need(i):await i.response.send_message(file=season_card(self.sid),ephemeral=True)
+  if await self.need(i):await edit_panel(i, file=season_card(self.sid), view=self)
  @discord.ui.button(label='Fixtures & League',style=discord.ButtonStyle.primary,row=1)
  async def fixtures(self,i,b):
-  if await self.need(i):await i.response.send_message(embed=_embed('📅 League Match Centre',['Select a competition below.']),view=LeagueWeekView(self.sid),ephemeral=True)
+  if await self.need(i):await edit_panel(i, embed=_embed('📅 League Match Centre',['Select a competition below.']), view=LeagueWeekView(self.sid))
  @discord.ui.button(label='Season Awards',style=discord.ButtonStyle.primary,row=1)
  async def awards(self,i,b):
   if not await self.need(i):return
@@ -103,23 +110,26 @@ class SeasonExperience(discord.ui.View):
   for title,leaders in races.items():
    lines.append(f"**{title}**")
    lines.extend(f"• {r['name']} — {r['average']:.1f}" if title.startswith('Average') else f"• {r['name']} — {r[{'High Game':'high_game','Strikes':'strikes','Splits Converted':'split_conversions','Games Played':'games'}[title]]}" for r in leaders[:3])
-  await i.response.send_message(embed=_embed('🏅 Season Award Races',lines),ephemeral=True)
+  await edit_panel(i, embed=_embed('🏅 Season Award Races',lines), view=self)
  @discord.ui.button(label='League Records',style=discord.ButtonStyle.secondary,row=2)
  async def records(self,i,b):
-  if await self.need(i):await i.response.send_message(embed=_embed('🏛️ Season High Games',[f"{n}. **{r['name']}** — {r['score']}" for n,r in enumerate(season_records(self.sid),1)]),ephemeral=True)
+  if await self.need(i):await edit_panel(i, embed=_embed('🏛️ Season High Games',[f"{n}. **{r['name']}** — {r['score']}" for n,r in enumerate(season_records(self.sid),1)]), view=self)
  @discord.ui.button(label='Gazette Archive',style=discord.ButtonStyle.secondary,row=2)
  async def gazette(self,i,b):
   if not await self.need(i):return
   issues=archive(self.sid)
-  if not issues:return await i.response.send_message('No published weekly editions yet.',ephemeral=True)
-  await i.response.send_message(embed=_embed('Newspaper Archive',[f"**Issue #{x['issue_no']}** • {x['week_start']} to {x['week_end']} — {x['headline']}" for x in issues]),view=GazetteArchive(self.sid),ephemeral=True)
+  if not issues:return await edit_panel(i, content='No published weekly editions yet.', view=self)
+  await edit_panel(i, embed=_embed('Newspaper Archive',[f"**Issue #{x['issue_no']}** • {x['week_start']} to {x['week_end']} — {x['headline']}" for x in issues]), view=GazetteArchive(self.sid))
  @discord.ui.button(label='Publish Weekly Issue',style=discord.ButtonStyle.success,row=3)
  async def publish_week(self,i,b):
   if not await self.need(i):return
-  if not i.guild or not (i.user.guild_permissions.administrator or i.user.guild_permissions.manage_guild):return await i.response.send_message('Administrator or Manage Server permission required.',ephemeral=True)
+  if not i.guild or not (i.user.guild_permissions.administrator or i.user.guild_permissions.manage_guild):return await edit_panel(i, content='Administrator or Manage Server permission required.', view=self)
   try:issue,created=publish(self.sid)
-  except Exception as exc:return await i.response.send_message(f'Unable to publish: {type(exc).__name__}',ephemeral=True)
-  await i.response.send_message(embed=issue_embed(issue),file=discord.File(render_issue(issue),filename='gutter_gazette.png'),content='New edition published.' if created else 'This week already has an archived issue.',ephemeral=True)
+  except Exception as exc:return await edit_panel(i, content=f'Unable to publish: {type(exc).__name__}', view=self)
+  await edit_panel(i, embed=issue_embed(issue), file=discord.File(render_issue(issue),filename='gutter_gazette.png'), content='New edition published.' if created else 'This week already has an archived issue.', view=self)
+
+ @discord.ui.button(label='🏠 Main Menu',style=discord.ButtonStyle.secondary,row=4)
+ async def home(self,i,b):await menu_home(i)
 
 def issue_embed(x):
  return _embed(f"📰 Gazette • Issue #{x['issue_no']} • {x['week_start']}",[f"**{x['headline']}**",x['body']])
@@ -131,9 +141,14 @@ class GazetteIssuePick(discord.ui.Select):
   super().__init__(placeholder='Open archived issue',options=[discord.SelectOption(label=f"Issue #{x['issue_no']} — {x['week_start']}",value=str(x['issue_no'])) for x in issues] or [discord.SelectOption(label='No issues',value='0')])
  async def callback(self,i):
   x=get_issue(self.owner_view.sid,int(self.values[0]))
-  if not x:return await i.response.send_message('Issue unavailable.',ephemeral=True)
-  await i.response.send_message(embed=issue_embed(x),file=discord.File(render_issue(x),filename='gutter_gazette.png'),ephemeral=True)
+  if not x:return await edit_panel(i, content='Issue unavailable.', view=self.owner_view)
+  await edit_panel(i, embed=issue_embed(x), file=discord.File(render_issue(x),filename='gutter_gazette.png'), view=self.owner_view)
 
 class GazetteArchive(discord.ui.View):
  def __init__(self,sid):
   super().__init__(timeout=900);self.sid=sid;self.add_item(GazetteIssuePick(self))
+ @discord.ui.button(label='⬅️ Season Hub',style=discord.ButtonStyle.secondary,row=3)
+ async def season_back(self,i,b):
+  await edit_panel(i,content='📅 **Gutter Saints Season Hub**',view=SeasonExperience(self.sid))
+ @discord.ui.button(label='🏠 Main Menu',style=discord.ButtonStyle.secondary,row=4)
+ async def home(self,i,b):await menu_home(i)
